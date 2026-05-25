@@ -43,3 +43,7 @@ crashlytics-build.properties
 fabric.properties
 
 # End of https://www.gitignore.io/api/intellij
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml

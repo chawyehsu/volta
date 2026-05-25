@@ -11,76 +11,135 @@ jobs:
       matrix:
         include:
           - { name: "linux", os: "ubuntu-latest", suffix: "linux" }
-          - { name: "linux-arm", os: "ubuntu-22.04-arm", suffix: "linux-arm" }
-          - { name: "macos", os: "macos-latest" }
+          - { name: "linux-arm", os: "ubuntu-24.04-arm", suffix: "linux-arm" }
+          - { name: "macos", os: "macos-latest", suffix: "macos" }
           - { name: "windows", os: "windows-latest", suffix: "windows" }
-          - { name: "windows-arm", os: "windows-11-arm", suffix: "windows-arm" }
     name: Build - ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # Linux: build
-      - name: Compile Volta (Linux)
-        if: matrix.name == 'linux' || matrix.name == 'linux-arm'
-        run: cargo build --release
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@a0af7a228712d6121d37aba47adf55c1332c9c2e # v0.9.4
+        with:
+          run-install: false
 
-      - name: Inspect Volta glibc requirement (Linux)
+      # - name: Setup SCCache
+      #   uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+
+      # Linux: build
+      - name: Build (Linux)
+        if: matrix.name == 'linux' || matrix.name == 'linux-arm'
+        run: pixi run build --target-platform ${{ matrix.name == 'linux' && 'linux-64' || 'linux-aarch64' }} --output-dir out
+
+      # macOS: build
+      - name: Build (macOS)
+        if: matrix.name == 'macos'
+        run: |
+          mkdir out
+          pixi run build --target-platform osx-arm64
+          mv volta-*.conda out/volta-macos-arm.conda
+          pixi run build --target-platform osx-64
+          mv volta-*.conda out/volta-macos-x64.conda
+
+      # Windows: build
+      - name: Build (Windows)
+        if: matrix.name == 'windows' || matrix.name == 'windows-arm'
+        shell: pwsh
+        run: |
+          # Windows long-path issue workaround:
+          New-Item -ItemType Junction -Path C:\w -Target "${{ github.workspace }}"
+          cd C:\w
+          mkdir out
+          pixi run build --target-platform win-64
+          mv volta-*.conda out/volta-windows.conda
+          pixi run build --target-platform win-arm64
+          mv volta-*.conda out/volta-windows-arm.conda
+
+      - name: Inspect glibc requirement (Linux)
         if: matrix.name == 'linux' || matrix.name == 'linux-arm'
         run: |
-          cd target/release
+          cd out
+          mv volta*.conda volta.conda
+          pixi run bsdtar -xf volta.conda
+          mv pkg*.tar.zst pkg.tar.zst
+          pixi run bsdtar -xf pkg.tar.zst
+          cd bin
+          ls
           ldd -v volta
           objdump -T volta | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
 
-      - name: Package Volta (Linux)
+      - name: Package (Linux)
         if: matrix.name == 'linux' || matrix.name == 'linux-arm'
-        run: cd target/release && tar -zcvf "volta-${{ matrix.suffix }}.tar.gz" volta volta-shim volta-migrate
-
-      # macOS: universal binary build
-      - name: Set up cargo
-        if: matrix.name == 'macos'
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
-        with:
-          target: aarch64-apple-darwin,x86_64-apple-darwin
-
-      - name: Compile and package Volta (macOS)
-        if: matrix.name == 'macos'
-        run: ./ci/build-macos.sh volta-macos
-
-      # Windows: cargo-wix build
-      - name: Add cargo-wix subcommand
-        if: matrix.name == 'windows' || matrix.name == 'windows-arm'
-        run: cargo install --locked cargo-wix --version 0.3.8
-
-      - name: Compile and package installer
-        if: matrix.name == 'windows' || matrix.name == 'windows-arm'
         run: |
-          cargo wix --nocapture --package volta --output target\wix\volta-${{ matrix.suffix }}.msi
+          cd out/bin
+          tar -zcvf "volta-${{ matrix.suffix }}.tar.gz" volta volta-shim volta-migrate
+          mv "volta-${{ matrix.suffix }}.tar.gz" ../
 
-      - name: Create zip of binaries
-        if: matrix.name == 'windows' || matrix.name == 'windows-arm'
-        run: powershell Compress-Archive volta*.exe volta-${{ matrix.suffix }}.zip
-        working-directory: ./target/release
+      - name: Package (macOS)
+        if: matrix.name == 'macos'
+        run: |
+          cd out
+          pixi run bsdtar -xf volta-macos-arm.conda
+          mv pkg*.tar.zst pkg.tar.zst
+          pixi run bsdtar -xf pkg.tar.zst
+          rm *.tar.zst
+          mv bin volta-macos-arm
+          pixi run bsdtar -xf volta-macos-x64.conda
+          mv pkg*.tar.zst pkg.tar.zst
+          pixi run bsdtar -xf pkg.tar.zst
+          rm *.tar.zst
+          mv bin volta-macos-x64
+          mkdir bin
+          for exe in volta volta-shim volta-migrate
+          do
+            lipo -create -output "bin/$exe" "volta-macos-arm/$exe" "volta-macos-x64/$exe"
+          done
+          cd bin
+          tar -zcvf "volta-macos.tar.gz" volta volta-shim volta-migrate
+          mv "volta-macos.tar.gz" ../
+
+      - name: Package (Windows)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cd out
+          pixi run bsdtar -xf volta-windows.conda
+          mv pkg*.tar.zst pkg.tar.zst
+          pixi run bsdtar -xf pkg.tar.zst
+          rm *.tar.zst
+          mv bin volta-windows
+          pixi run bsdtar -xf volta-windows-arm.conda
+          mv pkg*.tar.zst pkg.tar.zst
+          pixi run bsdtar -xf pkg.tar.zst
+          rm *.tar.zst
+          mv bin volta-windows-arm
+          cd volta-windows
+          Compress-Archive volta*.exe ../volta-windows.zip
+          cd ../volta-windows-arm
+          Compress-Archive volta*.exe ../volta-windows-arm.zip
+          cd ../..
+          $version = (Get-Content Cargo.toml | Select-String '^version\s*=\s*"(.*)"').Matches.Groups[1].Value
+          candle wix/main.wxs -dVersion="$version" -dCargoTargetBinDir="out/volta-windows" -o out/wix/volta-windows.wixobj
+          light out/wix/volta-windows.wixobj -spdb -ext WixUIExtension -ext WixUtilExtension -o out/volta-windows.msi
+          candle wix/main.wxs -dVersion="$version" -dCargoTargetBinDir="out/volta-windows-arm" -o out/wix/volta-windows-arm.wixobj
+          light out/wix/volta-windows-arm.wixobj -spdb -ext WixUIExtension -ext WixUtilExtension -o out/volta-windows-arm.msi
 
       # Upload artifacts
-      - name: Upload release artifact
+      - name: Upload (Unix)
         if: matrix.name == 'linux' || matrix.name == 'linux-arm' || matrix.name == 'macos'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.name }}
-          path: ${{ matrix.name == 'linux' && 'target/release/volta-linux.tar.gz' || matrix.name == 'linux-arm' && 'target/release/volta-linux-arm.tar.gz' || 'target/universal-apple-darwin/release/volta-macos.tar.gz' }}
+          path: out/volta-${{ matrix.suffix }}.tar.gz
 
-      - name: Upload installer
-        if: matrix.name == 'windows' || matrix.name == 'windows-arm'
+      - name: Upload (Windows)
+        if: matrix.name == 'windows'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: windows-installer${{ matrix.name == 'windows-arm' && '-arm' || '' }}
-          path: target/wix/volta-${{ matrix.suffix }}.msi
-
-      - name: Upload zip
-        if: matrix.name == 'windows' || matrix.name == 'windows-arm'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: windows-zip${{ matrix.name == 'windows-arm' && '-arm' || '' }}
-          path: target/release/volta-${{ matrix.suffix }}.zip
+          name: ${{ matrix.name }}
+          path: |
+            out/volta-windows*.msi
+            out/volta-windows*.zip
