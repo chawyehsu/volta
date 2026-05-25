@@ -10,27 +10,23 @@ jobs:
   tests:
     strategy:
       matrix:
-        os:
-          - ubuntu
-          - macos
-          - windows
-    name: Acceptance Tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}-latest
+        include:
+          - { name: "Ubuntu", "os": "ubuntu-latest" }
+          - { name: "macOS", "os": "macos-latest" }
+          - { name: "Windows", "os": "windows-latest" }
+    name: Acceptance Tests (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
     env:
       RUST_BACKTRACE: full
     steps:
       - name: Check out code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Set up cargo
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
       - name: Run tests
-        run: |
-          cargo test --all --features mock-network
+        run: cargo test --all --features mock-network
       - name: Lint with clippy
         run: cargo clippy
       - name: Lint tests with clippy
-        run: |
-          cargo clippy --tests --features mock-network
+        run: cargo clippy --tests --features mock-network
 
   smoke-tests:
     name: Smoke Tests
@@ -40,11 +36,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Set up cargo
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
       - name: Run tests
-        run: |
-          cargo test --test smoke --features smoke-tests -- --test-threads 1
+        run: cargo test --test smoke --features smoke-tests -- --test-threads 1
 
   shell-tests:
     name: Shell Script Tests
@@ -63,11 +56,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Set up cargo
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
       - name: Run check
-        run: |
-          cargo fmt --all --quiet -- --check
+        run: cargo fmt --all --quiet -- --check
 
   validate-installer-checksum:
     name: Validate installer checksum
