@@ -26,13 +26,16 @@ jobs:
         if: matrix.name == 'linux' || matrix.name == 'linux-arm'
         run: cargo build --release
 
-      - name: Verify Volta glibc requirement (Linux)
+      - name: Inspect Volta glibc requirement (Linux)
         if: matrix.name == 'linux' || matrix.name == 'linux-arm'
-        run: cd target/release && ldd -v volta
+        run: |
+          cd target/release
+          ldd -v volta
+          objdump -T volta | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
 
       - name: Package Volta (Linux)
         if: matrix.name == 'linux' || matrix.name == 'linux-arm'
-        run: tar -zcvf "volta-${{ matrix.suffix }}.tar.gz" volta volta-shim volta-migrate
+        run: cd target/release && tar -zcvf "volta-${{ matrix.suffix }}.tar.gz" volta volta-shim volta-migrate
 
       # macOS: universal binary build
       - name: Set up cargo
