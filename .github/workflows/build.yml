@@ -13,8 +13,8 @@ jobs:
           - { name: "linux", "os": "ubuntu-latest" }
           - { name: "linux-arm", "os": "ubuntu-latest" }
           - { name: "macos", "os": "macos-latest" }
-          - { name: "windows", "os": "windows-latest" }
-          - { name: "windows-arm", "os": "windows-latest" }
+          - { name: "windows", "os": "windows-latest", "suffix": "windows" }
+          - { name: "windows-arm", "os": "windows-11-arm", "suffix": "windows-arm" }
     name: Build - ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     steps:
@@ -69,43 +69,19 @@ jobs:
         run: ./ci/build-macos.sh volta-macos
 
       # Windows: cargo-wix build
-      - name: Set up cargo (Windows)
-        if: matrix.name == 'windows'
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
-        with:
-          rustflags: ""
-
       - name: Add cargo-wix subcommand
         if: matrix.name == 'windows' || matrix.name == 'windows-arm'
         run: cargo install --locked cargo-wix
 
-      - name: Compile and package installer (Windows)
-        if: matrix.name == 'windows'
+      - name: Compile and package installer
+        if: matrix.name == 'windows' || matrix.name == 'windows-arm'
         run: |
-          cargo wix --nocapture --package volta --output target\wix\volta-windows.msi
+          cargo wix --nocapture --package volta --output target\wix\volta-${{ matrix.suffix }}.msi
 
-      - name: Create zip of binaries (Windows)
-        if: matrix.name == 'windows'
-        run: powershell Compress-Archive volta*.exe volta-windows.zip
+      - name: Create zip of binaries
+        if: matrix.name == 'windows' || matrix.name == 'windows-arm'
+        run: powershell Compress-Archive volta*.exe volta-${{ matrix.suffix }}.zip
         working-directory: ./target/release
-
-      # Windows ARM: cargo-wix aarch64 build
-      - name: Set up cargo (Windows ARM)
-        if: matrix.name == 'windows-arm'
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
-        with:
-          target: aarch64-pc-windows-msvc
-          rustflags: ""
-
-      - name: Compile and package installer (Windows ARM)
-        if: matrix.name == 'windows-arm'
-        run: |
-          cargo wix --nocapture --package volta --target aarch64-pc-windows-msvc --output target\wix\volta-windows-arm.msi
-
-      - name: Create zip of binaries (Windows ARM)
-        if: matrix.name == 'windows-arm'
-        run: powershell Compress-Archive volta*.exe volta-windows-arm.zip
-        working-directory: ./target/aarch64-pc-windows-msvc/release
 
       # Upload artifacts
       - name: Upload release artifact
@@ -119,12 +95,12 @@ jobs:
         if: matrix.name == 'windows' || matrix.name == 'windows-arm'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ matrix.name == 'windows' && 'windows-installer' || 'windows-installer-arm' }}
-          path: ${{ matrix.name == 'windows' && 'target/wix/volta-windows.msi' || 'target/wix/volta-windows-arm.msi' }}
+          name: windows-installer${{ matrix.name == 'windows-arm' && '-arm' || '' }}
+          path: target/wix/volta-${{ matrix.suffix }}.msi
 
       - name: Upload zip
         if: matrix.name == 'windows' || matrix.name == 'windows-arm'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ matrix.name == 'windows' && 'windows-zip' || 'windows-zip-arm' }}
-          path: ${{ matrix.name == 'windows' && 'target/release/volta-windows.zip' || 'target/aarch64-pc-windows-msvc/release/volta-windows-arm.zip' }}
+          name: windows-zip${{ matrix.name == 'windows-arm' && '-arm' || '' }}
+          path: target/release/volta-${{ matrix.suffix }}.zip
