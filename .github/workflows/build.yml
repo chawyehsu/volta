@@ -10,8 +10,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "linux", os: "ubuntu-latest" }
-          - { name: "linux-arm", os: "ubuntu-latest" }
+          - { name: "linux", os: "ubuntu-latest", suffix: "linux" }
+          - { name: "linux-arm", os: "ubuntu-22.04-arm", suffix: "linux-arm" }
           - { name: "macos", os: "macos-latest" }
           - { name: "windows", os: "windows-latest", suffix: "windows" }
           - { name: "windows-arm", os: "windows-11-arm", suffix: "windows-arm" }
@@ -21,41 +21,18 @@ jobs:
       - name: Check out code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # Linux: docker-based build
-      - name: Set up docker buildx
-        if: matrix.name == 'linux'
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      # Linux: build
+      - name: Compile Volta (Linux)
+        if: matrix.name == 'linux' || matrix.name == 'linux-arm'
+        run: cargo build --release
 
-      - name: Build docker image
-        if: matrix.name == 'linux'
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
-        with:
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          context: ./ci/docker
-          push: false
-          load: true
-          tags: volta
+      - name: Verify Volta glibc requirement (Linux)
+        if: matrix.name == 'linux' || matrix.name == 'linux-arm'
+        run: cd target/release && ldd -v volta
 
-      - name: Compile and package Volta (Linux)
-        if: matrix.name == 'linux'
-        run: docker run --volume ${PWD}:/root/workspace --workdir /root/workspace --rm --init --tty volta /root/workspace/ci/build-linux.sh volta-linux
-
-      # Linux ARM: cross-rs build
-      - name: Install cross-rs
-        if: matrix.name == 'linux-arm'
-        uses: taiki-e/install-action@d9be7d8cda89035c9c843f78bd44d4f72d8403d4 # v2.79.7
-        with:
-          tool: cross
-
-      - name: Compile Volta (Linux ARM)
-        if: matrix.name == 'linux-arm'
-        run: cross build --release --target aarch64-unknown-linux-gnu
-
-      - name: Package Volta (Linux ARM)
-        if: matrix.name == 'linux-arm'
-        run: |
-          cd target/aarch64-unknown-linux-gnu/release && tar -zcvf "volta-linux-arm.tar.gz" volta volta-shim volta-migrate
+      - name: Package Volta (Linux)
+        if: matrix.name == 'linux' || matrix.name == 'linux-arm'
+        run: tar -zcvf "volta-${{ matrix.suffix }}.tar.gz" volta volta-shim volta-migrate
 
       # macOS: universal binary build
       - name: Set up cargo
@@ -89,7 +66,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.name }}
-          path: ${{ matrix.name == 'linux' && 'target/release/volta-linux.tar.gz' || matrix.name == 'linux-arm' && 'target/aarch64-unknown-linux-gnu/release/volta-linux-arm.tar.gz' || 'target/universal-apple-darwin/release/volta-macos.tar.gz' }}
+          path: ${{ matrix.name == 'linux' && 'target/release/volta-linux.tar.gz' || matrix.name == 'linux-arm' && 'target/release/volta-linux-arm.tar.gz' || 'target/universal-apple-darwin/release/volta-macos.tar.gz' }}
 
       - name: Upload installer
         if: matrix.name == 'windows' || matrix.name == 'windows-arm'
