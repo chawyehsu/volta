@@ -10,11 +10,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "linux", "os": "ubuntu-latest" }
-          - { name: "linux-arm", "os": "ubuntu-latest" }
-          - { name: "macos", "os": "macos-latest" }
-          - { name: "windows", "os": "windows-latest", "suffix": "windows" }
-          - { name: "windows-arm", "os": "windows-11-arm", "suffix": "windows-arm" }
+          - { name: "linux", os: "ubuntu-latest" }
+          - { name: "linux-arm", os: "ubuntu-latest" }
+          - { name: "macos", os: "macos-latest" }
+          - { name: "windows", os: "windows-latest", suffix: "windows" }
+          - { name: "windows-arm", os: "windows-11-arm", suffix: "windows-arm" }
     name: Build - ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     steps:
@@ -71,7 +71,7 @@ jobs:
       # Windows: cargo-wix build
       - name: Add cargo-wix subcommand
         if: matrix.name == 'windows' || matrix.name == 'windows-arm'
-        run: cargo install --locked cargo-wix
+        run: cargo install --locked cargo-wix --version 0.3.8
 
       - name: Compile and package installer
         if: matrix.name == 'windows' || matrix.name == 'windows-arm'
