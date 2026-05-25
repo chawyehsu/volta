@@ -18,13 +18,21 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       RUST_BACKTRACE: full
+      SCCACHE_GHA_ENABLED: true
+      RUSTC_WRAPPER: sccache
     steps:
       - name: Check out code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup SCCache
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+
       - name: Run tests
         run: cargo test --all --features mock-network
+
       - name: Lint with clippy
         run: cargo clippy
+
       - name: Lint tests with clippy
         run: cargo clippy --tests --features mock-network
 
@@ -33,9 +41,15 @@ jobs:
     runs-on: macos-latest
     env:
       RUST_BACKTRACE: full
+      SCCACHE_GHA_ENABLED: true
+      RUSTC_WRAPPER: sccache
     steps:
       - name: Check out code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup SCCache
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+
       - name: Run tests
         run: cargo test --test smoke --features smoke-tests -- --test-threads 1
 
@@ -45,17 +59,26 @@ jobs:
     steps:
       - name: Setup BATS
         run: sudo npm install -g bats
+
       - name: Check out code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
       - name: Run tests
         run: bats dev/unix/tests/
 
   check-formatting:
     name: Check code formatting
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_GHA_ENABLED: true
+      RUSTC_WRAPPER: sccache
     steps:
       - name: Check out code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup SCCache
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+
       - name: Run check
         run: cargo fmt --all --quiet -- --check
 
