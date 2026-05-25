@@ -1,0 +1,151 @@
+name: Build
+
+on:
+  workflow_call:
+
+jobs:
+  linux:
+    name: Build - Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up docker buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Build docker image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          context: ./ci/docker
+          push: false
+          load: true
+          tags: volta
+
+      - name: Compile and package Volta
+        run: docker run --volume ${PWD}:/root/workspace --workdir /root/workspace --rm --init --tty volta /root/workspace/ci/build-linux.sh volta-linux
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux
+          path: target/release/volta-linux.tar.gz
+
+  linux-arm:
+    name: Build - Linux ARM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install cross-rs
+        uses: taiki-e/install-action@d9be7d8cda89035c9c843f78bd44d4f72d8403d4 # v2.79.7
+        with:
+          tool: cross
+
+      - name: Compile Volta
+        run: cross build --release --target aarch64-unknown-linux-gnu
+
+      - name: Package Volta
+        run: |
+          cd target/aarch64-unknown-linux-gnu/release && tar -zcvf "volta-linux-arm.tar.gz" volta volta-shim volta-migrate
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-arm
+          path: target/aarch64-unknown-linux-gnu/release/volta-linux-arm.tar.gz
+
+  macos:
+    name: Build - MacOS
+    runs-on: macos-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up cargo
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          target: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Compile and package Volta
+        run: ./ci/build-macos.sh volta-macos
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macos
+          path: target/universal-apple-darwin/release/volta-macos.tar.gz
+
+  windows:
+    name: Build - Windows
+    runs-on: windows-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up cargo
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          rustflags: ""
+
+      - name: Add cargo-wix subcommand
+        run: cargo install --locked cargo-wix
+
+      - name: Compile and package installer
+        run: |
+          cargo wix --nocapture --package volta --output target\wix\volta-windows.msi
+
+      - name: Create zip of binaries
+        run: powershell Compress-Archive volta*.exe volta-windows.zip
+        working-directory: ./target/release
+
+      - name: Upload installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-installer
+          path: target/wix/volta-windows.msi
+
+      - name: Upload zip
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-zip
+          path: target/release/volta-windows.zip
+
+  windows-arm:
+    name: Build - Windows ARM
+    runs-on: windows-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up cargo
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          target: aarch64-pc-windows-msvc
+          rustflags: ""
+
+      - name: Add cargo-wix subcommand
+        run: cargo install --locked cargo-wix
+
+      - name: Compile and package installer
+        run: |
+          cargo wix --nocapture --package volta --target aarch64-pc-windows-msvc --output target\wix\volta-windows-arm.msi
+
+      - name: Create zip of binaries
+        run: powershell Compress-Archive volta*.exe volta-windows-arm.zip
+        working-directory: ./target/aarch64-pc-windows-msvc/release
+
+      - name: Upload installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-installer-arm
+          path: target/wix/volta-windows-arm.msi
+
+      - name: Upload zip
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-zip-arm
+          path: target/aarch64-pc-windows-msvc/release/volta-windows-arm.zip
