@@ -1,7 +1,10 @@
 [package]
 name = "volta"
 version = "2.0.2"
-authors = ["David Herman <david.herman@gmail.com>", "Charles Pierce <cpierce.grad@gmail.com>"]
+authors = [
+    "David Herman <david.herman@gmail.com>",
+    "Charles Pierce <cpierce.grad@gmail.com>",
+]
 license = "BSD-2-Clause"
 repository = "https://github.com/volta-cli/volta"
 edition = "2021"
@@ -51,3 +54,4 @@ cfg-if = "1.0"
 test-support = { path = "crates/test-support" }
 
 [workspace]
+members = ["crates/*"]
