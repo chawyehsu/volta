@@ -1,7 +1,7 @@
 name: Test
 
 on:
-  # push:
+  push:
   pull_request:
     paths-ignore:
       - ".vscode"
@@ -26,7 +26,7 @@ jobs:
       SCCACHE_GHA_ENABLED: true
       RUSTC_WRAPPER: sccache
     steps:
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup SCCache
@@ -49,7 +49,7 @@ jobs:
       SCCACHE_GHA_ENABLED: true
       RUSTC_WRAPPER: sccache
     steps:
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup SCCache
@@ -65,7 +65,7 @@ jobs:
       - name: Setup BATS
         run: sudo npm install -g bats
 
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run tests
@@ -78,7 +78,7 @@ jobs:
       SCCACHE_GHA_ENABLED: true
       RUSTC_WRAPPER: sccache
     steps:
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup SCCache
@@ -91,7 +91,7 @@ jobs:
     name: Validate installer checksum
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Run check
         run: |
