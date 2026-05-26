@@ -13,6 +13,7 @@ use volta_layout::v4;
 /// Represents a V4 Volta Layout (used by Volta v2.0.0 and above)
 ///
 /// Holds a reference to the V4 layout struct to support potential future migrations
+#[allow(dead_code)]
 pub struct V4 {
     pub home: v4::VoltaHome,
 }

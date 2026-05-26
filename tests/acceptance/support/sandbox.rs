@@ -161,6 +161,7 @@ pub trait DistroFixture: From<DistroMetadata> {
     fn metadata(&self) -> &DistroMetadata;
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct DistroMetadata {
     pub version: &'static str,

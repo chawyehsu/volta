@@ -190,7 +190,6 @@ See `volta help install` for details and more options.",
 }
 
 /// Format a single `Toolchain::Tool` with associated `Toolchain::Package`
-
 fn display_tool(tool: &str, host_packages: &[Package]) -> String {
     if host_packages.is_empty() {
         format!(

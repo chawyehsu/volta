@@ -35,6 +35,7 @@ use volta_core::sync::VoltaLock;
 ///
 /// Migrations should be applied sequentially, migrating from V0 to V1 to ... as needed, cycling
 /// through the possible MigrationState values.
+#[allow(dead_code)]
 enum MigrationState {
     Empty(empty::Empty),
     V0(Box<V0>),
