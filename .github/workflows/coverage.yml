@@ -37,10 +37,17 @@ jobs:
 
       - name: Run Coverage (smoke)
         if: matrix.os == 'ubuntu-latest'
-        run: cargo llvm-cov --test smoke --features smoke-tests --no-report -- --test-threads 1
+        run: cargo llvm-cov --workspace --test smoke --features smoke-tests --no-report -- --test-threads 1
 
       - name: Generate Report
-        run: cargo llvm-cov report --lcov --output-path lcov-${{ matrix.os }}.info
+        shell: bash
+        run: |
+          # collect all package names
+          cargo metadata --format-version 1 --no-deps | jq -r '.packages[].name' > packages.txt
+          # add --package for each package to the command
+          PACKAGES=$(awk '{printf "-p %s ", $0}' packages.txt)
+          # run the report command with all packages
+          cargo llvm-cov report $PACKAGES --lcov --output-path lcov-${{ matrix.os }}.info
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
