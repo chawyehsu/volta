@@ -12,7 +12,6 @@ edition = "2021"
 [features]
 cross-platform-docs = ["volta-core/cross-platform-docs"]
 mock-network = ["mockito", "volta-core/mock-network"]
-volta-dev = []
 smoke-tests = []
 
 [[bin]]
