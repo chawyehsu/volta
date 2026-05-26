@@ -13,6 +13,9 @@
   <a href="https://github.com/chawyehsu/volta/actions/workflows/test.yml">
     <img alt="Test Status" src="https://github.com/chawyehsu/volta/actions/workflows/test.yml/badge.svg" />
   </a>
+  <a href="https://codecov.io/github/chawyehsu/volta">
+    <img alt="Coverage Status" src="https://img.shields.io/codecov/c/gh/chawyehsu/volta?style=flat&logo=codecov" />
+  </a>
 </p>
 
 ---
