@@ -11,7 +11,10 @@ tar = "0.4.46"
 # set of capabilities, and it has a vulnerability. We also don't need to use
 # every single compression algorithm feature since we are only downloading
 # Node as a zip file
-zip_rs = { version = "=2.1.6", package = "zip", default-features = false, features = ["deflate", "bzip2"] }
+zip_rs = { version = "=2.4.2", package = "zip", default-features = false, features = [
+    "deflate",
+    "bzip2",
+] }
 tee = "0.1.0"
 fs-utils = { path = "../fs-utils" }
 progress-read = { path = "../progress-read" }
@@ -19,5 +22,9 @@ verbatim = "0.1"
 cfg-if = "1.0"
 headers = "0.4"
 thiserror = "2.0.18"
-attohttpc = { version = "0.28", default-features = false, features = ["json", "compress", "tls-rustls-native-roots"] }
+attohttpc = { version = "0.28", default-features = false, features = [
+    "json",
+    "compress",
+    "tls-rustls-native-roots",
+] }
 log = { version = "0.4", features = ["std"] }
