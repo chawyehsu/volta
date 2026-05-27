@@ -1649,7 +1649,7 @@ dependencies = [
  "volta-core",
  "volta-migrate",
  "which",
- "winreg 0.53.0",
+ "winreg",
 ]
 
 [[package]]
@@ -1693,7 +1693,7 @@ dependencies = [
  "volta-layout",
  "walkdir",
  "which",
- "winreg 0.55.0",
+ "winreg",
 ]
 
 [[package]]
@@ -2011,16 +2011,6 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
-
-[[package]]
-name = "winreg"
-version = "0.53.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89a47b489f8fc5b949477e89dca4d1617f162c6c53fbcbefde553ab17b342ff9"
-dependencies = [
- "cfg-if",
- "windows-sys 0.48.0",
-]
 
 [[package]]
 name = "winreg"
