@@ -2,6 +2,11 @@ name: Coverage
 
 on:
   push:
+    paths-ignore:
+      - ".vscode"
+      - "*.md"
+    branches:
+      - main
   pull_request:
     paths-ignore:
       - ".vscode"
