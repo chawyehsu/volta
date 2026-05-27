@@ -55,5 +55,5 @@ fs2 = "0.4.3"
 which = "8.0.2"
 
 [target.'cfg(windows)'.dependencies]
-winreg = "0.55.0"
+winreg = "0.56.0"
 junction = "2.0.0"
