@@ -56,4 +56,4 @@ which = "7.0.1"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55.0"
-junction = "1.2.0"
+junction = "2.0.0"
