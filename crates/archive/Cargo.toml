@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 flate2 = "1.1"
-tar = "0.4.13"
+tar = "0.4.46"
 # Set features manually to drop usage of `time` crate: we do not rely on that
 # set of capabilities, and it has a vulnerability. We also don't need to use
 # every single compression algorithm feature since we are only downloading
