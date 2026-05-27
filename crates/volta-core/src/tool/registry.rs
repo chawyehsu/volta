@@ -103,6 +103,7 @@ pub struct PackageIndex {
 ///
 /// See npm registry API doc:
 /// https://github.com/npm/registry/blob/master/docs/REGISTRY-API.md
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct RawPackageMetadata {
     pub name: String,
@@ -114,6 +115,7 @@ pub struct RawPackageMetadata {
     pub dist_tags: HashMap<String, Version>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct RawPackageVersionInfo {
     // there's a lot more in there, but right now just care about the version
@@ -122,6 +124,7 @@ pub struct RawPackageVersionInfo {
     pub dist: RawDistInfo,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Clone, Debug)]
 pub struct RawDistInfo {
     pub shasum: String,

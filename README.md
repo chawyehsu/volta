@@ -9,11 +9,21 @@
 </p>
 
 <p align="center">
-  <img alt="Production Build Status" src="https://github.com/volta-cli/volta/workflows/Production/badge.svg" />
-  <a href="https://github.com/volta-cli/volta/actions?query=workflow%3ATest">
-    <img alt="Test Status" src="https://github.com/volta-cli/volta/workflows/Test/badge.svg" />
+  <img alt="Release Status" src="https://github.com/chawyehsu/volta/actions/workflows/release.yml/badge.svg" />
+  <a href="https://github.com/chawyehsu/volta/actions/workflows/test.yml">
+    <img alt="Test Status" src="https://github.com/chawyehsu/volta/actions/workflows/test.yml/badge.svg" />
+  </a>
+  <a href="https://codecov.io/github/chawyehsu/volta">
+    <img alt="Coverage Status" src="https://img.shields.io/codecov/c/gh/chawyehsu/volta?style=flat&logo=codecov" />
   </a>
 </p>
+
+---
+
+> [!IMPORTANT]
+> **Volta is unmaintained.** Everything that works today should continue to do so for the foreseeable future, so if it is working for you, there is no particular *urgency* to migrate to another tool, but we will not be able to address breakages from new OS releases or other changes in the ecosystem, so you should put it on your maintenance roadmap at some point. We recommend migrating to [`mise`](https://mise.jdx.dev/). See [issue #2080](https://github.com/volta-cli/volta/issues/2080).
+
+---
 
 **Fast:** Install and run any JS tool quickly and seamlessly! Volta is built in Rust and ships as a snappy static binary.
 

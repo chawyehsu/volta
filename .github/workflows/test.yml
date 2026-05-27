@@ -1,52 +1,67 @@
+name: Test
+
 on:
   push:
+    paths-ignore:
+      - ".vscode"
+      - "*.md"
     branches:
       - main
   pull_request:
+    paths-ignore:
+      - ".vscode"
+      - "*.md"
     branches:
       - main
 
-name: Test
+permissions: {}
 
 jobs:
   tests:
     strategy:
       matrix:
-        os:
-          - ubuntu
-          - macos
-          - windows
-    name: Acceptance Tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}-latest
+        include:
+          - { name: "Ubuntu", "os": "ubuntu-latest" }
+          - { name: "macOS", "os": "macos-latest" }
+          - { name: "Windows", "os": "windows-latest" }
+    name: Acceptance Tests (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
     env:
       RUST_BACKTRACE: full
+      SCCACHE_GHA_ENABLED: true
+      RUSTC_WRAPPER: sccache
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-      - name: Set up cargo
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup SCCache
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+
       - name: Run tests
-        run: |
-          cargo test --all --features mock-network
+        run: cargo test --all --features mock-network
+
       - name: Lint with clippy
         run: cargo clippy
+
       - name: Lint tests with clippy
-        run: |
-          cargo clippy --tests --features mock-network
+        run: cargo clippy --tests --features mock-network
 
   smoke-tests:
     name: Smoke Tests
     runs-on: macos-latest
     env:
       RUST_BACKTRACE: full
+      SCCACHE_GHA_ENABLED: true
+      RUSTC_WRAPPER: sccache
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-      - name: Set up cargo
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup SCCache
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+
       - name: Run tests
-        run: |
-          cargo test --test smoke --features smoke-tests -- --test-threads 1
+        run: cargo test --test smoke --features smoke-tests -- --test-threads 1
 
   shell-tests:
     name: Shell Script Tests
@@ -54,29 +69,35 @@ jobs:
     steps:
       - name: Setup BATS
         run: sudo npm install -g bats
-      - name: Check out code
-        uses: actions/checkout@v4
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
       - name: Run tests
         run: bats dev/unix/tests/
 
   check-formatting:
     name: Check code formatting
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_GHA_ENABLED: true
+      RUSTC_WRAPPER: sccache
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-      - name: Set up cargo
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup SCCache
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+
       - name: Run check
-        run: |
-          cargo fmt --all --quiet -- --check
+        run: cargo fmt --all --quiet -- --check
 
   validate-installer-checksum:
     name: Validate installer checksum
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Run check
         run: |
           cd dev/unix

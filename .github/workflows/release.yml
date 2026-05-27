@@ -1,270 +1,51 @@
+name: Release
+
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 1.2.3)"
+        required: true
   push:
     tags:
       - v*
-  pull_request:
-    branches:
-      - main
 
-name: Production
+permissions:
+  contents: write
 
 jobs:
-  linux:
-    name: Build - Linux
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-      - name: Set up docker buildx
-        uses: docker/setup-buildx-action@v2
-      - name: Build docker image
-        uses: docker/build-push-action@v3
-        with:
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          context: ./ci/docker
-          push: false
-          load: true
-          tags: volta
-      - name: Compile and package Volta
-        run: docker run --volume ${PWD}:/root/workspace --workdir /root/workspace --rm --init --tty volta /root/workspace/ci/build-linux.sh volta-linux
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux
-          path: target/release/volta-linux.tar.gz
-
-  linux-arm:
-    name: Build - Linux ARM
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-      - name: Install cross-rs
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cross
-      - name: Compile Volta
-        run: cross build --release --target aarch64-unknown-linux-gnu
-      - name: Package Volta
-        run: |
-          cd target/aarch64-unknown-linux-gnu/release && tar -zcvf "volta-linux-arm.tar.gz" volta volta-shim volta-migrate
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-arm
-          path: target/aarch64-unknown-linux-gnu/release/volta-linux-arm.tar.gz
-
-  macos:
-    name: Build - MacOS
-    runs-on: macos-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-      - name: Set up cargo
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: aarch64-apple-darwin,x86_64-apple-darwin
-      - name: Compile and package Volta
-        run: ./ci/build-macos.sh volta-macos
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos
-          path: target/universal-apple-darwin/release/volta-macos.tar.gz
-
-  windows:
-    name: Build - Windows
-    runs-on: windows-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-      - name: Set up cargo
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          rustflags: ""
-      - name: Add cargo-wix subcommand
-        run: cargo install --locked cargo-wix
-      - name: Compile and package installer
-        run: |
-          cargo wix --nocapture --package volta --output target\wix\volta-windows.msi
-      - name: Create zip of binaries
-        run: powershell Compress-Archive volta*.exe volta-windows.zip
-        working-directory: ./target/release
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer
-          path: target/wix/volta-windows.msi
-      - name: Upload zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-zip
-          path: target/release/volta-windows.zip
-
-  windows-arm:
-    name: Build - Windows ARM
-    runs-on: windows-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-      - name: Set up cargo
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: aarch64-pc-windows-msvc
-          rustflags: ""
-      - name: Add cargo-wix subcommand
-        run: cargo install --locked cargo-wix
-      - name: Compile and package installer
-        run: |
-          cargo wix --nocapture --package volta --target aarch64-pc-windows-msvc --output target\wix\volta-windows-arm.msi
-      - name: Create zip of binaries
-        run: powershell Compress-Archive volta*.exe volta-windows-arm.zip
-        working-directory: ./target/aarch64-pc-windows-msvc/release
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer-arm
-          path: target/wix/volta-windows-arm.msi
-      - name: Upload zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-zip-arm
-          path: target/aarch64-pc-windows-msvc/release/volta-windows-arm.zip
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
 
   release:
-    name: Publish release
+    name: Create Release
     runs-on: ubuntu-latest
-    needs:
-      - linux
-      - linux-arm
-      - macos
-      - windows
-      - windows-arm
-    if: github.event_name == 'push'
+    needs: [build]
+    env:
+      VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-      - name: Determine release version
-        id: release_info
-        env:
-          TAG: ${{ github.ref }}
-        run: echo "version=${TAG:11}" >> $GITHUB_OUTPUT
-      - name: Fetch Linux artifact
-        uses: actions/download-artifact@v4
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: linux
           path: release
-      - name: Fetch Linux ARM artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-arm
-          path: release
-      - name: Fetch MacOS artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: macos
-          path: release
-      - name: Fetch Windows installer
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-installer
-          path: release
-      - name: Fetch Windows zip
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-zip
-          path: release
-      - name: Fetch Windows ARM installer
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-installer-arm
-          path: release
-      - name: Fetch Windows ARM zip
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-zip-arm
-          path: release
-      - name: Show release artifacts
-        run: ls -la release
-      - name: Create draft release
-        id: create_release
-        uses: actions/create-release@v1
+          merge-multiple: true
+
+      - name: Rename artifacts
+        run: |
+          version="${VERSION#v}"
+          for f in release/volta-*.tar.gz release/volta-*.msi release/volta-*.zip; do
+            mv "$f" "release/volta-${version}-${f#release/volta-}"
+          done
+          ls -la release
+
+      - name: Draft release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ github.ref }}
-          draft: true
-      - name: Upload Linux artifact
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release/volta-linux.tar.gz
-          asset_name: volta-${{ steps.release_info.outputs.version }}-linux.tar.gz
-          asset_content_type: application/gzip
-      - name: Upload Linux ARM artifact
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release/volta-linux-arm.tar.gz
-          asset_name: volta-${{ steps.release_info.outputs.version }}-linux-arm.tar.gz
-          asset_content_type: application/gzip
-      - name: Upload MacOS artifact
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release/volta-macos.tar.gz
-          asset_name: volta-${{ steps.release_info.outputs.version }}-macos.tar.gz
-          asset_content_type: application/gzip
-      - name: Upload Windows installer
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release/volta-windows.msi
-          asset_name: volta-${{ steps.release_info.outputs.version }}-windows-x86_64.msi
-          asset_content_type: application/x-msi
-      - name: Upload Windows zip
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release/volta-windows.zip
-          asset_name: volta-${{ steps.release_info.outputs.version }}-windows.zip
-          asset_content_type: application/zip
-      - name: Upload Windows ARM installer
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release/volta-windows-arm.msi
-          asset_name: volta-${{ steps.release_info.outputs.version }}-windows-arm64.msi
-          asset_content_type: application/x-msi
-      - name: Upload Windows ARM zip
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release/volta-windows-arm.zip
-          asset_name: volta-${{ steps.release_info.outputs.version }}-windows-arm64.zip
-          asset_content_type: application/zip
-      - name: Upload manifest file
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./ci/volta.manifest
-          asset_name: volta.manifest
-          asset_content_type: text/plain
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="v${VERSION#v}"
+          gh release create "$tag" release/* --title "$tag" --draft \
+            || gh release upload "$tag" release/* --clobber

@@ -1,7 +1,12 @@
 use crate::support::temp_project::temp_project;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
+use std::path::PathBuf;
 use test_support::matchers::execs;
+
+fn fixture_tarball() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/volta-test-1.0.0.tgz")
+}
 
 #[test]
 fn npm_global_install() {
@@ -11,7 +16,10 @@ fn npm_global_install() {
     assert_that!(p.volta("install node@14.1.0"), execs().with_status(0));
 
     assert_that!(
-        p.npm("install --global typescript@3.9.4 yarn@1.16.0 ../../../../tests/fixtures/volta-test-1.0.0.tgz"),
+        p.npm(&format!(
+            "install --global typescript@3.9.4 yarn@1.16.0 {}",
+            fixture_tarball().display()
+        )),
         execs().with_status(0)
     );
 
@@ -46,12 +54,6 @@ fn npm_global_install() {
 fn yarn_global_add() {
     let p = temp_project().build();
 
-    let tarball_path = p
-        .root()
-        .join("../../../../tests/fixtures/volta-test-1.0.0.tgz")
-        .canonicalize()
-        .unwrap();
-
     // Have to install node and yarn first
     assert_that!(
         p.volta("install node@14.2.0 yarn@1.22.5"),
@@ -60,8 +62,8 @@ fn yarn_global_add() {
 
     assert_that!(
         p.yarn(&format!(
-            "global add typescript@4.0.2 npm@6.4.0 file:{}",
-            tarball_path.display()
+            "global add typescript@4.0.2 npm@6.4.0 {}",
+            fixture_tarball().display()
         )),
         execs().with_status(0)
     );

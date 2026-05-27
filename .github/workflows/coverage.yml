@@ -1,0 +1,57 @@
+name: Coverage
+
+on:
+  push:
+  pull_request:
+    paths-ignore:
+      - ".vscode"
+      - "*.md"
+
+permissions: {}
+
+jobs:
+  coverage:
+    name: Code Coverage
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    if: github.actor != 'dependabot[bot]'
+    env:
+      SCCACHE_GHA_ENABLED: true
+      RUSTC_WRAPPER: sccache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup SCCache
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@8f531eaecd1898bc3da7d104ad91bee98d1b97bd # v2.79.9
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Run Coverage (tests)
+        run: cargo llvm-cov --workspace --features mock-network --no-report
+
+      - name: Run Coverage (smoke)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo llvm-cov --workspace --test smoke --features smoke-tests --no-report -- --test-threads 1
+
+      - name: Generate Report
+        shell: bash
+        run: |
+          # collect all package names
+          cargo metadata --format-version 1 --no-deps | jq -r '.packages[].name' > packages.txt
+          # add --package for each package to the command
+          PACKAGES=$(awk '{printf "-p %s ", $0}' packages.txt)
+          # run the report command with all packages
+          cargo llvm-cov report $PACKAGES --lcov --output-path lcov-${{ matrix.os }}.info
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov*.info
+          fail_ci_if_error: true

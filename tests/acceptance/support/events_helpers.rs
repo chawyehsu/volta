@@ -18,7 +18,7 @@ pub fn match_start() -> EventKindMatcher<'static> {
     EventKindMatcher::Start
 }
 
-pub fn match_error(exit_code: i32, error: &str) -> EventKindMatcher {
+pub fn match_error(exit_code: i32, error: &str) -> EventKindMatcher<'_> {
     EventKindMatcher::Error { exit_code, error }
 }
 
@@ -30,7 +30,7 @@ pub fn match_tool_end(exit_code: i32) -> EventKindMatcher<'static> {
     EventKindMatcher::ToolEnd { exit_code }
 }
 
-pub fn match_args(argv: &str) -> EventKindMatcher {
+pub fn match_args(argv: &str) -> EventKindMatcher<'_> {
     EventKindMatcher::Args { argv }
 }
 

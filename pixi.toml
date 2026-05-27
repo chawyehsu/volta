@@ -1,0 +1,47 @@
+[workspace]
+channels = ["https://prefix.dev/conda-forge"]
+platforms = ["osx-arm64", "osx-64", "linux-64", "linux-aarch64", "win-64"]
+preview = ["pixi-build"]
+
+[tasks]
+build = { cmd = "pixi build", description = "Build Volta" }
+
+# sync with rust-toolchain.toml
+[workspace.build-variants]
+rust_compiler_version = ["1.95.0"]
+
+# See COMPATIBILITY.md
+[workspace.target.win.build-variants]
+c_compiler = ["vs2022"]
+cxx_compiler = ["vs2022"]
+
+[workspace.target.linux.build-variants]
+c_stdlib = ["sysroot"]
+c_stdlib_version = ["2.17"]
+
+[workspace.target.osx.build-variants]
+c_stdlib = ["macosx_deployment_target"]
+c_stdlib_version = ["11.0"]
+
+# ----------------- #
+# Package definition #
+# ----------------- #
+[package]
+name = "volta"
+version = "2.0.2"
+license = "BSD-2-Clause"
+authors = [
+    "Chawye Hsu <su+git@chawyehsu.com>",
+    "David Herman <david.herman@gmail.com>",
+    "Charles Pierce <cpierce.grad@gmail.com>",
+]
+
+[package.build]
+backend = { name = "pixi-build-rust", version = "*" }
+
+# [package.build.config]
+# env = { RUSTC_WRAPPER = "sccache", SCCACHE_GHA_ENABLED = "true" }
+
+[dependencies]
+# bsdtar to extract conda artifacts
+libarchive = ">=3.8.7,<4"

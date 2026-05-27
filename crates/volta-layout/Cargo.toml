@@ -5,4 +5,4 @@ authors = ["Chuck Pierce <cpierce.grad@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-volta-layout-macro = { path = "../volta-layout-macro" }
+volta-layout-macro.workspace = true

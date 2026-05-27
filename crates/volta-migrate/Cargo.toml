@@ -5,11 +5,11 @@ authors = ["Charles Pierce <cpierce.grad@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-volta-core = { path = "../volta-core" }
-volta-layout = { path = "../volta-layout" }
-log = { version = "0.4", features = ["std"] }
-tempfile = "3.14.0"
-node-semver = "2"
-serde_json = { version = "1.0.135", features = ["preserve_order"] }
-serde = { version = "1.0.217", features = ["derive"] }
-walkdir = "2.5.0"
+volta-core.workspace = true
+volta-layout.workspace = true
+log.workspace = true
+tempfile.workspace = true
+node-semver.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }
+serde.workspace = true
+walkdir.workspace = true

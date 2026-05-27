@@ -246,6 +246,7 @@ impl Parse for FieldPrefix {
 }
 
 /// AST for the suffix of a field in a `layout!` struct declaration.
+#[allow(dead_code)]
 enum FieldContents {
     /// A file field suffix, which consists of a single semicolon (`;`).
     File(Token![;]),

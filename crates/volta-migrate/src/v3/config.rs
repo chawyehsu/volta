@@ -5,6 +5,7 @@ use node_semver::Version;
 use volta_core::platform::PlatformSpec;
 use volta_core::version::{option_version_serde, version_serde};
 
+#[allow(dead_code)]
 #[derive(serde::Deserialize)]
 pub struct LegacyPackageConfig {
     pub name: String,
