@@ -35,7 +35,7 @@ log = { version = "0.4", features = ["std"] }
 node-semver = "2"
 clap = { version = "4.5.60", features = ["color", "derive", "wrap_help"] }
 clap_complete = "4.5.46"
-mockito = { version = "0.31.1", optional = true }
+mockito = { version = "1.6.1", optional = true }
 textwrap = "0.16.2"
 which = "8.0.2"
 dirs = "6.0.0"
