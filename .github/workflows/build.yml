@@ -2,7 +2,17 @@ name: Build
 
 on:
   workflow_call:
+    inputs:
+      version:
+        description: "Version/tag to include in packaged artifact names"
+        required: false
+        type: string
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional version/tag to include in artifact names (e.g. v1.2.3)"
+        required: false
+        type: string
 
 jobs:
   build:
@@ -74,8 +84,15 @@ jobs:
         if: matrix.name == 'linux' || matrix.name == 'linux-arm'
         run: |
           cd out/bin
-          tar -zcvf "volta-${{ matrix.suffix }}.tar.gz" volta volta-shim volta-migrate
-          mv "volta-${{ matrix.suffix }}.tar.gz" ../
+          version="${{ inputs.version }}"
+          version="${version#v}"
+          if [ -n "$version" ]; then
+            filename="volta-${version}-${{ matrix.suffix }}.tar.gz"
+          else
+            filename="volta-${{ matrix.suffix }}.tar.gz"
+          fi
+          tar -zcvf "$filename" volta volta-shim volta-migrate
+          mv "$filename" ../
 
       - name: Package (macOS)
         if: matrix.name == 'macos'
@@ -97,14 +114,37 @@ jobs:
             lipo -create -output "bin/$exe" "volta-macos-arm/$exe" "volta-macos-x64/$exe"
           done
           cd bin
-          tar -zcvf "volta-macos.tar.gz" volta volta-shim volta-migrate
-          mv "volta-macos.tar.gz" ../
+          version="${{ inputs.version }}"
+          version="${version#v}"
+          if [ -n "$version" ]; then
+            filename="volta-${version}-macos.tar.gz"
+          else
+            filename="volta-macos.tar.gz"
+          fi
+          tar -zcvf "$filename" volta volta-shim volta-migrate
+          mv "$filename" ../
 
       - name: Package (Windows)
         if: matrix.name == 'windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $version = '${{ inputs.version }}'
+          if ($version.StartsWith('v')) {
+            $version = $version.Substring(1)
+          }
+          if ([string]::IsNullOrEmpty($version)) {
+            $windowsZip = 'volta-windows.zip'
+            $windowsArmZip = 'volta-windows-arm.zip'
+            $windowsMsi = 'volta-windows.msi'
+            $windowsArmMsi = 'volta-windows-arm.msi'
+          }
+          else {
+            $windowsZip = "volta-$version-windows.zip"
+            $windowsArmZip = "volta-$version-windows-arm.zip"
+            $windowsMsi = "volta-$version-windows.msi"
+            $windowsArmMsi = "volta-$version-windows-arm.msi"
+          }
           cd out
           pixi run bsdtar -xf volta-windows.conda
           mv pkg*.tar.zst pkg.tar.zst
@@ -117,15 +157,15 @@ jobs:
           rm *.tar.zst
           mv bin volta-windows-arm
           cd volta-windows
-          Compress-Archive volta*.exe ../volta-windows.zip
+          Compress-Archive volta*.exe "../$windowsZip"
           cd ../volta-windows-arm
-          Compress-Archive volta*.exe ../volta-windows-arm.zip
+          Compress-Archive volta*.exe "../$windowsArmZip"
           cd ../..
           $version = (Get-Content Cargo.toml | Select-String '^version\s*=\s*"(.*)"').Matches.Groups[1].Value
           candle wix/main.wxs -dVersion="$version" -dCargoTargetBinDir="out/volta-windows" -o out/wix/volta-windows.wixobj
-          light out/wix/volta-windows.wixobj -spdb -ext WixUIExtension -ext WixUtilExtension -o out/volta-windows.msi
+          light out/wix/volta-windows.wixobj -spdb -ext WixUIExtension -ext WixUtilExtension -o "out/$windowsMsi"
           candle wix/main.wxs -dVersion="$version" -dCargoTargetBinDir="out/volta-windows-arm" -o out/wix/volta-windows-arm.wixobj
-          light out/wix/volta-windows-arm.wixobj -spdb -ext WixUIExtension -ext WixUtilExtension -o out/volta-windows-arm.msi
+          light out/wix/volta-windows-arm.wixobj -spdb -ext WixUIExtension -ext WixUtilExtension -o "out/$windowsArmMsi"
 
       # Upload artifacts
       - name: Upload (Unix)
@@ -133,7 +173,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.name }}
-          path: out/volta-${{ matrix.suffix }}.tar.gz
+          path: out/volta*${{ matrix.suffix }}.tar.gz
 
       - name: Upload (Windows)
         if: matrix.name == 'windows'
@@ -141,5 +181,5 @@ jobs:
         with:
           name: ${{ matrix.name }}
           path: |
-            out/volta-windows*.msi
-            out/volta-windows*.zip
+            out/volta*windows*.msi
+            out/volta*windows*.zip
