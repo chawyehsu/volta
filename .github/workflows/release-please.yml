@@ -4,14 +4,13 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      - name: Run Release Please
-        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+      - name: Run Release PR
+        uses: chawyehsu/actions/release-pr@fffc3dd14b11dd2c19781ddce078b4c5d41811c7 # v1.0.0
+        with:
+          private-key: ${{ secrets.RELEASE_MAID_PRIVATE_KEY }}
