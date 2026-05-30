@@ -15,5 +15,10 @@ verbatim.workspace = true
 cfg-if.workspace = true
 headers.workspace = true
 thiserror.workspace = true
-attohttpc.workspace = true
 log.workspace = true
+
+[target.'cfg(not(all(windows, target_arch = "aarch64")))'.dependencies]
+attohttpc = { workspace = true, features = ["tls-rustls-native-roots"] }
+
+[target.'cfg(all(windows, target_arch = "aarch64"))'.dependencies]
+attohttpc = { workspace = true, features = ["tls-rustls-native-roots-ring"] }

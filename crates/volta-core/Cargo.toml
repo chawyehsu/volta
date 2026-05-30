@@ -43,7 +43,6 @@ dunce.workspace = true
 ci_info.workspace = true
 httpdate.workspace = true
 headers.workspace = true
-attohttpc.workspace = true
 chain-map.workspace = true
 indexmap.workspace = true
 retry.workspace = true
@@ -53,3 +52,9 @@ which.workspace = true
 [target.'cfg(windows)'.dependencies]
 winreg.workspace = true
 junction.workspace = true
+
+[target.'cfg(not(all(windows, target_arch = "aarch64")))'.dependencies]
+attohttpc = { workspace = true, features = ["tls-rustls-native-roots"] }
+
+[target.'cfg(all(windows, target_arch = "aarch64"))'.dependencies]
+attohttpc = { workspace = true, features = ["tls-rustls-native-roots-ring"] }
