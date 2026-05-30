@@ -20,8 +20,8 @@ const VERSION_TEMPLATE: &str = "{{version}}";
 const EXTENSION_TEMPLATE: &str = "{{ext}}";
 const FILENAME_TEMPLATE: &str = "{{filename}}";
 
-static REL_PATH: Lazy<String> = Lazy::new(|| format!(".{}", std::path::MAIN_SEPARATOR));
-static REL_PATH_PARENT: Lazy<String> = Lazy::new(|| format!("..{}", std::path::MAIN_SEPARATOR));
+static REL_PATH: Lazy<String> = Lazy::new(|| "./".to_string());
+static REL_PATH_PARENT: Lazy<String> = Lazy::new(|| "../".to_string());
 
 /// A hook for resolving the distro URL for a given tool version
 #[derive(PartialEq, Eq, Debug)]
@@ -122,6 +122,13 @@ impl YarnIndexHook {
 /// Execute a shell command and return the trimmed stdout from that command
 fn execute_binary(bin: &str, base_path: &Path, extra_arg: Option<String>) -> Fallible<String> {
     let mut trimmed = bin.trim().to_string();
+    // replace '\' with '/' to allow Windows paths to be parsed by `parse_posix`
+    // otherwise `\` is treated as an escape character and the path is not
+    // parsed correctly
+    #[cfg(windows)]
+    {
+        trimmed = trimmed.replace('\\', "/");
+    }
     let mut words = parse_posix(&mut trimmed);
     let cmd = match words.next() {
         Some(word) => {
