@@ -92,3 +92,16 @@ fn spawn_process(command: &str, tempfile_path: Option<PathBuf>) -> Option<Child>
         }
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn spawn_process_returns_none_when_executable_not_found() {
+        // An executable that will never exist in PATH triggers the Err branch in create_command,
+        // which causes spawn_process to return None.
+        let result = spawn_process("__volta_nonexistent_binary__", None);
+        assert!(result.is_none());
+    }
+}
