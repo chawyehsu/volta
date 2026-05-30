@@ -209,15 +209,7 @@ impl ToolCommand {
         };
 
         // Do recursive call limit check
-        let recursion = match std::env::var(RECURSION_ENV_VAR) {
-            Err(_) => 1u8,
-            Ok(var) => var
-                .parse::<u8>()
-                .with_context(|| ErrorKind::ParseRecursionEnvError)?,
-        };
-        if recursion > RECURSION_LIMIT {
-            return Err(ErrorKind::RecursionLimit.into());
-        }
+        let recursion = check_recursion_limit()?;
 
         create_command_in(&self.exe, &path)
             .and_then(|mut command| {
@@ -634,5 +626,65 @@ impl UninstallCommand {
 impl From<UninstallCommand> for Executor {
     fn from(cmd: UninstallCommand) -> Self {
         Executor::Uninstall(Box::new(cmd))
+    }
+}
+
+/// Reads and validates the recursion counter from the environment.
+///
+/// Returns the current recursion depth (defaulting to 1 when the variable is absent),
+/// or an error if the value cannot be parsed or the limit has been exceeded.
+fn check_recursion_limit() -> Fallible<u8> {
+    let recursion = match std::env::var(RECURSION_ENV_VAR) {
+        Err(_) => 1u8,
+        Ok(var) => var
+            .parse::<u8>()
+            .with_context(|| ErrorKind::ParseRecursionEnvError)?,
+    };
+    if recursion > RECURSION_LIMIT {
+        return Err(ErrorKind::RecursionLimit.into());
+    }
+    Ok(recursion)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    // Serialize all tests that touch RECURSION_ENV_VAR, since env vars are
+    // global process state.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_recursion_var(value: &str) -> Fallible<u8> {
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::set_var(RECURSION_ENV_VAR, value);
+        let result = check_recursion_limit();
+        std::env::remove_var(RECURSION_ENV_VAR);
+        result
+    }
+
+    #[test]
+    fn recursion_env_var_absent_defaults_to_one() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::remove_var(RECURSION_ENV_VAR);
+        assert_eq!(check_recursion_limit().unwrap(), 1u8);
+    }
+
+    #[test]
+    fn recursion_env_var_valid_value_is_returned() {
+        assert_eq!(with_recursion_var("5").unwrap(), 5u8);
+    }
+
+    #[test]
+    fn recursion_env_var_at_limit_returns_recursion_limit_error() {
+        // RECURSION_LIMIT is 20, so 21 exceeds it
+        let err = with_recursion_var("21").unwrap_err();
+        assert_eq!(*err.kind(), ErrorKind::RecursionLimit);
+    }
+
+    #[test]
+    fn recursion_env_var_invalid_value_returns_parse_error() {
+        let err = with_recursion_var("not-a-number").unwrap_err();
+        assert_eq!(*err.kind(), ErrorKind::ParseRecursionEnvError);
     }
 }
