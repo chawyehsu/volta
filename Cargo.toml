@@ -44,7 +44,6 @@ volta-migrate = { path = "crates/volta-migrate" }
 attohttpc = { version = "0.31.0", default-features = false, features = [
     "json",
     "compress",
-    "tls-rustls-native-roots",
 ] }
 cfg-if = "1.0"
 chain-map = "0.1.0"
