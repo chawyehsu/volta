@@ -1122,7 +1122,9 @@ Please ensure the version of Node is correct."
             ),
             ErrorKind::ParseRecursionEnvError => write!(
                 f,
-                "Could not parse RECURSION_ENV_VAR value."
+                "Could not parse internal recursion state.
+
+`_VOLTA_TOOL_RECURSION` is normally managed by Volta. Please check your shell profile and environment for a manually-set value, then retry."
             ),
             ErrorKind::ParseToolSpecError { tool_spec } => write!(
                 f,
@@ -1258,7 +1260,9 @@ from {}
             ),
             ErrorKind::RecursionLimit => write!(
                 f,
-                "Recursive call limit reached."
+                "Recursive call limit reached.
+
+This usually means the shim is calling itself repeatedly. Please verify your PATH does not contain duplicate Volta shim directories and that node/npm/yarn/pnpm are not aliased to Volta shims.",
             ),
             #[cfg(windows)]
             ErrorKind::ReadUserPathError => write!(
