@@ -1,13 +1,13 @@
 use std::collections::HashMap;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 #[cfg(windows)]
 use std::os::windows::process::ExitStatusExt;
-use std::process::{Command, ExitStatus};
+use std::process::ExitStatus;
 
 use super::{RECURSION_ENV_VAR, RECURSION_LIMIT};
-use crate::command::{command_on_path, create_command};
+use crate::command::create_command_in;
 use crate::error::{Context, ErrorKind, Fallible};
 use crate::layout::volta_home;
 use crate::platform::{CliPlatform, Platform, System};
@@ -113,7 +113,9 @@ impl From<Vec<Executor>> for Executor {
 /// Tracks the Platform as well as what kind of tool is being executed, to allow individual tools
 /// to customize the behavior before execution.
 pub struct ToolCommand {
-    command: Command,
+    exe: OsString,
+    args: Vec<OsString>,
+    envs: Vec<(OsString, OsString)>,
     platform: Option<Platform>,
     kind: ToolKind,
 }
@@ -142,11 +144,17 @@ impl ToolCommand {
         A: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = create_command(exe)?;
-        command.args(args);
+        let exe = exe.as_ref().to_owned();
+        let args = args
+            .into_iter()
+            .map(|arg| arg.as_ref().to_owned())
+            .collect();
+        let envs = Vec::new();
 
         Ok(Self {
-            command,
+            exe,
+            args,
+            envs,
             platform,
             kind,
         })
@@ -159,7 +167,10 @@ impl ToolCommand {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        self.command.envs(envs);
+        self.envs.extend(
+            envs.into_iter()
+                .map(|(key, value)| (key.as_ref().to_owned(), value.as_ref().to_owned())),
+        );
     }
 
     /// Adds or updates a single environment variable that the command will use
@@ -168,7 +179,8 @@ impl ToolCommand {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        self.command.env(key, value);
+        self.envs
+            .push((key.as_ref().to_owned(), value.as_ref().to_owned()));
     }
 
     /// Updates the Platform for the command to include values from the command-line
@@ -207,8 +219,10 @@ impl ToolCommand {
             return Err(ErrorKind::RecursionLimit.into());
         }
 
-        command_on_path(self.command, path)
+        create_command_in(&self.exe, Some(&path))
             .and_then(|mut command| {
+                command.args(self.args);
+                command.envs(self.envs);
                 command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
                 pass_control_to_shim();
                 command.status().with_context(|| ErrorKind::BinaryExecError)
@@ -228,8 +242,12 @@ impl From<ToolCommand> for Executor {
 /// This will use a `DirectInstall` instance to modify the command before running to point it to
 /// the Volta directory. It will also complete the install, writing config files and shims
 pub struct PackageInstallCommand {
-    /// The command that will ultimately be executed
-    command: Command,
+    /// The executable that should be run
+    exe: &'static str,
+    /// The arguments to pass to the executable
+    args: Vec<OsString>,
+    /// Environment variables to set on the command
+    envs: Vec<(OsString, OsString)>,
     /// The installer that modifies the command as necessary and provides the completion method
     installer: DirectInstall,
     /// The platform to use when running the command.
@@ -244,15 +262,21 @@ impl PackageInstallCommand {
     {
         let installer = DirectInstall::new(manager)?;
 
-        let mut command = match manager {
-            PackageManager::Npm => create_command("npm")?,
-            PackageManager::Pnpm => create_command("pnpm")?,
-            PackageManager::Yarn => create_command("yarn")?,
+        let exe = match manager {
+            PackageManager::Npm => "npm",
+            PackageManager::Pnpm => "pnpm",
+            PackageManager::Yarn => "yarn",
         };
-        command.args(args);
+        let args = args
+            .into_iter()
+            .map(|arg| arg.as_ref().to_owned())
+            .collect();
+        let envs = Vec::new();
 
         Ok(PackageInstallCommand {
-            command,
+            exe,
+            args,
+            envs,
             installer,
             platform,
         })
@@ -264,12 +288,15 @@ impl PackageInstallCommand {
         S: AsRef<OsStr>,
     {
         let installer = DirectInstall::with_name(PackageManager::Npm, name)?;
-
-        let mut command = create_command("npm")?;
-        command.args(args);
+        let args = args
+            .into_iter()
+            .map(|arg| arg.as_ref().to_owned())
+            .collect();
 
         Ok(PackageInstallCommand {
-            command,
+            exe: "npm",
+            args,
+            envs: Vec::new(),
             installer,
             platform,
         })
@@ -282,7 +309,10 @@ impl PackageInstallCommand {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        self.command.envs(envs);
+        self.envs.extend(
+            envs.into_iter()
+                .map(|(key, value)| (key.as_ref().to_owned(), value.as_ref().to_owned())),
+        );
     }
 
     /// Updates the Platform for the command to include values from the command-line
@@ -297,7 +327,9 @@ impl PackageInstallCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let mut command = command_on_path(self.command, path)?;
+        let mut command = create_command_in(self.exe, Some(&path))?;
+        command.args(self.args);
+        command.envs(self.envs);
 
         command.env(RECURSION_ENV_VAR, "1");
         self.installer.setup_command(&mut command);
@@ -325,8 +357,10 @@ impl From<PackageInstallCommand> for Executor {
 /// This will set the appropriate environment variables to ensure that the linked package can be
 /// found.
 pub struct PackageLinkCommand {
-    /// The command that will ultimately be executed
-    command: Command,
+    /// The arguments to pass to npm
+    args: Vec<OsString>,
+    /// Environment variables to set on the command
+    envs: Vec<(OsString, OsString)>,
     /// The tool the user wants to link
     tool: String,
     /// The platform to use when running the command
@@ -339,11 +373,15 @@ impl PackageLinkCommand {
         A: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = create_command("npm")?;
-        command.args(args);
+        let args = args
+            .into_iter()
+            .map(|arg| arg.as_ref().to_owned())
+            .collect();
+        let envs = Vec::new();
 
         Ok(PackageLinkCommand {
-            command,
+            args,
+            envs,
             tool,
             platform,
         })
@@ -356,7 +394,10 @@ impl PackageLinkCommand {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        self.command.envs(envs);
+        self.envs.extend(
+            envs.into_iter()
+                .map(|(key, value)| (key.as_ref().to_owned(), value.as_ref().to_owned())),
+        );
     }
 
     /// Updates the Platform for the command to include values from the command-line
@@ -374,7 +415,9 @@ impl PackageLinkCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let mut command = command_on_path(self.command, path)?;
+        let mut command = create_command_in("npm", Some(&path))?;
+        command.args(self.args);
+        command.envs(self.envs);
 
         command.env(RECURSION_ENV_VAR, "1");
         let package_root = volta_home()?.package_image_dir(&self.tool);
@@ -427,8 +470,12 @@ impl From<PackageLinkCommand> for Executor {
 /// This will use an `InPlaceUpgrade` instance to modify the command and point at the appropriate
 /// image directory. It will also complete the install, writing any updated configs and shims
 pub struct PackageUpgradeCommand {
-    /// The command that will ultimately be executed
-    command: Command,
+    /// The executable that should be run
+    exe: &'static str,
+    /// The arguments to pass to the executable
+    args: Vec<OsString>,
+    /// Environment variables to set on the command
+    envs: Vec<(OsString, OsString)>,
     /// Helper utility to modify the command and provide the completion method
     upgrader: InPlaceUpgrade,
     /// The platform to run the command under
@@ -448,15 +495,21 @@ impl PackageUpgradeCommand {
     {
         let upgrader = InPlaceUpgrade::new(package, manager)?;
 
-        let mut command = match manager {
-            PackageManager::Npm => create_command("npm")?,
-            PackageManager::Pnpm => create_command("pnpm")?,
-            PackageManager::Yarn => create_command("yarn")?,
+        let exe = match manager {
+            PackageManager::Npm => "npm",
+            PackageManager::Pnpm => "pnpm",
+            PackageManager::Yarn => "yarn",
         };
-        command.args(args);
+        let args = args
+            .into_iter()
+            .map(|arg| arg.as_ref().to_owned())
+            .collect();
+        let envs = Vec::new();
 
         Ok(PackageUpgradeCommand {
-            command,
+            exe,
+            args,
+            envs,
             upgrader,
             platform,
         })
@@ -469,7 +522,10 @@ impl PackageUpgradeCommand {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        self.command.envs(envs);
+        self.envs.extend(
+            envs.into_iter()
+                .map(|(key, value)| (key.as_ref().to_owned(), value.as_ref().to_owned())),
+        );
     }
 
     /// Updates the Platform for the command to include values from the command-line
@@ -489,7 +545,9 @@ impl PackageUpgradeCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let mut command = command_on_path(self.command, path)?;
+        let mut command = create_command_in(self.exe, Some(&path))?;
+        command.args(self.args);
+        command.envs(self.envs);
 
         command.env(RECURSION_ENV_VAR, "1");
         self.upgrader.setup_command(&mut command);

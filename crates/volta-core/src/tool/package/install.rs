@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use super::manager::PackageManager;
-use crate::command::{command_on_path, create_command};
+use crate::command::create_command_in;
 use crate::error::{Context, ErrorKind, Fallible};
 use crate::platform::Image;
 use crate::style::progress_spinner;
@@ -18,7 +18,7 @@ pub(super) fn run_global_install(
     platform_image: &Image,
 ) -> Fallible<()> {
     let path = platform_image.path()?;
-    let mut command = create_command("npm")?;
+    let mut command = create_command_in("npm", Some(&path))?;
     command.args([
         "install",
         "--global",
@@ -27,8 +27,6 @@ pub(super) fn run_global_install(
         "--no-audit",
     ]);
     command.arg(&package);
-
-    command = command_on_path(command, path)?;
 
     PackageManager::Npm.setup_global_command(&mut command, staging_dir);
 
