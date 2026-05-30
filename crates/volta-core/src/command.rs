@@ -27,13 +27,21 @@ where
 }
 
 /// Create a command for the given executable, searching in the provided paths
-pub fn create_command_in<E, U>(exe: E, paths: Option<U>) -> Fallible<Command>
+pub fn create_command_in<E, U>(exe: E, paths: U) -> Fallible<Command>
 where
     E: AsRef<OsStr>,
     U: AsRef<OsStr>,
 {
+    let paths = paths.as_ref();
+
     command_lookup(exe, |name| {
-        which::which_in_global(name, paths)
-            .and_then(|mut i| i.next().ok_or(which::Error::CannotFindBinaryPath))
+        which::which_in_global(name, Some(paths))
+            .and_then(|mut iter| iter.next().ok_or(which::Error::CannotFindBinaryPath))
+    })
+    .map(|mut command| {
+        // Set the PATH for the command to the provided paths, which will allow
+        // the command to find its dependencies in the same path when executed.
+        command.env("PATH", paths);
+        command
     })
 }

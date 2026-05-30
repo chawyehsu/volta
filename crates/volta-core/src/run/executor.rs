@@ -219,7 +219,7 @@ impl ToolCommand {
             return Err(ErrorKind::RecursionLimit.into());
         }
 
-        create_command_in(&self.exe, Some(&path))
+        create_command_in(&self.exe, &path)
             .and_then(|mut command| {
                 command.args(self.args);
                 command.envs(self.envs);
@@ -327,7 +327,7 @@ impl PackageInstallCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let mut command = create_command_in(self.exe, Some(&path))?;
+        let mut command = create_command_in(self.exe, &path)?;
         command.args(self.args);
         command.envs(self.envs);
 
@@ -415,7 +415,7 @@ impl PackageLinkCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let mut command = create_command_in("npm", Some(&path))?;
+        let mut command = create_command_in("npm", &path)?;
         command.args(self.args);
         command.envs(self.envs);
 
@@ -545,7 +545,7 @@ impl PackageUpgradeCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let mut command = create_command_in(self.exe, Some(&path))?;
+        let mut command = create_command_in(self.exe, &path)?;
         command.args(self.args);
         command.envs(self.envs);
 
