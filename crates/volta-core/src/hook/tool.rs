@@ -20,8 +20,8 @@ const VERSION_TEMPLATE: &str = "{{version}}";
 const EXTENSION_TEMPLATE: &str = "{{ext}}";
 const FILENAME_TEMPLATE: &str = "{{filename}}";
 
-static REL_PATH: Lazy<String> = Lazy::new(|| format!(".{}", std::path::MAIN_SEPARATOR));
-static REL_PATH_PARENT: Lazy<String> = Lazy::new(|| format!("..{}", std::path::MAIN_SEPARATOR));
+static REL_PATH: Lazy<String> = Lazy::new(|| "./".to_string());
+static REL_PATH_PARENT: Lazy<String> = Lazy::new(|| "../".to_string());
 
 /// A hook for resolving the distro URL for a given tool version
 #[derive(PartialEq, Eq, Debug)]
@@ -122,6 +122,13 @@ impl YarnIndexHook {
 /// Execute a shell command and return the trimmed stdout from that command
 fn execute_binary(bin: &str, base_path: &Path, extra_arg: Option<String>) -> Fallible<String> {
     let mut trimmed = bin.trim().to_string();
+    // replace '\' with '/' to allow Windows paths to be parsed by `parse_posix`
+    // otherwise `\` is treated as an escape character and the path is not
+    // parsed correctly
+    #[cfg(windows)]
+    {
+        trimmed = trimmed.replace('\\', "/");
+    }
     let mut words = parse_posix(&mut trimmed);
     let cmd = match words.next() {
         Some(word) => {
@@ -181,6 +188,33 @@ pub mod tests {
     use super::{calculate_extension, DistroHook, MetadataHook};
     use crate::tool::{NODE_DISTRO_ARCH, NODE_DISTRO_OS};
     use node_semver::Version;
+    use std::fs;
+
+    #[cfg(unix)]
+    fn write_test_hook_executable(base_path: &std::path::Path) -> String {
+        use std::os::unix::fs::PermissionsExt;
+
+        let hook_path = base_path.join("resolve-url");
+        fs::write(&hook_path, "#!/bin/sh\nprintf \"%s\" \"$1\"\n").unwrap();
+
+        let mut perms = fs::metadata(&hook_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&hook_path, perms).unwrap();
+
+        format!(".{}resolve-url", std::path::MAIN_SEPARATOR)
+    }
+
+    #[cfg(windows)]
+    fn write_test_hook_executable(base_path: &std::path::Path) -> String {
+        let hook_path = base_path.join("resolve-url.cmd");
+        fs::write(
+            &hook_path,
+            "@echo off\r\nsetlocal\r\nset \"arg=%~1\"\r\n<nul set /p =%arg%\r\nexit /b 0\r\n",
+        )
+        .unwrap();
+
+        format!(".{}resolve-url.cmd", std::path::MAIN_SEPARATOR)
+    }
 
     #[test]
     fn test_distro_prefix_resolve() {
@@ -223,6 +257,24 @@ pub mod tests {
             hook.resolve(&version, "node-v1.0.0.zip")
                 .expect("Could not resolve URL"),
             expected
+        );
+    }
+
+    #[test]
+    fn test_distro_bin_resolve() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let bin = write_test_hook_executable(tmp_dir.path());
+
+        let hook = DistroHook::Bin {
+            bin,
+            base_path: tmp_dir.path().to_path_buf(),
+        };
+        let version = Version::parse("1.0.0").unwrap();
+
+        assert_eq!(
+            hook.resolve(&version, "node-v1.0.0.tar.gz")
+                .expect("Could not resolve URL"),
+            version.to_string()
         );
     }
 
