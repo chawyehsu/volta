@@ -26,7 +26,41 @@ where
     command_lookup(exe, |name| which::which_global(name))
 }
 
-/// Create a command for the given executable, searching in the provided paths
+/// Create a command for the given executable, searching in the provided paths.
+///
+/// On Unix, we verify the executable exists in the given paths but pass the bare name to
+/// `Command::new`. This preserves `execvp`-style PATH-search semantics at the OS level: the
+/// kernel receives a name rather than an absolute path, which avoids `ENOEXEC` (os error 8)
+/// that can occur when directly exec-ing certain script wrappers or zero-byte fixture files.
+#[cfg(unix)]
+pub fn create_command_in<E, U>(exe: E, paths: U) -> Fallible<Command>
+where
+    E: AsRef<OsStr>,
+    U: AsRef<OsStr>,
+{
+    let exe = exe.as_ref();
+    let paths = paths.as_ref();
+
+    which::which_in_global(exe, Some(paths))
+        .and_then(|mut iter| iter.next().ok_or(which::Error::CannotFindBinaryPath))
+        .map_err(|_| {
+            crate::error::ErrorKind::BinaryNotFound {
+                name: exe.to_string_lossy().to_string(),
+            }
+            .into()
+        })
+        .map(|_| {
+            let mut command = Command::new(exe);
+            // Set PATH so command execution and nested launches resolve tools in this context.
+            command.env("PATH", paths);
+            command
+        })
+}
+
+/// Create a command for the given executable, searching in the provided paths.
+///
+/// On Windows, command launching requires an absolute executable path.
+#[cfg(windows)]
 pub fn create_command_in<E, U>(exe: E, paths: U) -> Fallible<Command>
 where
     E: AsRef<OsStr>,
@@ -39,8 +73,7 @@ where
             .and_then(|mut iter| iter.next().ok_or(which::Error::CannotFindBinaryPath))
     })
     .map(|mut command| {
-        // Set the PATH for the command to the provided paths, which will allow
-        // the command to find its dependencies in the same path when executed.
+        // Set PATH so command execution and nested launches resolve tools in this context.
         command.env("PATH", paths);
         command
     })
