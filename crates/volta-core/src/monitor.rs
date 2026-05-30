@@ -63,7 +63,16 @@ fn write_events_file(events_json: String) -> Option<PathBuf> {
 // Spawn a child process to receive the events data, setting the path to the events file as an env var
 fn spawn_process(command: &str, tempfile_path: Option<PathBuf>) -> Option<Child> {
     command.split(' ').take(1).next().and_then(|executable| {
-        let mut child = create_command(executable);
+        let mut child = match create_command(executable) {
+            Ok(cmd) => cmd,
+            Err(err) => {
+                debug!(
+                    "Unable to create command for executable: '{}'\n{}",
+                    command, err
+                );
+                return None;
+            }
+        };
         child.args(command.split(' ').skip(1));
         child.stdin(Stdio::piped());
         if let Some(events_file) = tempfile_path {

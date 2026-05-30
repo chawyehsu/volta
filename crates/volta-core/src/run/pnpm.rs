@@ -28,7 +28,7 @@ pub(super) fn command(args: &[OsString], session: &mut Session) -> Fallible<Exec
         }
     };
 
-    Ok(ToolCommand::new("pnpm", args, platform, ToolKind::Pnpm).into())
+    ToolCommand::new("pnpm", args, platform, ToolKind::Pnpm).map(Into::into)
 }
 
 /// Determine the execution context (PATH and failure error message) for pnpm

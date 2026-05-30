@@ -74,13 +74,13 @@ fn get_executor(
     session: &mut Session,
 ) -> Fallible<executor::Executor> {
     if env::var_os(VOLTA_BYPASS).is_some() {
-        Ok(executor::ToolCommand::new(
+        executor::ToolCommand::new(
             exe,
             args,
             None,
             executor::ToolKind::Bypass(exe.to_string_lossy().to_string()),
         )
-        .into())
+        .map(Into::into)
     } else {
         match exe.to_str() {
             Some("volta-shim") => Err(ErrorKind::RunShimDirectly.into()),

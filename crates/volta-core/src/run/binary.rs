@@ -25,13 +25,13 @@ pub(super) fn command(exe: &OsStr, args: &[OsString], session: &mut Session) -> 
                     debug!("Found {} in project at '{}'", bin, path_to_bin.display());
 
                     let platform = Platform::current(session)?;
-                    return Ok(ToolCommand::new(
+                    return ToolCommand::new(
                         path_to_bin,
                         args,
                         platform,
                         ToolKind::ProjectLocalBinary(bin),
                     )
-                    .into());
+                    .map(Into::into);
                 }
                 None => {
                     if project.needs_yarn_run() {
@@ -42,13 +42,8 @@ pub(super) fn command(exe: &OsStr, args: &[OsString], session: &mut Session) -> 
                         let platform = Platform::current(session)?;
                         let mut exe_and_args = vec![exe.to_os_string()];
                         exe_and_args.extend_from_slice(args);
-                        return Ok(ToolCommand::new(
-                            "yarn",
-                            exe_and_args,
-                            platform,
-                            ToolKind::Yarn,
-                        )
-                        .into());
+                        return ToolCommand::new("yarn", exe_and_args, platform, ToolKind::Yarn)
+                            .map(Into::into);
                     } else {
                         return Err(ErrorKind::ProjectLocalBinaryNotFound {
                             command: exe.to_string_lossy().to_string(),
@@ -73,7 +68,7 @@ pub(super) fn command(exe: &OsStr, args: &[OsString], session: &mut Session) -> 
             args,
             Some(default_tool.platform),
             ToolKind::DefaultBinary(bin),
-        );
+        )?;
         command.env("NODE_PATH", shared_module_path()?);
 
         return Ok(command.into());
@@ -81,7 +76,7 @@ pub(super) fn command(exe: &OsStr, args: &[OsString], session: &mut Session) -> 
 
     // At this point, the binary is not known to Volta, so we have no platform to use to execute it
     // This should be rare, as anything we have a shim for should have a config file to load
-    Ok(ToolCommand::new(exe, args, None, ToolKind::DefaultBinary(bin)).into())
+    ToolCommand::new(exe, args, None, ToolKind::DefaultBinary(bin)).map(Into::into)
 }
 
 /// Determine the execution context (PATH and failure error message) for a project-local binary

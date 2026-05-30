@@ -131,20 +131,25 @@ pub enum ToolKind {
 }
 
 impl ToolCommand {
-    pub fn new<E, A, S>(exe: E, args: A, platform: Option<Platform>, kind: ToolKind) -> Self
+    pub fn new<E, A, S>(
+        exe: E,
+        args: A,
+        platform: Option<Platform>,
+        kind: ToolKind,
+    ) -> Fallible<Self>
     where
         E: AsRef<OsStr>,
         A: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = create_command(exe);
+        let mut command = create_command(exe)?;
         command.args(args);
 
-        Self {
+        Ok(Self {
             command,
             platform,
             kind,
-        }
+        })
     }
 
     /// Adds or updates environment variables that the command will use
@@ -240,9 +245,9 @@ impl PackageInstallCommand {
         let installer = DirectInstall::new(manager)?;
 
         let mut command = match manager {
-            PackageManager::Npm => create_command("npm"),
-            PackageManager::Pnpm => create_command("pnpm"),
-            PackageManager::Yarn => create_command("yarn"),
+            PackageManager::Npm => create_command("npm")?,
+            PackageManager::Pnpm => create_command("pnpm")?,
+            PackageManager::Yarn => create_command("yarn")?,
         };
         command.args(args);
 
@@ -260,7 +265,7 @@ impl PackageInstallCommand {
     {
         let installer = DirectInstall::with_name(PackageManager::Npm, name)?;
 
-        let mut command = create_command("npm");
+        let mut command = create_command("npm")?;
         command.args(args);
 
         Ok(PackageInstallCommand {
@@ -329,19 +334,19 @@ pub struct PackageLinkCommand {
 }
 
 impl PackageLinkCommand {
-    pub fn new<A, S>(args: A, platform: Platform, tool: String) -> Self
+    pub fn new<A, S>(args: A, platform: Platform, tool: String) -> Fallible<Self>
     where
         A: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = create_command("npm");
+        let mut command = create_command("npm")?;
         command.args(args);
 
-        PackageLinkCommand {
+        Ok(PackageLinkCommand {
             command,
             tool,
             platform,
-        }
+        })
     }
 
     /// Adds or updates environment variables that the command will use
@@ -444,9 +449,9 @@ impl PackageUpgradeCommand {
         let upgrader = InPlaceUpgrade::new(package, manager)?;
 
         let mut command = match manager {
-            PackageManager::Npm => create_command("npm"),
-            PackageManager::Pnpm => create_command("pnpm"),
-            PackageManager::Yarn => create_command("yarn"),
+            PackageManager::Npm => create_command("npm")?,
+            PackageManager::Pnpm => create_command("pnpm")?,
+            PackageManager::Yarn => create_command("yarn")?,
         };
         command.args(args);
 
