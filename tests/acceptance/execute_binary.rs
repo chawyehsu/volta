@@ -21,6 +21,20 @@ const PKG_CONFIG_BASIC: &str = r#"{
   "manager": "Npm"
 }"#;
 
+const PKG_CONFIG_ENVCHECK: &str = r#"{
+    "name": "envcheck",
+    "version": "1.4.0",
+    "platform": {
+        "node": "11.10.1",
+        "npm": "6.7.0",
+        "yarn": null
+    },
+    "bins": [
+        "envcheck"
+    ],
+    "manager": "Npm"
+}"#;
+
 fn node_bin(version: &str) -> String {
     cfg_if! {
             if #[cfg(target_os = "windows")] {
@@ -131,6 +145,30 @@ echo "{} args: $@"
     }
 }
 
+fn envcheck_bin(name: &str, version: &str) -> String {
+    cfg_if! {
+        if #[cfg(target_os = "windows")] {
+            format!(
+                r#"@echo off
+echo {} version {}
+echo NODE_PATH: %NODE_PATH%
+echo {} args: %*
+"#,
+    name, version, name
+            )
+        } else {
+            format!(
+                r#"#!/bin/sh
+echo "{} version {}"
+echo "NODE_PATH: $NODE_PATH"
+echo "{} args: $@"
+"#,
+    name, version, name
+            )
+        }
+    }
+}
+
 fn cowsay_bin_info(version: &str) -> Vec<PackageBinInfo> {
     vec![
         PackageBinInfo {
@@ -142,6 +180,13 @@ fn cowsay_bin_info(version: &str) -> Vec<PackageBinInfo> {
             contents: cowsay_bin("cowthink", version),
         },
     ]
+}
+
+fn envcheck_bin_info(version: &str) -> Vec<PackageBinInfo> {
+    vec![PackageBinInfo {
+        name: "envcheck".to_string(),
+        contents: envcheck_bin("envcheck", version),
+    }]
 }
 
 fn bin_config(name: &str) -> String {
@@ -156,6 +201,23 @@ fn bin_config(name: &str) -> String {
     "yarn": null
   }},
   "manager": "Npm"
+}}"#,
+        name
+    )
+}
+
+fn envcheck_bin_config(name: &str) -> String {
+    format!(
+        r#"{{
+    "name": "{}",
+    "package": "envcheck",
+    "version": "1.4.0",
+    "platform": {{
+        "node": "11.10.1",
+        "npm": "6.7.0",
+        "yarn": null
+    }},
+    "manager": "Npm"
 }}"#,
         name
     )
@@ -230,6 +292,81 @@ fn default_binary_no_project() {
             .with_stdout_does_not_contain("Yarn version")
             .with_stdout_does_not_contain("pnpm version")
     );
+}
+
+#[test]
+fn default_binary_sets_node_path() {
+    // platform node is 11.10.1, npm is 6.7.0
+    // package envcheck is 1.4.0, installed with platform node
+    // default yarn is 1.23.483
+    // default pnpm is 7.7.1
+    // there is no local project, so it should run the default bin and inject NODE_PATH
+    let s = sandbox()
+        .platform(PLATFORM_NODE_NPM)
+        .package_config("envcheck", PKG_CONFIG_ENVCHECK)
+        .binary_config("envcheck", &envcheck_bin_config("envcheck"))
+        .shim("envcheck")
+        .package_image("envcheck", "1.4.0", Some(envcheck_bin_info("1.4.0")))
+        .setup_node_binary("11.10.1", "6.7.0", &node_bin("11.10.1"))
+        .setup_npm_binary("6.7.0", &npm_bin("6.7.0"))
+        .setup_yarn_binary("1.23.483", &yarn_bin("1.23.483"))
+        .setup_pnpm_binary("7.7.1", &pnpm_bin("7.7.1"))
+        .add_dir_to_path(PathBuf::from("/bin"))
+        .build();
+
+    assert_that!(
+        s.exec_shim("envcheck", "foo"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("envcheck version 1.4.0")
+            .with_stdout_contains("NODE_PATH:[..]shared[..]")
+            .with_stdout_contains("envcheck args: foo")
+    );
+}
+
+#[test]
+fn project_local_binary_not_found() {
+    // platform node is 11.10.1, npm is 6.7.0
+    // package cowsay is 1.4.0, installed with platform node
+    // local project has cowsay as a dep, but no local binary exists, so it should error
+    let s = sandbox()
+        .package_json(PACKAGE_JSON_NPM_WITH_DEP)
+        .package_config("cowsay", PKG_CONFIG_BASIC)
+        .binary_config("cowsay", &bin_config("cowsay"))
+        .shim("cowsay")
+        .build();
+
+    assert_that!(
+        s.exec_shim("cowsay", "foo"),
+        execs()
+            .with_status(126)
+            .with_stderr_contains("[..]Could not locate executable `cowsay` in your project.[..]")
+    );
+}
+
+#[test]
+fn unknown_binary_falls_back_to_default_binary_error() {
+    // there is no project, and Volta does not know about this shimmed binary
+    // it should fall back to the default binary path and fail to locate the executable
+    let s = sandbox().shim("volta-test").build();
+
+    cfg_if! {
+        if #[cfg(target_os = "windows")] {
+            assert_that!(
+                s.exec_shim("volta-test", ""),
+                execs()
+                    .with_status(1)
+                    .with_stderr_contains("'volta-test' is not recognized as an internal or external command")
+            );
+        } else {
+            assert_that!(
+                s.exec_shim("volta-test", ""),
+                execs()
+                    .with_status(126)
+                    .with_stderr_contains("[..]Could not find executable \"volta-test\"[..]")
+            );
+        }
+    }
 }
 
 #[test]
