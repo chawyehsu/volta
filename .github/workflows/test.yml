@@ -18,6 +18,8 @@ permissions: {}
 
 jobs:
   tests:
+    # Skip the entire workflow if the actor is release-maid[bot]
+    if: github.actor != 'release-maid[bot]'
     strategy:
       matrix:
         include:
@@ -47,6 +49,8 @@ jobs:
         run: cargo clippy --tests --features mock-network
 
   smoke-tests:
+    # Skip the entire workflow if the actor is release-maid[bot]
+    if: github.actor != 'release-maid[bot]'
     name: Smoke Tests
     runs-on: ubuntu-latest
     env:
@@ -64,6 +68,8 @@ jobs:
         run: cargo test --test smoke --features smoke-tests -- --test-threads 1
 
   shell-tests:
+    # Skip the entire workflow if the actor is release-maid[bot]
+    if: github.actor != 'release-maid[bot]'
     name: Shell Script Tests
     runs-on: ubuntu-latest
     steps:
@@ -77,6 +83,8 @@ jobs:
         run: bats dev/unix/tests/
 
   check-formatting:
+    # Skip the entire workflow if the actor is release-maid[bot]
+    if: github.actor != 'release-maid[bot]'
     name: Check code formatting
     runs-on: ubuntu-latest
     env:
@@ -93,6 +101,8 @@ jobs:
         run: cargo fmt --all --quiet -- --check
 
   validate-installer-checksum:
+    # Skip the entire workflow if the actor is release-maid[bot]
+    if: github.actor != 'release-maid[bot]'
     name: Validate installer checksum
     runs-on: ubuntu-latest
     steps:
