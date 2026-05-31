@@ -3,9 +3,11 @@ use std::process::Command;
 
 use cfg_if::cfg_if;
 
+use crate::error::Fallible;
+
 cfg_if! {
     if #[cfg(windows)] {
-        pub fn create_command<E>(exe: E) -> Command
+        pub fn create_command<E>(exe: E) -> Fallible<Command>
         where
             E: AsRef<OsStr>
         {
@@ -17,14 +19,14 @@ cfg_if! {
             let mut command = Command::new("cmd.exe");
             command.arg("/C");
             command.arg(exe);
-            command
+            Ok(command)
         }
     } else {
-        pub fn create_command<E>(exe: E) -> Command
+        pub fn create_command<E>(exe: E) -> Fallible<Command>
         where
             E: AsRef<OsStr>
         {
-            Command::new(exe)
+            Ok(Command::new(exe))
         }
     }
 }

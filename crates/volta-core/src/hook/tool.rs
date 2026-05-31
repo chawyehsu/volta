@@ -154,7 +154,7 @@ fn execute_binary(bin: &str, base_path: &Path, extra_arg: Option<String>) -> Fal
         args.push(OsString::from(arg));
     }
 
-    let mut command = create_command(cmd);
+    let mut command = create_command(cmd)?;
     command
         .args(&args)
         .current_dir(base_path)

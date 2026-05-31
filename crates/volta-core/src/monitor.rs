@@ -63,7 +63,16 @@ fn write_events_file(events_json: String) -> Option<PathBuf> {
 // Spawn a child process to receive the events data, setting the path to the events file as an env var
 fn spawn_process(command: &str, tempfile_path: Option<PathBuf>) -> Option<Child> {
     command.split(' ').take(1).next().and_then(|executable| {
-        let mut child = create_command(executable);
+        let mut child = match create_command(executable) {
+            Ok(cmd) => cmd,
+            Err(err) => {
+                debug!(
+                    "Unable to create command for executable: '{}'\n{}",
+                    command, err
+                );
+                return None;
+            }
+        };
         child.args(command.split(' ').skip(1));
         child.stdin(Stdio::piped());
         if let Some(events_file) = tempfile_path {
@@ -82,4 +91,17 @@ fn spawn_process(command: &str, tempfile_path: Option<PathBuf>) -> Option<Child>
             Ok(c) => Some(c),
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn spawn_process_returns_none_when_executable_not_found() {
+        // An executable that will never exist in PATH triggers the Err branch in create_command,
+        // which causes spawn_process to return None.
+        let result = spawn_process("__volta_nonexistent_binary__", None);
+        assert!(result.is_none());
+    }
 }

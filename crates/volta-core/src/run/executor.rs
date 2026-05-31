@@ -142,7 +142,7 @@ impl ToolCommand {
         A: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = create_command(exe);
+        let mut command = create_command(exe)?;
         command.args(args);
 
         Ok(Self {
@@ -232,9 +232,9 @@ impl PackageInstallCommand {
         let installer = DirectInstall::new(manager)?;
 
         let mut command = match manager {
-            PackageManager::Npm => create_command("npm"),
-            PackageManager::Pnpm => create_command("pnpm"),
-            PackageManager::Yarn => create_command("yarn"),
+            PackageManager::Npm => create_command("npm")?,
+            PackageManager::Pnpm => create_command("pnpm")?,
+            PackageManager::Yarn => create_command("yarn")?,
         };
         command.args(args);
 
@@ -252,7 +252,7 @@ impl PackageInstallCommand {
     {
         let installer = DirectInstall::with_name(PackageManager::Npm, name)?;
 
-        let mut command = create_command("npm");
+        let mut command = create_command("npm")?;
         command.args(args);
 
         Ok(PackageInstallCommand {
@@ -326,7 +326,7 @@ impl PackageLinkCommand {
         A: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = create_command("npm");
+        let mut command = create_command("npm")?;
         command.args(args);
 
         Ok(PackageLinkCommand {
@@ -437,9 +437,9 @@ impl PackageUpgradeCommand {
         let upgrader = InPlaceUpgrade::new(package, manager)?;
 
         let mut command = match manager {
-            PackageManager::Npm => create_command("npm"),
-            PackageManager::Pnpm => create_command("pnpm"),
-            PackageManager::Yarn => create_command("yarn"),
+            PackageManager::Npm => create_command("npm")?,
+            PackageManager::Pnpm => create_command("pnpm")?,
+            PackageManager::Yarn => create_command("yarn")?,
         };
         command.args(args);
 

@@ -17,7 +17,7 @@ pub(super) fn run_global_install(
     staging_dir: PathBuf,
     platform_image: &Image,
 ) -> Fallible<()> {
-    let mut command = create_command("npm");
+    let mut command = create_command("npm")?;
     command.args([
         "install",
         "--global",
