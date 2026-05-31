@@ -350,23 +350,12 @@ fn unknown_binary_falls_back_to_default_binary_error() {
     // it should fall back to the default binary path and fail to locate the executable
     let s = sandbox().shim("volta-test").build();
 
-    cfg_if! {
-        if #[cfg(target_os = "windows")] {
-            assert_that!(
-                s.exec_shim("volta-test", ""),
-                execs()
-                    .with_status(1)
-                    .with_stderr_contains("'volta-test' is not recognized as an internal or external command[..]")
-            );
-        } else {
-            assert_that!(
-                s.exec_shim("volta-test", ""),
-                execs()
-                    .with_status(126)
-                    .with_stderr_contains("[..]Could not find executable \"volta-test\"[..]")
-            );
-        }
-    }
+    assert_that!(
+        s.exec_shim("volta-test", ""),
+        execs()
+            .with_status(126)
+            .with_stderr_contains("[..]Could not find executable \"volta-test\"[..]")
+    );
 }
 
 #[test]
