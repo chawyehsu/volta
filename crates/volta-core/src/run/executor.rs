@@ -213,7 +213,7 @@ impl ToolCommand {
 
         create_command_in(&self.exe, &path)
             .and_then(|mut command| {
-                command.args(self.args);
+                command.args(&self.args);
                 command.envs(self.envs);
                 command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
                 pass_control_to_shim();
@@ -280,6 +280,7 @@ impl PackageInstallCommand {
         S: AsRef<OsStr>,
     {
         let installer = DirectInstall::with_name(PackageManager::Npm, name)?;
+
         let args = args
             .into_iter()
             .map(|arg| arg.as_ref().to_owned())
@@ -320,8 +321,7 @@ impl PackageInstallCommand {
         let path = image.path()?;
 
         let mut command = create_command_in(self.exe, &path)?;
-        command.args(self.args);
-
+        command.args(&self.args);
         command.envs(self.envs);
 
         command.env(RECURSION_ENV_VAR, "1");
@@ -409,7 +409,7 @@ impl PackageLinkCommand {
         let path = image.path()?;
 
         let mut command = create_command_in("npm", &path)?;
-        command.args(self.args);
+        command.args(&self.args);
         command.envs(self.envs);
 
         command.env(RECURSION_ENV_VAR, "1");
@@ -539,8 +539,7 @@ impl PackageUpgradeCommand {
         let path = image.path()?;
 
         let mut command = create_command_in(self.exe, &path)?;
-        command.args(self.args);
-
+        command.args(&self.args);
         command.envs(self.envs);
 
         command.env(RECURSION_ENV_VAR, "1");
