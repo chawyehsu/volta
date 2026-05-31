@@ -39,14 +39,16 @@ fn run_npm_install_and_update() {
     let p = temp_project().build();
 
     assert_that!(
-        p.volta("run --node 14.14.0 --npm 6.14.16 npm install is-number@2.0.0"),
+        p.volta("run --node 14.14.0 --npm 6.14.16 npm install -g cowsay@1.2.0"),
         execs()
             .with_status(0)
-            .with_stdout_contains("[..]added 1 package[..]")
+            .with_stdout_contains("[..]added 5 package[..]")
     );
     assert_that!(
-        p.volta("run --node 14.14.0 --npm 6.14.16 npm update -g is-number"),
-        execs().with_status(0)
+        p.volta("run --node 14.14.0 --npm 6.14.16 --env MY_VAR=hello npm update -g cowsay"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]updated[..]package[..]")
     );
 }
 
