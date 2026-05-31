@@ -193,6 +193,8 @@ impl ToolCommand {
 
     /// Runs the command, returning the `ExitStatus` if it successfully launches
     pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
+        let recursion = check_recursion_limit()?;
+
         let (path, on_failure) = match self.kind {
             ToolKind::Node => super::node::execution_context(self.platform, session)?,
             ToolKind::Npm => super::npm::execution_context(self.platform, session)?,
@@ -212,7 +214,6 @@ impl ToolCommand {
         command.args(&self.args);
         command.envs(self.envs);
 
-        let recursion = check_recursion_limit()?;
         command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         pass_control_to_shim();
         command.status().with_context(|| on_failure)
@@ -312,6 +313,8 @@ impl PackageInstallCommand {
     /// Runs the install command, applying the necessary modifications to install into the Volta
     /// data directory
     pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
+        let recursion = check_recursion_limit()?;
+
         let _lock = VoltaLock::acquire();
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
@@ -320,7 +323,6 @@ impl PackageInstallCommand {
         command.args(&self.args);
         command.envs(self.envs);
 
-        let recursion = check_recursion_limit()?;
         command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         self.installer.setup_command(&mut command);
 
@@ -400,6 +402,8 @@ impl PackageLinkCommand {
     ///
     /// This will also check for some common failure cases and alert the user
     pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
+        let recursion = check_recursion_limit()?;
+
         self.check_linked_package(session)?;
 
         let image = self.platform.checkout(session)?;
@@ -409,7 +413,6 @@ impl PackageLinkCommand {
         command.args(&self.args);
         command.envs(self.envs);
 
-        let recursion = check_recursion_limit()?;
         command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         let package_root = volta_home()?.package_image_dir(&self.tool);
         PackageManager::Npm.setup_global_command(&mut command, package_root);
@@ -530,6 +533,8 @@ impl PackageUpgradeCommand {
     /// Will also check for common failure cases, such as non-existant package or wrong package
     /// manager
     pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
+        let recursion = check_recursion_limit()?;
+
         self.upgrader.check_upgraded_package()?;
 
         let _lock = VoltaLock::acquire();
@@ -540,7 +545,6 @@ impl PackageUpgradeCommand {
         command.args(&self.args);
         command.envs(self.envs);
 
-        let recursion = check_recursion_limit()?;
         command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         self.upgrader.setup_command(&mut command);
 
