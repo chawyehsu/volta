@@ -208,7 +208,6 @@ impl ToolCommand {
             ToolKind::Bypass(command) => (System::path()?, ErrorKind::BypassError { command }),
         };
 
-        // Do recursive call limit check
         let recursion = check_recursion_limit()?;
 
         create_command_in(&self.exe, &path)
@@ -320,11 +319,13 @@ impl PackageInstallCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
+        let recursion = check_recursion_limit()?;
+
         let mut command = create_command_in(self.exe, &path)?;
         command.args(&self.args);
         command.envs(self.envs);
 
-        command.env(RECURSION_ENV_VAR, "1");
+        command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         self.installer.setup_command(&mut command);
 
         let status = command
@@ -408,11 +409,13 @@ impl PackageLinkCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
+        let recursion = check_recursion_limit()?;
+
         let mut command = create_command_in("npm", &path)?;
         command.args(&self.args);
         command.envs(self.envs);
 
-        command.env(RECURSION_ENV_VAR, "1");
+        command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         let package_root = volta_home()?.package_image_dir(&self.tool);
         PackageManager::Npm.setup_global_command(&mut command, package_root);
 
@@ -538,11 +541,13 @@ impl PackageUpgradeCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
+        let recursion = check_recursion_limit()?;
+
         let mut command = create_command_in(self.exe, &path)?;
         command.args(&self.args);
         command.envs(self.envs);
 
-        command.env(RECURSION_ENV_VAR, "1");
+        command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         self.upgrader.setup_command(&mut command);
 
         let status = command
@@ -678,8 +683,7 @@ mod tests {
 
     #[test]
     fn recursion_env_var_at_limit_returns_recursion_limit_error() {
-        // RECURSION_LIMIT is 20, so 21 exceeds it
-        let err = with_recursion_var("21").unwrap_err();
+        let err = with_recursion_var(&(RECURSION_LIMIT + 1).to_string()).unwrap_err();
         assert_eq!(*err.kind(), ErrorKind::RecursionLimit);
     }
 
