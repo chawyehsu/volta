@@ -355,6 +355,23 @@ fn force_bundled_npm() {
 }
 
 #[test]
+fn npx_unavailable_with_old_npm() {
+    let s = sandbox()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .env(VOLTA_LOGLEVEL, "debug")
+        .build();
+
+    assert_that!(
+        s.volta("run --node 6.19.62 npx --version"),
+        execs()
+            .with_status(ExitCode::ExecutableNotFound as i32)
+            .with_stderr_contains("[..]'npx' is only available with npm >= 5.2.0[..]")
+            .with_stderr_contains("[..]version 3.10.1066 of npm.[..]")
+    );
+}
+
+#[test]
 fn command_line_yarn_1() {
     let s = sandbox()
         .node_available_versions(NODE_VERSION_INFO)
