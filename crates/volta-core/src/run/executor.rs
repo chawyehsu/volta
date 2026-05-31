@@ -321,7 +321,7 @@ pub struct PackageLinkCommand {
 }
 
 impl PackageLinkCommand {
-    pub fn new<A, S>(args: A, platform: Platform, tool: String) -> Self
+    pub fn new<A, S>(args: A, platform: Platform, tool: String) -> Fallible<Self>
     where
         A: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
@@ -329,11 +329,11 @@ impl PackageLinkCommand {
         let mut command = create_command("npm");
         command.args(args);
 
-        PackageLinkCommand {
+        Ok(PackageLinkCommand {
             command,
             tool,
             platform,
-        }
+        })
     }
 
     /// Adds or updates environment variables that the command will use

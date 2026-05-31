@@ -445,8 +445,7 @@ impl LinkArgs<'_> {
             // package sandboxing.
             let common_args = self.common_args;
 
-            Ok(self
-                .tools
+            self.tools
                 .into_iter()
                 .map(|tool| {
                     let args = common_args.iter().chain(once(&tool));
@@ -455,10 +454,10 @@ impl LinkArgs<'_> {
                         platform.clone(),
                         tool.to_string_lossy().to_string(),
                     )
-                    .into()
+                    .map(Into::into)
                 })
-                .collect::<Vec<_>>()
-                .into())
+                .collect::<Fallible<Vec<_>>>()
+                .map(Into::into)
         }
     }
 }
