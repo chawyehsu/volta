@@ -208,17 +208,14 @@ impl ToolCommand {
             ToolKind::Bypass(command) => (System::path()?, ErrorKind::BypassError { command }),
         };
 
-        let recursion = check_recursion_limit()?;
+        let mut command = create_command_in(&self.exe, &path)?;
+        command.args(&self.args);
+        command.envs(self.envs);
 
-        create_command_in(&self.exe, &path)
-            .and_then(|mut command| {
-                command.args(&self.args);
-                command.envs(self.envs);
-                command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
-                pass_control_to_shim();
-                command.status().with_context(|| ErrorKind::BinaryExecError)
-            })
-            .with_context(|| on_failure)
+        let recursion = check_recursion_limit()?;
+        command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
+        pass_control_to_shim();
+        command.status().with_context(|| on_failure)
     }
 }
 
@@ -319,12 +316,11 @@ impl PackageInstallCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let recursion = check_recursion_limit()?;
-
         let mut command = create_command_in(self.exe, &path)?;
         command.args(&self.args);
         command.envs(self.envs);
 
+        let recursion = check_recursion_limit()?;
         command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         self.installer.setup_command(&mut command);
 
@@ -409,12 +405,11 @@ impl PackageLinkCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let recursion = check_recursion_limit()?;
-
         let mut command = create_command_in("npm", &path)?;
         command.args(&self.args);
         command.envs(self.envs);
 
+        let recursion = check_recursion_limit()?;
         command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         let package_root = volta_home()?.package_image_dir(&self.tool);
         PackageManager::Npm.setup_global_command(&mut command, package_root);
@@ -541,12 +536,11 @@ impl PackageUpgradeCommand {
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let recursion = check_recursion_limit()?;
-
         let mut command = create_command_in(self.exe, &path)?;
         command.args(&self.args);
         command.envs(self.envs);
 
+        let recursion = check_recursion_limit()?;
         command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         self.upgrader.setup_command(&mut command);
 
