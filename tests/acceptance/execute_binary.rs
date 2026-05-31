@@ -350,23 +350,46 @@ fn unknown_binary_falls_back_to_default_binary_error() {
     // it should fall back to the default binary path and fail to locate the executable
     let s = sandbox().shim("volta-test").build();
 
-    cfg_if! {
-        if #[cfg(target_os = "windows")] {
-            assert_that!(
-                s.exec_shim("volta-test", ""),
-                execs()
-                    .with_status(1)
-                    .with_stderr_contains("'volta-test' is not recognized as an internal or external command[..]")
-            );
-        } else {
-            assert_that!(
-                s.exec_shim("volta-test", ""),
-                execs()
-                    .with_status(126)
-                    .with_stderr_contains("[..]Could not find executable \"volta-test\"[..]")
-            );
-        }
-    }
+    assert_that!(
+        s.exec_shim("volta-test", ""),
+        execs()
+            .with_status(126)
+            .with_stderr_contains("[..]Could not find executable \"volta-test\"[..]")
+    );
+}
+
+#[test]
+fn recursion_env_var_parse_error() {
+    // there is no project, and Volta does not know about this shimmed binary
+    // _VOLTA_TOOL_RECURSION is manually set to a non-numeric value
+    // recursion parsing should fail before command execution
+    let s = sandbox().shim("volta-test").build();
+
+    assert_that!(
+        s.exec_shim("volta-test", "")
+            .env("_VOLTA_TOOL_RECURSION", "not-a-number"),
+        execs()
+            .with_status(126)
+            .with_stderr_contains("[..]Could not parse internal recursion state.[..]")
+    );
+}
+
+#[test]
+fn recursion_env_var_limit_reached() {
+    // there is no project, and Volta does not know about this shimmed binary
+    // _VOLTA_TOOL_RECURSION is set above the recursion limit
+    // recursion guard should fail before command execution
+    let s = sandbox().shim("volta-test").build();
+
+    assert_that!(
+        s.exec_shim("volta-test", "").env(
+            "_VOLTA_TOOL_RECURSION",
+            (volta_core::run::RECURSION_LIMIT + 1).to_string()
+        ),
+        execs()
+            .with_status(126)
+            .with_stderr_contains("[..]Recursive call limit reached.[..]")
+    );
 }
 
 #[test]

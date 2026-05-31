@@ -1,13 +1,13 @@
 use std::collections::HashMap;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 #[cfg(windows)]
 use std::os::windows::process::ExitStatusExt;
-use std::process::{Command, ExitStatus};
+use std::process::ExitStatus;
 
-use super::RECURSION_ENV_VAR;
-use crate::command::create_command;
+use super::{RECURSION_ENV_VAR, RECURSION_LIMIT};
+use crate::command::create_command_in;
 use crate::error::{Context, ErrorKind, Fallible};
 use crate::layout::volta_home;
 use crate::platform::{CliPlatform, Platform, System};
@@ -113,7 +113,9 @@ impl From<Vec<Executor>> for Executor {
 /// Tracks the Platform as well as what kind of tool is being executed, to allow individual tools
 /// to customize the behavior before execution.
 pub struct ToolCommand {
-    command: Command,
+    exe: OsString,
+    args: Vec<OsString>,
+    envs: Vec<(OsString, OsString)>,
     platform: Option<Platform>,
     kind: ToolKind,
 }
@@ -142,11 +144,17 @@ impl ToolCommand {
         A: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = create_command(exe)?;
-        command.args(args);
+        let exe = exe.as_ref().to_owned();
+        let args = args
+            .into_iter()
+            .map(|arg| arg.as_ref().to_owned())
+            .collect();
+        let envs = Vec::new();
 
         Ok(Self {
-            command,
+            exe,
+            args,
+            envs,
             platform,
             kind,
         })
@@ -159,7 +167,10 @@ impl ToolCommand {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        self.command.envs(envs);
+        self.envs.extend(
+            envs.into_iter()
+                .map(|(key, value)| (key.as_ref().to_owned(), value.as_ref().to_owned())),
+        );
     }
 
     /// Adds or updates a single environment variable that the command will use
@@ -168,7 +179,8 @@ impl ToolCommand {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        self.command.env(key, value);
+        self.envs
+            .push((key.as_ref().to_owned(), value.as_ref().to_owned()));
     }
 
     /// Updates the Platform for the command to include values from the command-line
@@ -180,7 +192,7 @@ impl ToolCommand {
     }
 
     /// Runs the command, returning the `ExitStatus` if it successfully launches
-    pub fn execute(mut self, session: &mut Session) -> Fallible<ExitStatus> {
+    pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
         let (path, on_failure) = match self.kind {
             ToolKind::Node => super::node::execution_context(self.platform, session)?,
             ToolKind::Npm => super::npm::execution_context(self.platform, session)?,
@@ -196,11 +208,18 @@ impl ToolCommand {
             ToolKind::Bypass(command) => (System::path()?, ErrorKind::BypassError { command }),
         };
 
-        self.command.env(RECURSION_ENV_VAR, "1");
-        self.command.env("PATH", path);
+        // Do recursive call limit check
+        let recursion = check_recursion_limit()?;
 
-        pass_control_to_shim();
-        self.command.status().with_context(|| on_failure)
+        create_command_in(&self.exe, &path)
+            .and_then(|mut command| {
+                command.args(self.args);
+                command.envs(self.envs);
+                command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
+                pass_control_to_shim();
+                command.status().with_context(|| ErrorKind::BinaryExecError)
+            })
+            .with_context(|| on_failure)
     }
 }
 
@@ -215,8 +234,12 @@ impl From<ToolCommand> for Executor {
 /// This will use a `DirectInstall` instance to modify the command before running to point it to
 /// the Volta directory. It will also complete the install, writing config files and shims
 pub struct PackageInstallCommand {
-    /// The command that will ultimately be executed
-    command: Command,
+    /// The executable that should be run
+    exe: &'static str,
+    /// The arguments to pass to the executable
+    args: Vec<OsString>,
+    /// Environment variables to set on the command
+    envs: Vec<(OsString, OsString)>,
     /// The installer that modifies the command as necessary and provides the completion method
     installer: DirectInstall,
     /// The platform to use when running the command.
@@ -231,15 +254,21 @@ impl PackageInstallCommand {
     {
         let installer = DirectInstall::new(manager)?;
 
-        let mut command = match manager {
-            PackageManager::Npm => create_command("npm")?,
-            PackageManager::Pnpm => create_command("pnpm")?,
-            PackageManager::Yarn => create_command("yarn")?,
+        let exe = match manager {
+            PackageManager::Npm => "npm",
+            PackageManager::Pnpm => "pnpm",
+            PackageManager::Yarn => "yarn",
         };
-        command.args(args);
+        let args = args
+            .into_iter()
+            .map(|arg| arg.as_ref().to_owned())
+            .collect();
+        let envs = Vec::new();
 
         Ok(PackageInstallCommand {
-            command,
+            exe,
+            args,
+            envs,
             installer,
             platform,
         })
@@ -251,12 +280,15 @@ impl PackageInstallCommand {
         S: AsRef<OsStr>,
     {
         let installer = DirectInstall::with_name(PackageManager::Npm, name)?;
-
-        let mut command = create_command("npm")?;
-        command.args(args);
+        let args = args
+            .into_iter()
+            .map(|arg| arg.as_ref().to_owned())
+            .collect();
 
         Ok(PackageInstallCommand {
-            command,
+            exe: "npm",
+            args,
+            envs: Vec::new(),
             installer,
             platform,
         })
@@ -269,7 +301,10 @@ impl PackageInstallCommand {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        self.command.envs(envs);
+        self.envs.extend(
+            envs.into_iter()
+                .map(|(key, value)| (key.as_ref().to_owned(), value.as_ref().to_owned())),
+        );
     }
 
     /// Updates the Platform for the command to include values from the command-line
@@ -279,17 +314,19 @@ impl PackageInstallCommand {
 
     /// Runs the install command, applying the necessary modifications to install into the Volta
     /// data directory
-    pub fn execute(mut self, session: &mut Session) -> Fallible<ExitStatus> {
+    pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
         let _lock = VoltaLock::acquire();
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        self.command.env(RECURSION_ENV_VAR, "1");
-        self.command.env("PATH", path);
-        self.installer.setup_command(&mut self.command);
+        let mut command = create_command_in(self.exe, &path)?;
+        command.args(self.args);
+        command.envs(self.envs);
 
-        let status = self
-            .command
+        command.env(RECURSION_ENV_VAR, "1");
+        self.installer.setup_command(&mut command);
+
+        let status = command
             .status()
             .with_context(|| ErrorKind::BinaryExecError)?;
 
@@ -312,8 +349,10 @@ impl From<PackageInstallCommand> for Executor {
 /// This will set the appropriate environment variables to ensure that the linked package can be
 /// found.
 pub struct PackageLinkCommand {
-    /// The command that will ultimately be executed
-    command: Command,
+    /// The arguments to pass to npm
+    args: Vec<OsString>,
+    /// Environment variables to set on the command
+    envs: Vec<(OsString, OsString)>,
     /// The tool the user wants to link
     tool: String,
     /// The platform to use when running the command
@@ -326,11 +365,15 @@ impl PackageLinkCommand {
         A: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = create_command("npm")?;
-        command.args(args);
+        let args = args
+            .into_iter()
+            .map(|arg| arg.as_ref().to_owned())
+            .collect();
+        let envs = Vec::new();
 
         Ok(PackageLinkCommand {
-            command,
+            args,
+            envs,
             tool,
             platform,
         })
@@ -343,7 +386,10 @@ impl PackageLinkCommand {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        self.command.envs(envs);
+        self.envs.extend(
+            envs.into_iter()
+                .map(|(key, value)| (key.as_ref().to_owned(), value.as_ref().to_owned())),
+        );
     }
 
     /// Updates the Platform for the command to include values from the command-line
@@ -355,20 +401,21 @@ impl PackageLinkCommand {
     /// directory.
     ///
     /// This will also check for some common failure cases and alert the user
-    pub fn execute(mut self, session: &mut Session) -> Fallible<ExitStatus> {
+    pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
         self.check_linked_package(session)?;
 
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        self.command.env(RECURSION_ENV_VAR, "1");
-        self.command.env("PATH", path);
-        let package_root = volta_home()?.package_image_dir(&self.tool);
-        PackageManager::Npm.setup_global_command(&mut self.command, package_root);
+        let mut command = create_command_in("npm", &path)?;
+        command.args(self.args);
+        command.envs(self.envs);
 
-        self.command
-            .status()
-            .with_context(|| ErrorKind::BinaryExecError)
+        command.env(RECURSION_ENV_VAR, "1");
+        let package_root = volta_home()?.package_image_dir(&self.tool);
+        PackageManager::Npm.setup_global_command(&mut command, package_root);
+
+        command.status().with_context(|| ErrorKind::BinaryExecError)
     }
 
     /// Check for possible failure cases with the linked package:
@@ -415,8 +462,12 @@ impl From<PackageLinkCommand> for Executor {
 /// This will use an `InPlaceUpgrade` instance to modify the command and point at the appropriate
 /// image directory. It will also complete the install, writing any updated configs and shims
 pub struct PackageUpgradeCommand {
-    /// The command that will ultimately be executed
-    command: Command,
+    /// The executable that should be run
+    exe: &'static str,
+    /// The arguments to pass to the executable
+    args: Vec<OsString>,
+    /// Environment variables to set on the command
+    envs: Vec<(OsString, OsString)>,
     /// Helper utility to modify the command and provide the completion method
     upgrader: InPlaceUpgrade,
     /// The platform to run the command under
@@ -436,15 +487,21 @@ impl PackageUpgradeCommand {
     {
         let upgrader = InPlaceUpgrade::new(package, manager)?;
 
-        let mut command = match manager {
-            PackageManager::Npm => create_command("npm")?,
-            PackageManager::Pnpm => create_command("pnpm")?,
-            PackageManager::Yarn => create_command("yarn")?,
+        let exe = match manager {
+            PackageManager::Npm => "npm",
+            PackageManager::Pnpm => "pnpm",
+            PackageManager::Yarn => "yarn",
         };
-        command.args(args);
+        let args = args
+            .into_iter()
+            .map(|arg| arg.as_ref().to_owned())
+            .collect();
+        let envs = Vec::new();
 
         Ok(PackageUpgradeCommand {
-            command,
+            exe,
+            args,
+            envs,
             upgrader,
             platform,
         })
@@ -457,7 +514,10 @@ impl PackageUpgradeCommand {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        self.command.envs(envs);
+        self.envs.extend(
+            envs.into_iter()
+                .map(|(key, value)| (key.as_ref().to_owned(), value.as_ref().to_owned())),
+        );
     }
 
     /// Updates the Platform for the command to include values from the command-line
@@ -470,19 +530,21 @@ impl PackageUpgradeCommand {
     ///
     /// Will also check for common failure cases, such as non-existant package or wrong package
     /// manager
-    pub fn execute(mut self, session: &mut Session) -> Fallible<ExitStatus> {
+    pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
         self.upgrader.check_upgraded_package()?;
 
         let _lock = VoltaLock::acquire();
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        self.command.env(RECURSION_ENV_VAR, "1");
-        self.command.env("PATH", path);
-        self.upgrader.setup_command(&mut self.command);
+        let mut command = create_command_in(self.exe, &path)?;
+        command.args(self.args);
+        command.envs(self.envs);
 
-        let status = self
-            .command
+        command.env(RECURSION_ENV_VAR, "1");
+        self.upgrader.setup_command(&mut command);
+
+        let status = command
             .status()
             .with_context(|| ErrorKind::BinaryExecError)?;
 
@@ -564,5 +626,65 @@ impl UninstallCommand {
 impl From<UninstallCommand> for Executor {
     fn from(cmd: UninstallCommand) -> Self {
         Executor::Uninstall(Box::new(cmd))
+    }
+}
+
+/// Reads and validates the recursion counter from the environment.
+///
+/// Returns the current recursion depth (defaulting to 1 when the variable is absent),
+/// or an error if the value cannot be parsed or the limit has been exceeded.
+fn check_recursion_limit() -> Fallible<u8> {
+    let recursion = match std::env::var(RECURSION_ENV_VAR) {
+        Err(_) => 1u8,
+        Ok(var) => var
+            .parse::<u8>()
+            .with_context(|| ErrorKind::ParseRecursionEnvError)?,
+    };
+    if recursion > RECURSION_LIMIT {
+        return Err(ErrorKind::RecursionLimit.into());
+    }
+    Ok(recursion)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    // Serialize all tests that touch RECURSION_ENV_VAR, since env vars are
+    // global process state.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_recursion_var(value: &str) -> Fallible<u8> {
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::set_var(RECURSION_ENV_VAR, value);
+        let result = check_recursion_limit();
+        std::env::remove_var(RECURSION_ENV_VAR);
+        result
+    }
+
+    #[test]
+    fn recursion_env_var_absent_defaults_to_one() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::remove_var(RECURSION_ENV_VAR);
+        assert_eq!(check_recursion_limit().unwrap(), 1u8);
+    }
+
+    #[test]
+    fn recursion_env_var_valid_value_is_returned() {
+        assert_eq!(with_recursion_var("5").unwrap(), 5u8);
+    }
+
+    #[test]
+    fn recursion_env_var_at_limit_returns_recursion_limit_error() {
+        // RECURSION_LIMIT is 20, so 21 exceeds it
+        let err = with_recursion_var("21").unwrap_err();
+        assert_eq!(*err.kind(), ErrorKind::RecursionLimit);
+    }
+
+    #[test]
+    fn recursion_env_var_invalid_value_returns_parse_error() {
+        let err = with_recursion_var("not-a-number").unwrap_err();
+        assert_eq!(*err.kind(), ErrorKind::ParseRecursionEnvError);
     }
 }
