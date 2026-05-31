@@ -1,11 +1,33 @@
 use crate::support::sandbox::{
-    sandbox, DistroMetadata, NodeFixture, NpmFixture, PnpmFixture, Yarn1Fixture, YarnBerryFixture,
+    sandbox, DistroMetadata, NodeFixture, NpmFixture, PackageBinInfo, PnpmFixture, Yarn1Fixture,
+    YarnBerryFixture,
 };
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
 
 use volta_core::error::ExitCode;
+
+// Helper: build a fake bin binary that echoes the provided environment variables.
+fn fake_bin_echo_envs(env_vars: &[&str]) -> String {
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "windows")] {
+            let env_lines = env_vars
+                .iter()
+                .map(|env_var| format!("echo {env_var}: %{env_var}%\r\n"))
+                .collect::<String>();
+
+            format!("@echo off\r\n{env_lines}")
+        } else {
+            let env_lines = env_vars
+                .iter()
+                .map(|env_var| format!("echo \"{env_var}: ${env_var}\"\n"))
+                .collect::<String>();
+
+            format!("#!/bin/sh\n{env_lines}")
+        }
+    }
+}
 
 fn package_json_with_pinned_node(node: &str) -> String {
     format!(
@@ -55,6 +77,23 @@ fn package_json_with_pinned_node_yarn(node_version: &str, yarn_version: &str) ->
   }}
 }}"#,
         node_version, yarn_version
+    )
+}
+
+fn npm_package_config(package_name: &str, node: &str, npm: &str) -> String {
+    format!(
+        r#"{{
+  "name": "{}",
+  "version": "1.0.0",
+  "platform": {{
+    "node": "{}",
+    "npm": "{}",
+    "yarn": null
+  }},
+  "bins": [],
+  "manager": "Npm"
+}}"#,
+        package_name, node, npm
     )
 }
 
@@ -530,5 +569,39 @@ fn force_no_pnpm() {
         execs()
             .with_status(ExitCode::ConfigurationError as i32)
             .with_stderr_contains("[..]No pnpm version found in this project.")
+    );
+}
+
+#[test]
+fn run_npm_link_env_variable_passed() {
+    // `volta run --env MY_LINK_VAR=value --node <version> npm link package` should pass
+    // environment variables to npm while also exercising the cli platform override path.
+    let s = sandbox()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .npm_available_versions(NPM_VERSION_INFO)
+        .distro_mocks::<NpmFixture>(&NPM_VERSION_FIXTURES)
+        .package_json(&package_json_with_pinned_node_npm("10.99.1040", "8.1.5"))
+        .package_config(
+            "test-pkg",
+            &npm_package_config("test-pkg", "10.99.1040", "8.1.5"),
+        )
+        .package_image(
+            "test-pkg",
+            "1.0.0",
+            Some(vec![PackageBinInfo {
+                name: "test-pkg".to_string(),
+                contents: fake_bin_echo_envs(&["MY_LINK_VAR"]),
+            }]),
+        )
+        .setup_npm_binary("8.1.5", &fake_bin_echo_envs(&["MY_LINK_VAR"]))
+        .env(VOLTA_LOGLEVEL, "debug")
+        .build();
+
+    assert_that!(
+        s.volta("run --env MY_LINK_VAR=hello_link --node 10.99.1040 npm link test-pkg"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("MY_LINK_VAR: hello_link")
     );
 }
