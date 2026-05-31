@@ -7,9 +7,9 @@
 // VOLTA_LOGLEVEL=debug cargo test --test smoke --features smoke-tests -- --test-threads 1
 // ```
 //
-// Also note that each test uses a different version of node and yarn. This is to prevent
-// false positives if the tests are not cleaned up correctly. Any new tests should use
-// different versions of node and yarn.
+// Also note that each test uses a different version of node, npm, yarn, and pnpm. This is to
+// prevent false positives if the tests are not cleaned up correctly. Any new tests should use
+// different versions of the relevant tools.
 
 cfg_if::cfg_if! {
     if #[cfg(all(unix, feature = "smoke-tests"))] {
