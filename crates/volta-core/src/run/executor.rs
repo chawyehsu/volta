@@ -131,7 +131,12 @@ pub enum ToolKind {
 }
 
 impl ToolCommand {
-    pub fn new<E, A, S>(exe: E, args: A, platform: Option<Platform>, kind: ToolKind) -> Self
+    pub fn new<E, A, S>(
+        exe: E,
+        args: A,
+        platform: Option<Platform>,
+        kind: ToolKind,
+    ) -> Fallible<Self>
     where
         E: AsRef<OsStr>,
         A: IntoIterator<Item = S>,
@@ -140,11 +145,11 @@ impl ToolCommand {
         let mut command = create_command(exe);
         command.args(args);
 
-        Self {
+        Ok(Self {
             command,
             platform,
             kind,
-        }
+        })
     }
 
     /// Adds or updates environment variables that the command will use

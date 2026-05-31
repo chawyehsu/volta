@@ -26,7 +26,7 @@ pub(super) fn command(args: &[OsString], session: &mut Session) -> Fallible<Exec
         None => Platform::current(session)?,
     };
 
-    Ok(ToolCommand::new("npx", args, platform, ToolKind::Npx).into())
+    ToolCommand::new("npx", args, platform, ToolKind::Npx).map(Into::into)
 }
 
 /// Determine the execution context (PATH and failure error message) for npx

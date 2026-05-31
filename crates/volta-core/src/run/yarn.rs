@@ -33,7 +33,7 @@ pub(super) fn command(args: &[OsString], session: &mut Session) -> Fallible<Exec
         }
     };
 
-    Ok(ToolCommand::new("yarn", args, platform, ToolKind::Yarn).into())
+    ToolCommand::new("yarn", args, platform, ToolKind::Yarn).map(Into::into)
 }
 
 /// Determine the execution context (PATH and failure error message) for Yarn

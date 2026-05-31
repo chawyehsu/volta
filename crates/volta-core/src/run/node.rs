@@ -16,7 +16,7 @@ pub(super) fn command(args: &[OsString], session: &mut Session) -> Fallible<Exec
         None => Platform::current(session)?,
     };
 
-    Ok(ToolCommand::new("node", args, platform, ToolKind::Node).into())
+    ToolCommand::new("node", args, platform, ToolKind::Node).map(Into::into)
 }
 
 /// Determine the execution context (PATH and failure error message) for Node
