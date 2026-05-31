@@ -35,6 +35,14 @@ static PACKAGE_JSON_WITH_PINNED_NODE_YARN_3: &str = r#"{
     }
 }"#;
 
+static PACKAGE_JSON_WITH_PINNED_NODE_PNPM: &str = r#"{
+    "name": "test-package",
+    "volta": {
+        "node": "16.15.1",
+        "pnpm": "7.7.1"
+    }
+}"#;
+
 #[test]
 fn autodownload_node() {
     let p = temp_project()
@@ -80,5 +88,18 @@ fn autodownload_yarn_3() {
     assert_that!(
         p.yarn("--version"),
         execs().with_status(0).with_stdout_contains("3.1.0")
+    );
+}
+
+#[test]
+fn autodownload_pnpm() {
+    let p = temp_project()
+        .package_json(PACKAGE_JSON_WITH_PINNED_NODE_PNPM)
+        .env("VOLTA_FEATURE_PNPM", "1")
+        .build();
+
+    assert_that!(
+        p.pnpm("--version"),
+        execs().with_status(0).with_stdout_contains("7.7.1")
     );
 }

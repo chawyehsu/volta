@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use volta_core::fs::symlink_file;
-use volta_core::tool::Node;
+use volta_core::tool::{Node, Pnpm};
 
 use test_support::{self, ok_or_panic, paths, paths::PathExt, process::ProcessBuilder};
 
@@ -114,9 +114,11 @@ impl TempProjectBuilder {
         node_cache_dir(self.root()).ensure_empty();
         volta_bin_dir(self.root()).ensure_empty();
         node_inventory_dir(self.root()).ensure_empty();
+        pnpm_inventory_dir(self.root()).ensure_empty();
         yarn_inventory_dir(self.root()).ensure_empty();
         package_inventory_dir(self.root()).ensure_empty();
         node_image_root_dir(self.root()).ensure_empty();
+        pnpm_image_root_dir(self.root()).ensure_empty();
         yarn_image_root_dir(self.root()).ensure_empty();
         package_image_root_dir(self.root()).ensure_empty();
         default_toolchain_dir(self.root()).ensure_empty();
@@ -130,6 +132,7 @@ impl TempProjectBuilder {
 
         // create symlinks to shim executable for node, yarn, npm, and packages
         ok_or_panic!(symlink_file(shim_exe(), self.root.node_exe()));
+        ok_or_panic!(symlink_file(shim_exe(), self.root.pnpm_exe()));
         ok_or_panic!(symlink_file(shim_exe(), self.root.yarn_exe()));
         ok_or_panic!(symlink_file(shim_exe(), self.root.npm_exe()));
 
@@ -208,6 +211,15 @@ fn npm_image_dir(version: &str, root: PathBuf) -> PathBuf {
 fn npm_image_bin_dir(version: &str, root: PathBuf) -> PathBuf {
     npm_image_dir(version, root).join("bin")
 }
+fn pnpm_image_root_dir(root: PathBuf) -> PathBuf {
+    image_dir(root).join("pnpm")
+}
+fn pnpm_image_dir(version: &str, root: PathBuf) -> PathBuf {
+    pnpm_image_root_dir(root).join(version)
+}
+fn pnpm_image_bin_dir(version: &str, root: PathBuf) -> PathBuf {
+    pnpm_image_dir(version, root).join("bin")
+}
 fn yarn_image_root_dir(root: PathBuf) -> PathBuf {
     image_dir(root).join("yarn")
 }
@@ -222,6 +234,9 @@ fn node_inventory_dir(root: PathBuf) -> PathBuf {
 }
 fn npm_inventory_dir(root: PathBuf) -> PathBuf {
     inventory_dir(root).join("npm")
+}
+fn pnpm_inventory_dir(root: PathBuf) -> PathBuf {
+    inventory_dir(root).join("pnpm")
 }
 fn yarn_inventory_dir(root: PathBuf) -> PathBuf {
     inventory_dir(root).join("yarn")
@@ -254,6 +269,9 @@ pub fn node_distro_file_name(version: &str) -> String {
 }
 fn npm_distro_file_name(version: &str) -> String {
     package_distro_file_name("npm", version)
+}
+fn pnpm_distro_file_name(version: &str) -> String {
+    Pnpm::archive_filename(version)
 }
 fn yarn_distro_file_name(version: &str) -> String {
     format!("yarn-v{}.tar.gz", version)
@@ -342,6 +360,17 @@ impl TempProject {
         volta_bin_dir(self.root()).join(format!("npm{}", env::consts::EXE_SUFFIX))
     }
 
+    /// Create a `ProcessBuilder` to run pnpm.
+    pub fn pnpm(&self, cmd: &str) -> ProcessBuilder {
+        let mut p = self.process(&self.pnpm_exe());
+        split_and_add_args(&mut p, cmd);
+        p
+    }
+
+    pub fn pnpm_exe(&self) -> PathBuf {
+        volta_bin_dir(self.root()).join(format!("pnpm{}", env::consts::EXE_SUFFIX))
+    }
+
     /// Create a `ProcessBuilder` to run a package executable.
     pub fn exec_shim(&self, exe: &str, cmd: &str) -> ProcessBuilder {
         let shim_file = shim_file(exe, self.root());
@@ -413,6 +442,27 @@ impl TempProject {
         let json_contents: serde_json::Value =
             serde_json::from_str(&platform_contents).expect("could not parse platform.json");
         assert_eq!(json_contents["node"]["npm"], version);
+    }
+
+    /// Verify that the input pnpm version has been fetched.
+    pub fn pnpm_version_is_fetched(&self, version: &str) -> bool {
+        let distro_file_name = pnpm_distro_file_name(version);
+        let inventory_dir = pnpm_inventory_dir(self.root());
+        inventory_dir.join(distro_file_name).exists()
+    }
+
+    /// Verify that the input pnpm version has been unpacked.
+    pub fn pnpm_version_is_unpacked(&self, version: &str) -> bool {
+        pnpm_image_bin_dir(version, self.root()).exists()
+    }
+
+    /// Verify that the input pnpm version has been installed.
+    pub fn assert_pnpm_version_is_installed(&self, version: &str) -> () {
+        let default_platform = default_platform_file(self.root());
+        let platform_contents = read_file_to_string(default_platform);
+        let json_contents: serde_json::Value =
+            serde_json::from_str(&platform_contents).expect("could not parse platform.json");
+        assert_eq!(json_contents["pnpm"], version);
     }
 
     /// Verify that the input package has been installed
