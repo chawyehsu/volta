@@ -38,20 +38,29 @@ fn run_npm() {
 fn run_npm_install_and_update() {
     let p = temp_project().build();
 
+    // Seed a default platform so npm global commands are intercepted through
+    // package executors.
     assert_that!(
-        p.volta("run --node 14.14.0 --npm 6.14.16 npm install -g cowsay@1.2.0"),
+        p.volta("install node@16.14.1 npm@8.5.5"),
+        execs().with_status(0)
+    );
+
+    assert_that!(
+        p.volta("run --node 16.14.1 --npm 8.5.5 npm install -g is-number@2.0.0"),
         execs()
             .with_status(0)
-            .with_stdout_contains("[..]added 5 package[..]")
+            .with_stdout_contains("[..]added 1 package[..]")
     );
+    assert!(p.package_is_installed("is-number"));
+
     assert_that!(
-        p.volta("run --node 14.14.0 --npm 6.14.16 --env MY_VAR=hello npm update -g cowsay"),
-        execs()
-            .with_status(0)
-            .with_stdout_contains("[..]updated[..]package[..]")
+        p.volta("run --node 16.14.1 --npm 8.5.5 npm update -g is-number"),
+        execs().with_status(0)
     );
+    assert!(p.package_is_installed("is-number"));
 }
 
+#[test]
 fn run_yarn_1() {
     let p = temp_project().build();
 
