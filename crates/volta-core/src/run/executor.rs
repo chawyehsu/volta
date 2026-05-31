@@ -321,6 +321,7 @@ impl PackageInstallCommand {
 
         let mut command = create_command_in(self.exe, &path)?;
         command.args(self.args);
+
         command.envs(self.envs);
 
         command.env(RECURSION_ENV_VAR, "1");
@@ -539,6 +540,7 @@ impl PackageUpgradeCommand {
 
         let mut command = create_command_in(self.exe, &path)?;
         command.args(self.args);
+
         command.envs(self.envs);
 
         command.env(RECURSION_ENV_VAR, "1");
