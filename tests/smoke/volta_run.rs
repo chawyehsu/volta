@@ -31,10 +31,25 @@ fn run_npm() {
     assert_that!(
         p.volta("run --node 14.14.0 --npm 6.14.16 npm --version"),
         execs().with_status(0).with_stdout_contains("6.14.16")
-    )
+    );
 }
 
 #[test]
+fn run_npm_install_and_update() {
+    let p = temp_project().build();
+
+    assert_that!(
+        p.volta("run --node 14.14.0 --npm 6.14.16 npm install is-number@2.0.0"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]added 1 package[..]")
+    );
+    assert_that!(
+        p.volta("run --node 14.14.0 --npm 6.14.16 npm update -g is-number"),
+        execs().with_status(0)
+    );
+}
+
 fn run_yarn_1() {
     let p = temp_project().build();
 
