@@ -210,7 +210,13 @@ impl ToolCommand {
             ToolKind::Bypass(command) => (System::path()?, ErrorKind::BypassError { command }),
         };
 
-        let mut command = create_command_in(&self.exe, &path)?;
+        let mut command = match &on_failure {
+            ErrorKind::BypassError { command } => create_command_in(&self.exe, &path)
+                .with_context(|| ErrorKind::BypassError {
+                    command: command.clone(),
+                })?,
+            _ => create_command_in(&self.exe, &path)?,
+        };
         command.args(&self.args);
         command.envs(self.envs);
 
