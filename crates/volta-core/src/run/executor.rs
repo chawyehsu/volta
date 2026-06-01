@@ -641,11 +641,11 @@ impl From<UninstallCommand> for Executor {
 
 /// Reads and validates the recursion counter from the environment.
 ///
-/// Returns the current recursion depth (defaulting to 1 when the variable is absent),
+/// Returns the current recursion depth (defaulting to 0 when the variable is absent),
 /// or an error if the value cannot be parsed or the limit has been exceeded.
 fn check_recursion_limit() -> Fallible<u8> {
     let recursion = match std::env::var(RECURSION_ENV_VAR) {
-        Err(_) => 1u8,
+        Err(_) => 0u8,
         Ok(var) => var
             .parse::<u8>()
             .with_context(|| ErrorKind::ParseRecursionEnvError)?,
@@ -677,7 +677,7 @@ mod tests {
     fn recursion_env_var_absent_defaults_to_one() {
         let _guard = ENV_LOCK.lock().unwrap();
         std::env::remove_var(RECURSION_ENV_VAR);
-        assert_eq!(check_recursion_limit().unwrap(), 1u8);
+        assert_eq!(check_recursion_limit().unwrap(), 0u8);
     }
 
     #[test]
