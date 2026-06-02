@@ -195,6 +195,31 @@ fn malformed_publish_hook_with_url_and_bin_errors() {
 }
 
 #[test]
+fn malformed_publish_hook_without_url_or_bin_errors() {
+    let s = sandbox()
+        .default_hooks(
+            r#"{
+    "node": {
+        "distro": {
+            "template": "[server]/hook/default/node/{{version}}"
+        }
+    },
+    "events": {
+        "publish": {}
+    }
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.volta("install node@1.2.3"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Publish hook configuration includes no hook types.")
+    );
+}
+
+#[test]
 fn redirects_download() {
     let s = sandbox()
         .default_hooks(&default_hooks_json())
