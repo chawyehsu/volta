@@ -426,6 +426,8 @@ fn npm_update_global_nonexistent_package() {
         s.npm("update -g nonexistent-pkg-12345"),
         execs()
             .with_status(ExitCode::ExecutionFailure as i32)
-            .with_stderr_contains("[..]Could not locate the package 'nonexistent-pkg-12345' to upgrade.")
+            .with_stderr_contains(
+                "[..]Could not locate the package 'nonexistent-pkg-12345' to upgrade."
+            )
     );
 }

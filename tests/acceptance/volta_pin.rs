@@ -1306,6 +1306,8 @@ fn pin_with_missing_extends_file() {
         s.volta("pin node@8.9.10"),
         execs()
             .with_status(ExitCode::FileSystemError as i32)
-            .with_stderr_contains("[..]Could not determine path to project workspace: './nonexistent.json'")
+            .with_stderr_contains(
+                "[..]Could not determine path to project workspace: './nonexistent.json'"
+            )
     );
 }
