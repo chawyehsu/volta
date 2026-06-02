@@ -155,6 +155,18 @@ fn yarn_hooks_format_json(format: &str) -> String {
 }
 
 #[test]
+fn malformed_default_hooks_errors() {
+    let s = sandbox().default_hooks("{").build();
+
+    assert_that!(
+        s.volta("install node@1.2.3"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Could not parse hooks configuration file.")
+    );
+}
+
+#[test]
 fn redirects_download() {
     let s = sandbox()
         .default_hooks(&default_hooks_json())
