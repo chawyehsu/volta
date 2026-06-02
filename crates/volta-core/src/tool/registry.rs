@@ -8,7 +8,6 @@ use crate::style::progress_spinner;
 use crate::version::{hashmap_version_serde, version_serde};
 use attohttpc::header::ACCEPT;
 use attohttpc::Response;
-use cfg_if::cfg_if;
 use node_semver::Version;
 use serde::Deserialize;
 
@@ -17,21 +16,16 @@ use serde::Deserialize;
 pub const NPM_ABBREVIATED_ACCEPT_HEADER: &str =
     "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*";
 
-cfg_if! {
-    if #[cfg(feature = "mock-network")] {
-        // TODO: We need to reconsider our mocking strategy in light of mockito deprecating the
-        // SERVER_URL constant: Since our acceptance tests run the binary in a separate process,
-        // we can't use `mockito::server_url()`, which relies on shared memory.
-        #[allow(deprecated)]
-        const SERVER_URL: &str = mockito::SERVER_URL;
-        pub fn public_registry_index(package: &str) -> String {
-            format!("{}/{}", SERVER_URL, package)
-        }
-    } else {
-        pub fn public_registry_index(package: &str) -> String {
-            format!("https://registry.npmjs.org/{}", package)
-        }
+pub fn public_registry_index(package: &str) -> String {
+    #[cfg(feature = "mock-network")]
+    if let Some(url) = std::env::var("VOLTA_MOCK_SERVER_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
+        return format!("{}/{}", url, package);
     }
+
+    format!("https://registry.npmjs.org/{}", package)
 }
 
 // fetch a registry that returns info in Npm format

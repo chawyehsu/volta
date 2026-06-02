@@ -705,6 +705,15 @@ impl SandboxBuilder {
         }
 
         // write files
+        if !self
+            .files
+            .iter()
+            .any(|file| file.path == default_hooks_file())
+        {
+            let hooks = sandbox_default_hooks_json();
+            self = self.default_hooks(&hooks);
+        }
+
         for file_builder in self.files {
             file_builder.build();
         }
@@ -724,6 +733,41 @@ impl SandboxBuilder {
     fn rm_root(&self) {
         self.root.root().rm_rf()
     }
+}
+
+fn sandbox_default_hooks_json() -> String {
+    format!(
+        r#"{{
+    "node": {{
+        "index": {{
+            "template": "{0}/node-dist/{{{{filename}}}}"
+        }},
+        "latest": {{
+            "template": "{0}/node-dist/{{{{filename}}}}"
+        }},
+        "distro": {{
+            "template": "{0}/v{{{{version}}}}/{{{{filename}}}}"
+        }}
+    }},
+    "npm": {{
+        "index": {{
+            "template": "{0}/{{{{filename}}}}"
+        }},
+        "distro": {{
+            "template": "{0}/npm/-/{{{{filename}}}}"
+        }}
+    }},
+    "pnpm": {{
+        "index": {{
+            "template": "{0}/{{{{filename}}}}"
+        }},
+        "distro": {{
+            "template": "{0}/pnpm/-/{{{{filename}}}}"
+        }}
+    }}
+}}"#,
+        mockito::server_url()
+    )
 }
 
 // files and dirs in the sandbox
@@ -856,6 +900,7 @@ impl Sandbox {
             .env("VOLTA_HOME", volta_home())
             .env("VOLTA_INSTALL_DIR", cargo_dir())
             .env("PATH", &self.path)
+            .env("VOLTA_MOCK_SERVER_URL", mockito::server_url())
             .env("VOLTA_POSTSCRIPT", volta_postscript())
             .env_remove("VOLTA_SHELL")
             .env_remove("MSYSTEM"); // assume cmd.exe everywhere on windows
