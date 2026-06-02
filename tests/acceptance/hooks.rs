@@ -724,3 +724,30 @@ fn yarn_latest_hook_server_error() {
             .with_stderr_contains("[..]Could not fetch latest version of Yarn")
     );
 }
+
+#[test]
+fn node_registry_server_error() {
+    let mut s = sandbox()
+        .package_json(
+            r#"{
+  "name": "test-package",
+  "volta": {
+    "node": "10.99.1040"
+  }
+}"#,
+        )
+        .build();
+    // Return 500 for the node index endpoint
+    let _mock = s
+        .server()
+        .mock("GET", "/node-dist/index.json")
+        .with_status(500)
+        .create();
+
+    assert_that!(
+        s.volta("pin node@^10"),
+        execs()
+            .with_status(ExitCode::NetworkError as i32)
+            .with_stderr_contains("[..]Could not download Node version registry")
+    );
+}

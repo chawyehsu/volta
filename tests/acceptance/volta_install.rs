@@ -466,3 +466,17 @@ fn use_command_is_deprecated() {
             .with_stderr_contains("[..]The subcommand `use` is deprecated.")
     );
 }
+
+#[test]
+fn completions_out_file_already_exists() {
+    let s = sandbox()
+        .project_file("existing-completions.bash", "# existing content")
+        .build();
+
+    assert_that!(
+        s.volta("completions bash --output existing-completions.bash"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]Completions file `existing-completions.bash` already exists.[..]")
+    );
+}
