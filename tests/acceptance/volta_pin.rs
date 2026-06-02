@@ -1243,3 +1243,47 @@ fn pin_with_no_node_in_manifest() {
             .with_stderr_contains("[..]No Node version found in this project.")
     );
 }
+
+#[test]
+fn pin_npm_bundled_without_node() {
+    let s = sandbox()
+        .package_json(&package_json_with_pinned_node("1.2.3"))
+        .build();
+
+    assert_that!(
+        s.volta("pin npm@bundled"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Could not detect bundled npm version.")
+    );
+}
+
+#[test]
+fn pin_with_extension_cycle() {
+    let s = sandbox()
+        .package_json(
+            r#"{
+  "name": "test-package",
+  "volta": {
+    "node": "1.2.3",
+    "extends": "./volta.json"
+  }
+}"#,
+        )
+        .project_file(
+            "volta.json",
+            r#"{
+  "volta": {
+    "extends": "./package.json"
+  }
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.volta("pin node@8.9.10"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Detected infinite loop in project workspace:")
+    );
+}

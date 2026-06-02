@@ -689,3 +689,15 @@ fn command_line_node_no_pnpm() {
             .with_stderr_contains("[..]No pnpm version specified.")
     );
 }
+
+#[test]
+fn no_platform() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("run node --version"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Node is not available.")
+    );
+}
