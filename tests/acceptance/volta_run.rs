@@ -605,3 +605,87 @@ fn run_npm_link_env_variable_passed() {
             .with_stdout_contains("MY_LINK_VAR: hello_link")
     );
 }
+
+#[test]
+fn no_default_yarn() {
+    let s = sandbox()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .platform(
+            r#"{
+  "node": {
+    "runtime": "10.99.1040",
+    "npm": null
+  },
+  "yarn": null,
+  "pnpm": null,
+  "packages": {}
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.volta("run yarn --version"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Yarn is not available.")
+    );
+}
+
+#[test]
+fn no_default_pnpm() {
+    let s = sandbox()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .platform(
+            r#"{
+  "node": {
+    "runtime": "10.99.1040",
+    "npm": null
+  },
+  "yarn": null,
+  "pnpm": null,
+  "packages": {}
+}"#,
+        )
+        .env("VOLTA_FEATURE_PNPM", "1")
+        .build();
+
+    assert_that!(
+        s.volta("run pnpm --version"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]pnpm is not available.")
+    );
+}
+
+#[test]
+fn command_line_node_no_yarn() {
+    let s = sandbox()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .build();
+
+    assert_that!(
+        s.volta("run --node 10.99.1040 yarn --version"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]No Yarn version specified.")
+    );
+}
+
+#[test]
+fn command_line_node_no_pnpm() {
+    let s = sandbox()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .env("VOLTA_FEATURE_PNPM", "1")
+        .build();
+
+    assert_that!(
+        s.volta("run --node 10.99.1040 pnpm --version"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]No pnpm version specified.")
+    );
+}

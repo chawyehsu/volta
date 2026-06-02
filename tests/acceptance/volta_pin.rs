@@ -1222,3 +1222,24 @@ fn pin_node_not_in_package() {
             .with_stderr_contains("[..]Not in a node package.")
     );
 }
+
+#[test]
+fn pin_with_no_node_in_manifest() {
+    let s = sandbox()
+        .package_json(
+            r#"{
+  "name": "test-package",
+  "volta": {
+    "yarn": "1.2.42"
+  }
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.volta("pin yarn@1.4"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]No Node version found in this project.")
+    );
+}

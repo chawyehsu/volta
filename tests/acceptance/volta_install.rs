@@ -454,3 +454,15 @@ fn install_parse_tool_spec_error() {
             .with_stderr_contains("[..]Could not parse tool spec `/`")
     );
 }
+
+#[test]
+fn use_command_is_deprecated() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("use node"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]The subcommand `use` is deprecated.")
+    );
+}
