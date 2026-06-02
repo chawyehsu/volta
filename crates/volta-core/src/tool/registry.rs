@@ -18,6 +18,8 @@ pub const NPM_ABBREVIATED_ACCEPT_HEADER: &str =
 
 pub fn public_registry_index(package: &str) -> String {
     #[cfg(feature = "mock-network")]
+    // Acceptance tests run Volta in a child process, so we pass the active
+    // mock server URL via environment instead of relying on process-local APIs.
     if let Some(url) = std::env::var("VOLTA_MOCK_SERVER_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())

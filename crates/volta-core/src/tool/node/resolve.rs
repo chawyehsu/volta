@@ -25,6 +25,8 @@ use node_semver::{Range, Version};
 /// Returns the URL of the index of available Node versions on the public Node server.
 fn public_node_version_index() -> String {
     #[cfg(feature = "mock-network")]
+    // Acceptance tests run Volta in a child process, so use an env-injected
+    // mock server URL when available.
     if let Some(url) = std::env::var("VOLTA_MOCK_SERVER_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())

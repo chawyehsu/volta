@@ -736,6 +736,8 @@ impl SandboxBuilder {
 }
 
 fn sandbox_default_hooks_json() -> String {
+    // Baseline hooks for acceptance tests that do not provide an explicit
+    // hooks.json. Tests that need special behavior should still override this.
     format!(
         r#"{{
     "node": {{
