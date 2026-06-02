@@ -704,3 +704,23 @@ fn hook_with_invalid_registry_format_errors() {
             .with_stderr_contains("[..]Unrecognized index registry format: 'invalid'")
     );
 }
+
+#[test]
+fn yarn_latest_hook_server_error() {
+    let mut s = sandbox()
+        .default_hooks(&yarn_hooks_json())
+        .env("VOLTA_LOGLEVEL", "debug")
+        .build();
+    let _mock = s
+        .server()
+        .mock("GET", "/yarn-old/latest")
+        .with_status(500)
+        .create();
+
+    assert_that!(
+        s.volta("install yarn@latest"),
+        execs()
+            .with_status(ExitCode::NetworkError as i32)
+            .with_stderr_contains("[..]Could not fetch latest version of Yarn")
+    );
+}
