@@ -477,6 +477,8 @@ fn completions_out_file_already_exists() {
         s.volta("completions bash --output existing-completions.bash"),
         execs()
             .with_status(ExitCode::InvalidArguments as i32)
-            .with_stderr_contains("[..]Completions file `existing-completions.bash` already exists.[..]")
+            .with_stderr_contains(
+                "[..]Completions file `existing-completions.bash` already exists.[..]"
+            )
     );
 }
