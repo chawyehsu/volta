@@ -409,6 +409,18 @@ fn install_tool_and_bare_version_errors() {
 }
 
 #[test]
+fn install_invalid_tool_name_errors() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("install ."),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]Invalid tool name `.`")
+    );
+}
+
+#[test]
 fn install_node_with_shadowed_binary() {
     #[cfg(windows)]
     const SCRIPT_FILENAME: &str = "node.bat";
