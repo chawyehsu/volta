@@ -1311,3 +1311,28 @@ fn pin_with_missing_extends_file() {
             )
     );
 }
+
+#[test]
+fn pin_bundled_npm_with_node_but_no_npm_version_file() {
+    let s = sandbox()
+        .package_json(&package_json_with_pinned_node("1.2.3"))
+        .platform(
+            r#"{
+  "node": {
+    "runtime": "1.2.3",
+    "npm": null
+  },
+  "yarn": null,
+  "pnpm": null,
+  "packages": {}
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.volta("pin npm@bundled"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Could not detect bundled npm version.[..]")
+    );
+}

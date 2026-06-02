@@ -485,9 +485,7 @@ fn completions_out_file_already_exists() {
 
 #[test]
 fn malformed_platform_json() {
-    let s = sandbox()
-        .platform("this is not valid json{{{")
-        .build();
+    let s = sandbox().platform("this is not valid json{{{").build();
 
     assert_that!(
         s.volta("install node@10.99.1040"),
@@ -500,6 +498,22 @@ fn malformed_platform_json() {
 #[test]
 fn install_bundled_npm_without_node() {
     let s = sandbox().build();
+
+    assert_that!(
+        s.volta("install npm@bundled"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Could not detect bundled npm version.[..]")
+    );
+}
+
+#[test]
+fn install_bundled_npm_with_node_but_no_npm_version_file() {
+    // Set up a platform with node installed but no npm version file
+    // This triggers the "load_default_npm_version" failure path
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .build();
 
     assert_that!(
         s.volta("install npm@bundled"),
