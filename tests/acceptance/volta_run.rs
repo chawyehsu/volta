@@ -698,8 +698,8 @@ fn no_platform() {
     assert_that!(
         s.volta("run node --version"),
         execs()
-            .with_status(ExitCode::ConfigurationError as i32)
-            .with_stderr_contains("[..]Node is not available.")
+            .with_status(ExitCode::ExecutableNotFound as i32)
+            .with_stderr_contains("[..]Could not find executable \"node\"[..]")
     );
 }
 
