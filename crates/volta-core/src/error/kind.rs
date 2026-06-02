@@ -993,7 +993,7 @@ Please ensure it is linked with `npm link` or installed with `npm i -g {0}`.",
             ),
             ErrorKind::NpmVersionNotFound { matching } => write!(
                 f,
-                r#"Could not find Node version matching "{}" in the version registry.
+                r#"Could not find npm version matching "{}" in the version registry.
 
 Please verify that the version is correct."#,
                 matching

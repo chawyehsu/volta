@@ -411,3 +411,54 @@ fn yarn_global_with_override_does_not_intercept() {
             .with_stdout_does_not_contain("[..]using Volta to install npm")
     );
 }
+
+#[test]
+fn npm_update_global_nonexistent_package() {
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .npm_available_versions(NPM_VERSION_INFO)
+        .distro_mocks::<NpmFixture>(&NPM_VERSION_FIXTURES)
+        .build();
+
+    assert_that!(
+        s.npm("update -g nonexistent-pkg-12345"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains(
+                "[..]Could not locate the package 'nonexistent-pkg-12345' to upgrade."
+            )
+    );
+}
+
+#[test]
+fn npm_update_global_wrong_manager() {
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        // Set up a package that was installed with Yarn
+        .package_config(
+            "my-pkg",
+            r#"{
+  "name": "my-pkg",
+  "version": "1.0.0",
+  "platform": {
+    "node": "10.99.1040",
+    "npm": null,
+    "yarn": null
+  },
+  "bins": ["my-pkg"],
+  "manager": "Yarn"
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.npm("update -g my-pkg"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains("[..]The package 'my-pkg' was installed using Yarn[..]")
+    );
+}

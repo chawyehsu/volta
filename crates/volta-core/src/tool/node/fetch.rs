@@ -12,26 +12,23 @@ use crate::style::{progress_bar, tool_version};
 use crate::tool::{self, download_tool_error, Node};
 use crate::version::{parse_version, VersionSpec};
 use archive::{self, Archive};
-use cfg_if::cfg_if;
 use fs_utils::ensure_containing_dir_exists;
 use log::debug;
 use node_semver::Version;
 use serde::Deserialize;
 
-cfg_if! {
-    if #[cfg(feature = "mock-network")] {
-        // TODO: We need to reconsider our mocking strategy in light of mockito deprecating the
-        // SERVER_URL constant: Since our acceptance tests run the binary in a separate process,
-        // we can't use `mockito::server_url()`, which relies on shared memory.
-        fn public_node_server_root() -> String {
-            #[allow(deprecated)]
-            mockito::SERVER_URL.to_string()
-        }
-    } else {
-        fn public_node_server_root() -> String {
-            "https://nodejs.org/dist".to_string()
-        }
+fn public_node_server_root() -> String {
+    #[cfg(feature = "mock-network")]
+    // Acceptance tests run Volta in a child process, so use an env-injected
+    // mock server URL when available.
+    if let Some(url) = std::env::var("VOLTA_MOCK_SERVER_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
+        return url;
     }
+
+    "https://nodejs.org/dist".to_string()
 }
 
 fn npm_manifest_path(version: &Version) -> PathBuf {

@@ -385,6 +385,42 @@ fn install_yarn_3_without_node_errors() {
 }
 
 #[test]
+fn install_bare_version_errors() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("install 12"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]error: `volta install 12` is not supported.")
+    );
+}
+
+#[test]
+fn install_tool_and_bare_version_errors() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("install node 12"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]error: `volta install node 12` is not supported.")
+    );
+}
+
+#[test]
+fn install_invalid_tool_name_errors() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("install ."),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]Invalid tool name `.`")
+    );
+}
+
+#[test]
 fn install_node_with_shadowed_binary() {
     #[cfg(windows)]
     const SCRIPT_FILENAME: &str = "node.bat";
@@ -404,5 +440,85 @@ fn install_node_with_shadowed_binary() {
         execs()
             .with_status(ExitCode::Success as i32)
             .with_stdout_contains("[..]is shadowed by another binary of the same name at [..]")
+    );
+}
+
+#[test]
+fn install_parse_tool_spec_error() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("install /"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]Could not parse tool spec `/`")
+    );
+}
+
+#[test]
+fn use_command_is_deprecated() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("use node"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]The subcommand `use` is deprecated.")
+    );
+}
+
+#[test]
+fn completions_out_file_already_exists() {
+    let s = sandbox()
+        .project_file("existing-completions.bash", "# existing content")
+        .build();
+
+    assert_that!(
+        s.volta("completions bash --output existing-completions.bash"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains(
+                "[..]Completions file `existing-completions.bash` already exists.[..]"
+            )
+    );
+}
+
+#[test]
+fn malformed_platform_json() {
+    let s = sandbox().platform("this is not valid json{{{").build();
+
+    assert_that!(
+        s.volta("install node@10.99.1040"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Could not parse platform settings file.[..]")
+    );
+}
+
+#[test]
+fn install_bundled_npm_without_node() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("install npm@bundled"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Could not detect bundled npm version.[..]")
+    );
+}
+
+#[test]
+fn install_bundled_npm_with_node_but_no_npm_version_file() {
+    // Set up a platform with node installed but no npm version file
+    // This triggers the "load_default_npm_version" failure path
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .build();
+
+    assert_that!(
+        s.volta("install npm@bundled"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Could not detect bundled npm version.[..]")
     );
 }

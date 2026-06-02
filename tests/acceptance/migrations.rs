@@ -3,6 +3,8 @@ use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
 
+use volta_core::error::ExitCode;
+
 #[test]
 fn empty_volta_home_is_created() {
     let s = sandbox().build();
@@ -230,4 +232,25 @@ fn current_v4_volta_home_is_unchanged() {
     assert!(Sandbox::path_exists(".volta/tmp"));
     assert!(Sandbox::path_exists(".volta/tools/inventory/node"));
     assert!(Sandbox::path_exists(".volta/tools/inventory/yarn"));
+}
+
+#[test]
+fn missing_migrate_executable_errors() {
+    let builder = sandbox();
+    let broken_install_dir = builder.root().join("broken-install");
+
+    let s = builder
+        .env("VOLTA_INSTALL_DIR", &broken_install_dir.to_string_lossy())
+        .build();
+
+    s.remove_volta_home();
+
+    assert_that!(
+        s.volta("--version"),
+        execs()
+            .with_status(ExitCode::EnvironmentError as i32)
+            .with_stderr_contains(
+                "[..]Could not start migration process to upgrade your Volta directory."
+            )
+    );
 }
