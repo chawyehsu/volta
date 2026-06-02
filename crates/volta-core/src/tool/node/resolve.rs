@@ -16,29 +16,23 @@ use crate::tool::Node;
 use crate::version::{VersionSpec, VersionTag};
 use attohttpc::header::HeaderMap;
 use attohttpc::Response;
-use cfg_if::cfg_if;
 use fs_utils::ensure_containing_dir_exists;
 use headers::{CacheControl, Expires, HeaderMapExt};
 use log::debug;
 use node_semver::{Range, Version};
 
 // ISSUE (#86): Move public repository URLs to config file
-cfg_if! {
-    if #[cfg(feature = "mock-network")] {
-        // TODO: We need to reconsider our mocking strategy in light of mockito deprecating the
-        // SERVER_URL constant: Since our acceptance tests run the binary in a separate process,
-        // we can't use `mockito::server_url()`, which relies on shared memory.
-        #[allow(deprecated)]
-        const SERVER_URL: &str = mockito::SERVER_URL;
-        fn public_node_version_index() -> String {
-            format!("{}/node-dist/index.json", SERVER_URL)
-        }
-    } else {
-        /// Returns the URL of the index of available Node versions on the public Node server.
-        fn public_node_version_index() -> String {
-            "https://nodejs.org/dist/index.json".to_string()
-        }
+/// Returns the URL of the index of available Node versions on the public Node server.
+fn public_node_version_index() -> String {
+    #[cfg(feature = "mock-network")]
+    if let Some(url) = std::env::var("VOLTA_MOCK_SERVER_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
+        return format!("{}/node-dist/index.json", url);
     }
+
+    "https://nodejs.org/dist/index.json".to_string()
 }
 
 pub fn resolve(matching: VersionSpec, session: &mut Session) -> Fallible<Version> {
