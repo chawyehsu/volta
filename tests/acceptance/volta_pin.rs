@@ -1145,3 +1145,80 @@ fn pin_pnpm_leaves_npm() {
         package_json_with_pinned_node_npm_pnpm("1.2.3", "3.4.5", "6.34.0"),
     )
 }
+
+#[test]
+fn pin_node_version_not_found() {
+    let s = sandbox()
+        .package_json(&package_json_with_pinned_node("1.2.3"))
+        .node_available_versions(NODE_VERSION_INFO)
+        .build();
+
+    assert_that!(
+        s.volta("pin node@^99.99.99"),
+        execs()
+            .with_status(ExitCode::NoVersionMatch as i32)
+            .with_stderr_contains("[..]Could not find Node version matching[..]")
+    );
+}
+
+#[test]
+fn pin_npm_version_not_found() {
+    let s = sandbox()
+        .package_json(&package_json_with_pinned_node("1.2.3"))
+        .npm_available_versions(NPM_VERSION_INFO)
+        .build();
+
+    assert_that!(
+        s.volta("pin npm@^99.99.99"),
+        execs()
+            .with_status(ExitCode::NoVersionMatch as i32)
+            .with_stderr_contains("[..]Could not find npm version matching[..]")
+    );
+}
+
+#[test]
+fn pin_yarn_version_not_found() {
+    let s = sandbox()
+        .package_json(&package_json_with_pinned_node("1.2.3"))
+        .yarn_1_available_versions(YARN_1_VERSION_INFO)
+        .yarn_berry_available_versions(YARN_BERRY_VERSION_INFO)
+        .build();
+
+    assert_that!(
+        s.volta("pin yarn@^99.99.99"),
+        execs()
+            .with_status(ExitCode::NoVersionMatch as i32)
+            .with_stderr_contains("[..]Could not find Yarn version matching[..]")
+    );
+}
+
+#[test]
+fn pin_pnpm_version_not_found() {
+    let s = sandbox()
+        .package_json(&package_json_with_pinned_node("1.2.3"))
+        .pnpm_available_versions(PNPM_VERSION_INFO)
+        .env("VOLTA_FEATURE_PNPM", "1")
+        .build();
+
+    assert_that!(
+        s.volta("pin pnpm@^99.99.99"),
+        execs()
+            .with_status(ExitCode::NoVersionMatch as i32)
+            .with_stderr_contains("[..]Could not find pnpm version matching[..]")
+    );
+}
+
+#[test]
+fn pin_node_not_in_package() {
+    let s = sandbox()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .build();
+
+    assert_that!(
+        s.volta("pin node@8.9.10"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Not in a node package.")
+    );
+}

@@ -442,3 +442,15 @@ fn install_node_with_shadowed_binary() {
             .with_stdout_contains("[..]is shadowed by another binary of the same name at [..]")
     );
 }
+
+#[test]
+fn install_parse_tool_spec_error() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("install /"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]Could not parse tool spec `/`")
+    );
+}

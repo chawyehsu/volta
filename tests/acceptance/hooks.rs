@@ -681,3 +681,26 @@ fn yarn_semver_with_hook_uses_configured_format() {
             .with_stderr_contains("[..]Could not download yarn@3.12.99")
     );
 }
+
+#[test]
+fn hook_with_invalid_registry_format_errors() {
+    let s = sandbox()
+        .default_hooks(
+            r#"{
+    "yarn": {
+        "index": {
+            "prefix": "http://localhost/yarn/index/",
+            "format": "invalid"
+        }
+    }
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.volta("install yarn@1.2.42"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Unrecognized index registry format: 'invalid'")
+    );
+}
