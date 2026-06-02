@@ -990,6 +990,30 @@ fn pin_pnpm() {
 }
 
 #[test]
+fn pin_bare_version_errors() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("pin 12"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]error: `volta pin 12` is not supported.")
+    );
+}
+
+#[test]
+fn pin_tool_and_bare_version_errors() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("pin node 12"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]error: `volta pin node 12` is not supported.")
+    );
+}
+
+#[test]
 fn pin_pnpm_reports_info() {
     let s = sandbox()
         .package_json(&package_json_with_pinned_node("1.2.3"))

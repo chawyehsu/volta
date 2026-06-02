@@ -385,6 +385,30 @@ fn install_yarn_3_without_node_errors() {
 }
 
 #[test]
+fn install_bare_version_errors() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("install 12"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]error: `volta install 12` is not supported.")
+    );
+}
+
+#[test]
+fn install_tool_and_bare_version_errors() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("install node 12"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]error: `volta install node 12` is not supported.")
+    );
+}
+
+#[test]
 fn install_node_with_shadowed_binary() {
     #[cfg(windows)]
     const SCRIPT_FILENAME: &str = "node.bat";
