@@ -719,3 +719,29 @@ fn pnpm_global_install_unimplemented() {
             .with_stderr_contains("[..]pnpm global commands is not supported yet.")
     );
 }
+
+#[test]
+fn npm_link_missing_package() {
+    let s = sandbox()
+        .platform(
+            r#"{
+  "node": {
+    "runtime": "10.99.1040",
+    "npm": null
+  },
+  "yarn": null,
+  "pnpm": null,
+  "packages": {}
+}"#,
+        )
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .build();
+
+    assert_that!(
+        s.npm("link nonexistent-pkg-12345"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains("[..]Could not locate the package 'nonexistent-pkg-12345'")
+    );
+}

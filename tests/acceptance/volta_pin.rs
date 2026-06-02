@@ -1287,3 +1287,25 @@ fn pin_with_extension_cycle() {
             .with_stderr_contains("[..]Detected infinite loop in project workspace:")
     );
 }
+
+#[test]
+fn pin_with_missing_extends_file() {
+    let s = sandbox()
+        .package_json(
+            r#"{
+  "name": "test-package",
+  "volta": {
+    "node": "1.2.3",
+    "extends": "./nonexistent.json"
+  }
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.volta("pin node@8.9.10"),
+        execs()
+            .with_status(ExitCode::FileSystemError as i32)
+            .with_stderr_contains("[..]Could not determine path to project workspace: './nonexistent.json'")
+    );
+}
