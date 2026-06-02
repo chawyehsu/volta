@@ -263,6 +263,74 @@ fn malformed_tool_hook_with_multiple_types_errors() {
 }
 
 #[test]
+fn tool_hook_with_empty_bin_command_errors() {
+    let s = sandbox()
+        .default_hooks(
+            r#"{
+    "node": {
+        "distro": {
+            "bin": "   "
+        }
+    }
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.volta("install node@1.2.3"),
+        execs()
+            .with_status(ExitCode::ExecutableNotFound as i32)
+            .with_stderr_contains("[..]Invalid hook command: ''")
+    );
+}
+
+#[test]
+fn tool_hook_with_missing_relative_bin_path_errors() {
+    let s = sandbox()
+        .default_hooks(
+            r#"{
+    "node": {
+        "distro": {
+            "bin": "./missing-hook-script"
+        }
+    }
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.volta("install node@1.2.3"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains(
+                "[..]Could not determine path to hook command: './missing-hook-script'"
+            )
+    );
+}
+
+#[test]
+fn tool_hook_with_failing_bin_command_errors() {
+    let s = sandbox()
+        .default_hooks(
+            r#"{
+    "node": {
+        "distro": {
+            "bin": "node"
+        }
+    }
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.volta("install node@1.2.3"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Hook command 'node' indicated a failure.")
+    );
+}
+
+#[test]
 fn redirects_download() {
     let s = sandbox()
         .default_hooks(&default_hooks_json())
