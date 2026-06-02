@@ -701,3 +701,20 @@ fn no_platform() {
             .with_stderr_contains("[..]Node is not available.")
     );
 }
+
+#[test]
+fn pnpm_global_install_unimplemented() {
+    let s = sandbox()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .package_json(&package_json_with_pinned_node("10.99.1040"))
+        .env("VOLTA_FEATURE_PNPM", "1")
+        .build();
+
+    assert_that!(
+        s.pnpm("install -g cowsay"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains("[..]pnpm global commands is not supported yet.")
+    );
+}
