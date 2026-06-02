@@ -7,7 +7,6 @@ use crate::support::events_helpers::{
 use crate::support::sandbox::sandbox;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use mockito::mock;
 use test_support::matchers::execs;
 use volta_core::error::ExitCode;
 
@@ -63,17 +62,17 @@ fn default_hooks_json() -> String {
 {{
     "node": {{
         "distro": {{
-            "template": "{}/hook/default/node/{{{{version}}}}"
+                "template": "[server]/hook/default/node/{{{{version}}}}"
         }}
     }},
     "npm": {{
         "distro": {{
-            "template": "{0}/hook/default/npm/{{{{version}}}}"
+                "template": "[server]/hook/default/npm/{{{{version}}}}"
         }}
     }},
     "yarn": {{
         "distro": {{
-            "template": "{0}/hook/default/yarn/{{{{version}}}}"
+                "template": "[server]/hook/default/yarn/{{{{version}}}}"
         }}
     }},
     "events": {{
@@ -82,76 +81,59 @@ fn default_hooks_json() -> String {
         }}
     }}
 }}"#,
-        mockito::server_url(),
         SCRIPT_FILENAME
     )
 }
 
-fn project_hooks_json() -> String {
-    format!(
-        r#"
-{{
-    "yarn": {{
-        "distro": {{
-            "template": "{0}/hook/project/yarn/{{{{version}}}}"
-        }}
-    }}
-}}"#,
-        mockito::server_url()
-    )
+fn project_hooks_json() -> &'static str {
+    r#"{
+    "yarn": {
+        "distro": {
+            "template": "[server]/hook/project/yarn/{{version}}"
+        }
+    }
+}"#
 }
 
-fn workspace_hooks_json() -> String {
-    format!(
-        r#"
-{{
-    "npm": {{
-        "distro": {{
-            "template": "{0}/hook/workspace/npm/{{{{version}}}}"
-        }}
-    }},
-    "yarn": {{
-        "distro": {{
-            "template": "{0}/hook/workspace/yarn/{{{{version}}}}"
-        }}
-    }}
-}}"#,
-        mockito::server_url()
-    )
+fn workspace_hooks_json() -> &'static str {
+    r#"{
+    "npm": {
+        "distro": {
+            "template": "[server]/hook/workspace/npm/{{version}}"
+        }
+    },
+    "yarn": {
+        "distro": {
+            "template": "[server]/hook/workspace/yarn/{{version}}"
+        }
+    }
+}"#
 }
 
-fn pnpm_hooks_json() -> String {
-    format!(
-        r#"
-{{
-    "pnpm": {{
-        "index": {{
-            "template": "{0}/pnpm/index"
-        }},
-        "distro": {{
-            "template": "{0}/pnpm/{{{{version}}}}"
-        }}
-    }}
-}}"#,
-        mockito::server_url()
-    )
+fn pnpm_hooks_json() -> &'static str {
+    r#"{
+    "pnpm": {
+        "index": {
+            "template": "[server]/pnpm/index"
+        },
+        "distro": {
+            "template": "[server]/pnpm/{{version}}"
+        }
+    }
+}"#
 }
 
-fn yarn_hooks_json() -> String {
-    format!(
-        r#"
-{{
-    "yarn": {{
-        "latest": {{
-            "template": "{0}/yarn-old/latest"
-        }},
-        "index": {{
-            "template": "{0}/yarn-old/index"
-        }}
-    }}
-}}"#,
-        mockito::server_url()
-    )
+fn yarn_hooks_json() -> &'static str {
+    r#"{
+    "yarn": {
+        "latest": {
+            "template": "[server]/yarn-old/latest"
+        },
+        "index": {
+            "template": "[server]/yarn-old/index"
+        }
+    }
+}"#
 }
 
 fn yarn_hooks_format_json(format: &str) -> String {
@@ -160,15 +142,14 @@ fn yarn_hooks_format_json(format: &str) -> String {
 {{
     "yarn": {{
         "latest": {{
-            "template": "{0}/yarn-new/latest"
+            "template": "[server]/yarn-new/latest"
         }},
         "index": {{
-            "template": "{0}/yarn-new/index",
-            "format": "{1}"
+            "template": "[server]/yarn-new/index",
+            "format": "{0}"
         }}
     }}
 }}"#,
-        mockito::server_url(),
         format
     )
 }
@@ -339,12 +320,14 @@ fn merges_workspace_hooks() {
 
 #[test]
 fn pnpm_latest_with_hook_reads_index() {
-    let s = sandbox()
+    let mut s = sandbox()
         .default_hooks(&pnpm_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
         .env("VOLTA_FEATURE_PNPM", "1")
         .build();
-    let _mock = mock("GET", "/pnpm/index")
+    let _mock = s
+        .server()
+        .mock("GET", "/pnpm/index")
         .with_status(200)
         .with_header("Content-Type", "application/json")
         .with_body(
@@ -374,12 +357,14 @@ fn pnpm_latest_with_hook_reads_index() {
 
 #[test]
 fn pnpm_no_version_with_hook_reads_index() {
-    let s = sandbox()
+    let mut s = sandbox()
         .default_hooks(&pnpm_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
         .env("VOLTA_FEATURE_PNPM", "1")
         .build();
-    let _mock = mock("GET", "/pnpm/index")
+    let _mock = s
+        .server()
+        .mock("GET", "/pnpm/index")
         .with_status(200)
         .with_header("Content-Type", "application/json")
         .with_body(
@@ -409,11 +394,13 @@ fn pnpm_no_version_with_hook_reads_index() {
 
 #[test]
 fn yarn_latest_with_hook_reads_latest() {
-    let s = sandbox()
+    let mut s = sandbox()
         .default_hooks(&yarn_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
         .build();
-    let _mock = mock("GET", "/yarn-old/latest")
+    let _mock = s
+        .server()
+        .mock("GET", "/yarn-old/latest")
         .with_status(200)
         .with_body("4.2.9")
         .create();
@@ -430,11 +417,13 @@ fn yarn_latest_with_hook_reads_latest() {
 
 #[test]
 fn yarn_no_version_with_hook_reads_latest() {
-    let s = sandbox()
+    let mut s = sandbox()
         .default_hooks(&yarn_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
         .build();
-    let _mock = mock("GET", "/yarn-old/latest")
+    let _mock = s
+        .server()
+        .mock("GET", "/yarn-old/latest")
         .with_status(200)
         .with_body("4.2.9")
         .create();
@@ -451,11 +440,13 @@ fn yarn_no_version_with_hook_reads_latest() {
 
 #[test]
 fn yarn_semver_with_hook_uses_old_format() {
-    let s = sandbox()
+    let mut s = sandbox()
         .default_hooks(&yarn_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
         .build();
-    let _mock = mock("GET", "/yarn-old/index")
+    let _mock = s
+        .server()
+        .mock("GET", "/yarn-old/index")
         .with_status(200)
         .with_header("Content-Type", "application/json")
         .with_body(
@@ -481,11 +472,13 @@ fn yarn_semver_with_hook_uses_old_format() {
 
 #[test]
 fn yarn_semver_with_hook_uses_configured_format() {
-    let s = sandbox()
+    let mut s = sandbox()
         .default_hooks(&yarn_hooks_format_json("npm"))
         .env("VOLTA_LOGLEVEL", "debug")
         .build();
-    let _mock = mock("GET", "/yarn-new/index")
+    let _mock = s
+        .server()
+        .mock("GET", "/yarn-new/index")
         .with_status(200)
         .with_header("Content-Type", "application/json")
         .with_body(
