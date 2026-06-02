@@ -9,6 +9,7 @@ cfg_if! {
         mod direct_install;
         mod direct_uninstall;
         mod execute_binary;
+        mod fetch;
         mod hooks;
         mod merged_platform;
         mod migrations;
