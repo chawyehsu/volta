@@ -48,6 +48,7 @@ fn which_returns_unknown_error_when_binary_missing() {
 }
 
 #[test]
+#[cfg(unix)]
 fn which_finds_default_node_binary() {
     let s = sandbox()
         .platform(&platform_with_node("10.99.1040"))
