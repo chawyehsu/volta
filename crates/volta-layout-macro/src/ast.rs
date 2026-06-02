@@ -2,7 +2,6 @@ use crate::ir::{Entry, Ir};
 use proc_macro2::TokenStream;
 use std::collections::HashMap;
 use syn::parse::{self, Parse, ParseStream};
-use syn::punctuated::Punctuated;
 use syn::{braced, Attribute, Ident, LitStr, Token, Visibility};
 
 pub(crate) type Result<T> = ::std::result::Result<T, TokenStream>;
@@ -105,16 +104,27 @@ impl LayoutStruct {
 /// }
 /// ```
 struct Directory {
-    entries: Punctuated<FieldPrefix, FieldContents>,
+    entries: Vec<DirectoryEntry>,
+}
+
+struct DirectoryEntry {
+    prefix: FieldPrefix,
+    contents: FieldContents,
 }
 
 impl Parse for Directory {
     fn parse(input: ParseStream) -> parse::Result<Self> {
         let content;
         braced!(content in input);
-        Ok(Directory {
-            entries: content.parse_terminated(FieldPrefix::parse)?,
-        })
+
+        let mut entries = Vec::new();
+        while !content.is_empty() {
+            let prefix = content.parse()?;
+            let contents = content.parse()?;
+            entries.push(DirectoryEntry { prefix, contents });
+        }
+
+        Ok(Directory { entries })
     }
 }
 
@@ -129,8 +139,8 @@ impl Directory {
     fn flatten(self, results: &mut Ir, context: Vec<LitStr>) -> Result<()> {
         let mut visited_entries = HashMap::new();
 
-        for pair in self.entries.into_pairs() {
-            let (prefix, punc) = pair.into_tuple();
+        for entry_with_contents in self.entries {
+            let prefix = entry_with_contents.prefix;
 
             let mut entry = Entry {
                 name: prefix.name,
@@ -138,8 +148,8 @@ impl Directory {
                 filename: prefix.filename.clone(),
             };
 
-            match punc {
-                Some(FieldContents::Dir(dir)) => {
+            match entry_with_contents.contents {
+                FieldContents::Dir(dir) => {
                     let filename = prefix.filename.value();
 
                     if filename.ends_with(".exe") || filename.ends_with("[.exe]") {
@@ -170,7 +180,7 @@ impl Directory {
                     sub_context.push(prefix.filename);
                     dir.flatten(results, sub_context)?;
                 }
-                _ => {
+                FieldContents::File(_) => {
                     let filename = prefix.filename.value();
                     if filename.ends_with("[.exe]") {
                         let filename = &filename[0..filename.len() - 6];
