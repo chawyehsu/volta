@@ -16,8 +16,10 @@ cfg_if! {
         mod run_shim_directly;
         mod setup;
         mod verbose_errors;
+        mod which;
         mod volta_bypass;
         mod volta_install;
+        mod volta_list;
         mod volta_pin;
         mod volta_run;
         mod volta_uninstall;

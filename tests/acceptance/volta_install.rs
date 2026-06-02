@@ -484,6 +484,43 @@ fn completions_out_file_already_exists() {
 }
 
 #[test]
+fn completions_out_file_creates_missing_parent_dirs() {
+    let s = sandbox().build();
+    let out_file = "nested/completions/volta.bash";
+    let cmd = format!("completions bash --output {}", out_file);
+
+    assert_that!(s.volta(&cmd), execs().with_status(ExitCode::Success as i32));
+
+    let generated = s.root().join(out_file);
+    assert!(
+        generated.is_file(),
+        "Expected generated completions file at {}",
+        generated.display()
+    );
+
+    let contents = std::fs::read_to_string(&generated).unwrap_or_else(|err| {
+        panic!(
+            "Expected generated completions file to be readable at {}: {}",
+            generated.display(),
+            err
+        )
+    });
+    assert!(!contents.trim().is_empty());
+}
+
+#[test]
+fn completions_without_output_writes_to_stdout() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("completions bash"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("[..]volta[..]")
+    );
+}
+
+#[test]
 fn malformed_platform_json() {
     let s = sandbox().platform("this is not valid json{{{").build();
 
