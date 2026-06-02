@@ -691,6 +691,7 @@ fn command_line_node_no_pnpm() {
 }
 
 #[test]
+#[cfg(unix)]
 fn no_platform() {
     let s = sandbox().build();
 
