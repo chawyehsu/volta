@@ -482,3 +482,29 @@ fn completions_out_file_already_exists() {
             )
     );
 }
+
+#[test]
+fn malformed_platform_json() {
+    let s = sandbox()
+        .platform("this is not valid json{{{")
+        .build();
+
+    assert_that!(
+        s.volta("install node@10.99.1040"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Could not parse platform settings file.[..]")
+    );
+}
+
+#[test]
+fn install_bundled_npm_without_node() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("install npm@bundled"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Could not detect bundled npm version.[..]")
+    );
+}

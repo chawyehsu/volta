@@ -751,3 +751,32 @@ fn node_registry_server_error() {
             .with_stderr_contains("[..]Could not download Node version registry")
     );
 }
+
+#[test]
+fn node_index_invalid_json() {
+    let mut s = sandbox()
+        .package_json(
+            r#"{
+  "name": "test-package",
+  "volta": {
+    "node": "10.99.1040"
+  }
+}"#,
+        )
+        .build();
+    // Return invalid JSON for the node index endpoint
+    let _mock = s
+        .server()
+        .mock("GET", "/node-dist/index.json")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body("this is not valid json{{{")
+        .create();
+
+    assert_that!(
+        s.volta("pin node@^10"),
+        execs()
+            .with_status(ExitCode::NetworkError as i32)
+            .with_stderr_contains("[..]Could not parse Node version index")
+    );
+}
