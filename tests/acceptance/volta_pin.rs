@@ -760,6 +760,18 @@ fn pin_npm() {
 }
 
 #[test]
+fn pin_package_errors() {
+    let s = sandbox().build();
+
+    assert_that!(
+        s.volta("pin cowsay@1.0.0"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]Only node and yarn can be pinned in a project")
+    );
+}
+
+#[test]
 fn pin_npm_reports_info() {
     let s = sandbox()
         .package_json(&package_json_with_pinned_node("1.2.3"))
