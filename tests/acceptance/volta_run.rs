@@ -745,3 +745,43 @@ fn npm_link_missing_package() {
             .with_stderr_contains("[..]Could not locate the package 'nonexistent-pkg-12345'")
     );
 }
+
+#[test]
+fn npm_link_wrong_manager() {
+    let s = sandbox()
+        .platform(
+            r#"{
+  "node": {
+    "runtime": "10.99.1040",
+    "npm": null
+  },
+  "yarn": null,
+  "pnpm": null,
+  "packages": {}
+}"#,
+        )
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .package_config(
+            "my-pkg",
+            r#"{
+  "name": "my-pkg",
+  "version": "1.0.0",
+  "platform": {
+    "node": "10.99.1040",
+    "npm": null,
+    "yarn": null
+  },
+  "bins": ["my-pkg"],
+  "manager": "Yarn"
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.npm("link my-pkg"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains("[..]The package 'my-pkg' was not installed using npm[..]")
+    );
+}
