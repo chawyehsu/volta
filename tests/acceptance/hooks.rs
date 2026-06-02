@@ -309,6 +309,7 @@ fn tool_hook_with_missing_relative_bin_path_errors() {
 }
 
 #[test]
+#[cfg(unix)]
 fn tool_hook_with_failing_bin_command_errors() {
     let s = sandbox()
         .default_hooks(
