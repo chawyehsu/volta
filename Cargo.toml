@@ -1,7 +1,7 @@
 [package]
 name = "volta"
 description = "The Hassle-Free JavaScript Tool Manager"
-version = "2.0.2"
+version = "2.0.3"
 authors = [
     "Chawye Hsu <su+git@chawyehsu.com>",
     "David Herman <david.herman@gmail.com>",
