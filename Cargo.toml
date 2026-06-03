@@ -27,6 +27,8 @@ path = "src/volta-migrate.rs"
 
 [profile.release]
 lto = "fat"
+panic = "abort"
+strip = "symbols"
 codegen-units = 1
 
 [workspace]
