@@ -6,8 +6,8 @@ use std::os::unix::process::ExitStatusExt;
 use std::os::windows::process::ExitStatusExt;
 use std::process::ExitStatus;
 
-use super::RECURSION_ENV_VAR;
-use crate::command::create_command;
+use super::{RECURSION_ENV_VAR, RECURSION_LIMIT};
+use crate::command::create_command_in;
 use crate::error::{Context, ErrorKind, Fallible};
 use crate::layout::volta_home;
 use crate::platform::{CliPlatform, Platform, System};
@@ -193,6 +193,8 @@ impl ToolCommand {
 
     /// Runs the command, returning the `ExitStatus` if it successfully launches
     pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
+        let recursion = check_recursion_limit()?;
+
         let (path, on_failure) = match self.kind {
             ToolKind::Node => super::node::execution_context(self.platform, session)?,
             ToolKind::Npm => super::npm::execution_context(self.platform, session)?,
@@ -208,16 +210,19 @@ impl ToolCommand {
             ToolKind::Bypass(command) => (System::path()?, ErrorKind::BypassError { command }),
         };
 
-        create_command(&self.exe)
-            .and_then(|mut command| {
-                command.args(&self.args);
-                command.envs(self.envs);
-                command.env(RECURSION_ENV_VAR, "1");
-                command.env("PATH", path);
-                pass_control_to_shim();
-                command.status().with_context(|| ErrorKind::BinaryExecError)
-            })
-            .with_context(|| on_failure)
+        let mut command = match &on_failure {
+            ErrorKind::BypassError { command } => create_command_in(&self.exe, &path)
+                .with_context(|| ErrorKind::BypassError {
+                    command: command.clone(),
+                })?,
+            _ => create_command_in(&self.exe, &path)?,
+        };
+        command.args(&self.args);
+        command.envs(self.envs);
+
+        command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
+        pass_control_to_shim();
+        command.status().with_context(|| on_failure)
     }
 }
 
@@ -314,16 +319,17 @@ impl PackageInstallCommand {
     /// Runs the install command, applying the necessary modifications to install into the Volta
     /// data directory
     pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
+        let recursion = check_recursion_limit()?;
+
         let _lock = VoltaLock::acquire();
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let mut command = create_command(self.exe)?;
+        let mut command = create_command_in(self.exe, &path)?;
         command.args(&self.args);
         command.envs(self.envs);
 
-        command.env(RECURSION_ENV_VAR, "1");
-        command.env("PATH", path);
+        command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         self.installer.setup_command(&mut command);
 
         let status = command
@@ -402,17 +408,18 @@ impl PackageLinkCommand {
     ///
     /// This will also check for some common failure cases and alert the user
     pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
+        let recursion = check_recursion_limit()?;
+
         self.check_linked_package(session)?;
 
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let mut command = create_command("npm")?;
+        let mut command = create_command_in("npm", &path)?;
         command.args(&self.args);
         command.envs(self.envs);
 
-        command.env(RECURSION_ENV_VAR, "1");
-        command.env("PATH", path);
+        command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         let package_root = volta_home()?.package_image_dir(&self.tool);
         PackageManager::Npm.setup_global_command(&mut command, package_root);
 
@@ -532,18 +539,19 @@ impl PackageUpgradeCommand {
     /// Will also check for common failure cases, such as non-existant package or wrong package
     /// manager
     pub fn execute(self, session: &mut Session) -> Fallible<ExitStatus> {
+        let recursion = check_recursion_limit()?;
+
         self.upgrader.check_upgraded_package()?;
 
         let _lock = VoltaLock::acquire();
         let image = self.platform.checkout(session)?;
         let path = image.path()?;
 
-        let mut command = create_command(self.exe)?;
+        let mut command = create_command_in(self.exe, &path)?;
         command.args(&self.args);
         command.envs(self.envs);
 
-        command.env(RECURSION_ENV_VAR, "1");
-        command.env("PATH", path);
+        command.env(RECURSION_ENV_VAR, (recursion + 1).to_string());
         self.upgrader.setup_command(&mut command);
 
         let status = command
@@ -628,5 +636,64 @@ impl UninstallCommand {
 impl From<UninstallCommand> for Executor {
     fn from(cmd: UninstallCommand) -> Self {
         Executor::Uninstall(Box::new(cmd))
+    }
+}
+
+/// Reads and validates the recursion counter from the environment.
+///
+/// Returns the current recursion depth (defaulting to 0 when the variable is absent),
+/// or an error if the value cannot be parsed or the limit has been exceeded.
+fn check_recursion_limit() -> Fallible<u8> {
+    let recursion = match std::env::var(RECURSION_ENV_VAR) {
+        Err(_) => 0u8,
+        Ok(var) => var
+            .parse::<u8>()
+            .with_context(|| ErrorKind::ParseRecursionEnvError)?,
+    };
+    if recursion > RECURSION_LIMIT {
+        return Err(ErrorKind::RecursionLimit.into());
+    }
+    Ok(recursion)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    // Serialize all tests that touch RECURSION_ENV_VAR, since env vars are
+    // global process state.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_recursion_var(value: &str) -> Fallible<u8> {
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::set_var(RECURSION_ENV_VAR, value);
+        let result = check_recursion_limit();
+        std::env::remove_var(RECURSION_ENV_VAR);
+        result
+    }
+
+    #[test]
+    fn recursion_env_var_absent_defaults_to_one() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::remove_var(RECURSION_ENV_VAR);
+        assert_eq!(check_recursion_limit().unwrap(), 0u8);
+    }
+
+    #[test]
+    fn recursion_env_var_valid_value_is_returned() {
+        assert_eq!(with_recursion_var("5").unwrap(), 5u8);
+    }
+
+    #[test]
+    fn recursion_env_var_at_limit_returns_recursion_limit_error() {
+        let err = with_recursion_var(&(RECURSION_LIMIT + 1).to_string()).unwrap_err();
+        assert_eq!(*err.kind(), ErrorKind::RecursionLimit);
+    }
+
+    #[test]
+    fn recursion_env_var_invalid_value_returns_parse_error() {
+        let err = with_recursion_var("not-a-number").unwrap_err();
+        assert_eq!(*err.kind(), ErrorKind::ParseRecursionEnvError);
     }
 }
