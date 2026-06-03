@@ -1,12 +1,15 @@
 [package]
 name = "volta"
+description = "The Hassle-Free JavaScript Tool Manager"
 version = "2.0.3"
 authors = [
+    "Chawye Hsu <su+git@chawyehsu.com>",
     "David Herman <david.herman@gmail.com>",
     "Charles Pierce <cpierce.grad@gmail.com>",
 ]
 license = "BSD-2-Clause"
-repository = "https://github.com/volta-cli/volta"
+categories = ["development-tools"]
+repository = "https://github.com/chawyehsu/volta"
 edition = "2021"
 
 [features]
@@ -24,6 +27,8 @@ path = "src/volta-migrate.rs"
 
 [profile.release]
 lto = "fat"
+panic = "abort"
+strip = "symbols"
 codegen-units = 1
 
 [workspace]
