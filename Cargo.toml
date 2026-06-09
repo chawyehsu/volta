@@ -101,7 +101,7 @@ textwrap = "0.16.2"
 thiserror = "2.0.18"
 verbatim = "0.1"
 walkdir = "2.5.0"
-which = "8.0.2"
+which = "8.0.3"
 winreg = "0.56.0"
 # Set features manually to drop usage of `time` crate: we do not rely on that
 # set of capabilities, and it has a vulnerability. We also don't need to use
