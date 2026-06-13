@@ -21,4 +21,4 @@ jobs:
     needs: [build]
     steps:
       - name: Draft Release
-        uses: chawyehsu/actions/create-release@fffc3dd14b11dd2c19781ddce078b4c5d41811c7 # v1.0.0
+        uses: chawyehsu/actions/create-release@32ef5b304a150e4251de26cea984db91d9dfcab1 # v1.1.0
