@@ -11,7 +11,7 @@ use mockito::Matcher;
 use node_semver::Version;
 use test_support::{self, ok_or_panic, paths, paths::PathExt, process::ProcessBuilder};
 use volta_core::fs::{set_executable, symlink_file};
-use volta_core::tool::{Node, Pnpm, Yarn};
+use volta_core::tool::{Node, Npm, Pnpm, Yarn};
 
 // version cache for node and yarn
 #[derive(PartialEq, Clone)]
@@ -726,6 +726,7 @@ impl SandboxBuilder {
         ok_or_panic! { fs::create_dir_all(volta_bin_dir()) };
         ok_or_panic! { fs::create_dir_all(node_cache_dir()) };
         ok_or_panic! { fs::create_dir_all(node_inventory_dir()) };
+        ok_or_panic! { fs::create_dir_all(npm_inventory_dir()) };
         ok_or_panic! { fs::create_dir_all(package_inventory_dir()) };
         ok_or_panic! { fs::create_dir_all(pnpm_inventory_dir()) };
         ok_or_panic! { fs::create_dir_all(yarn_inventory_dir()) };
@@ -839,6 +840,9 @@ fn image_dir() -> PathBuf {
 }
 fn node_inventory_dir() -> PathBuf {
     inventory_dir().join("node")
+}
+fn npm_inventory_dir() -> PathBuf {
+    inventory_dir().join("npm")
 }
 fn pnpm_inventory_dir() -> PathBuf {
     inventory_dir().join("pnpm")
@@ -1010,11 +1014,24 @@ impl Sandbox {
         volta_home().rm_rf();
     }
 
+    /// Pre-populate the node inventory cache with a fixture file, simulating
+    /// a previously downloaded archive (cache hit for `archive::load_native`).
+    pub fn populate_node_inventory_cache(&self, version: &Version, fixture_path: &Path) {
+        let dest = node_inventory_dir().join(Node::archive_filename(version));
+        fs::copy(fixture_path, dest).expect("failed to populate node inventory cache");
+    }
+
     // check that files in the sandbox exist
 
     pub fn node_inventory_archive_exists(&self, version: &Version) -> bool {
         node_inventory_dir()
             .join(Node::archive_filename(version))
+            .exists()
+    }
+
+    pub fn npm_inventory_archive_exists(&self, version: &str) -> bool {
+        npm_inventory_dir()
+            .join(Npm::archive_filename(version))
             .exists()
     }
 
