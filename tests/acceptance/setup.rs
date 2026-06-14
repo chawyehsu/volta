@@ -162,14 +162,36 @@ fn setup_creates_zshenv_for_zsh() {
     assert!(contents.contains("export PATH=\"$VOLTA_HOME/bin:$PATH\""));
 }
 
+/// Helper: read the current user PATH from the Windows registry.
+#[cfg(windows)]
+fn read_user_path() -> String {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let env = hkcu
+        .open_subkey("Environment")
+        .expect("could not open Environment key");
+    env.get_value("Path").expect("could not read user Path")
+}
+
+/// Helper: write a value to the user PATH via `setx` (matching how
+/// `volta setup` itself modifies the registry).
+#[cfg(windows)]
+fn set_user_path(path: &str) {
+    let status = std::process::Command::new("setx")
+        .arg("Path")
+        .arg(path)
+        .output()
+        .expect("could not run setx");
+    assert!(status.status.success(), "setx failed: {:?}", status);
+}
+
 /// When the shim dir is already in the user PATH on Windows,
 /// `volta setup` skips the registry modification.
 #[test]
 #[cfg(windows)]
 fn setup_skips_when_already_configured_windows() {
-    use winreg::enums::HKEY_CURRENT_USER;
-    use winreg::RegKey;
-
     let builder = sandbox();
     let volta_home = builder.root().join("volta-home");
     let shim_dir = volta_home.join("bin");
@@ -179,21 +201,9 @@ fn setup_skips_when_already_configured_windows() {
         .build();
 
     // Prepend the shim dir to the user PATH so setup detects it's already configured
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let env = hkcu
-        .open_subkey("Environment")
-        .expect("could not open Environment key");
-    let original_path: String = env.get_value("Path").expect("could not read user Path");
+    let original_path = read_user_path();
     let new_path = format!("{};{}", shim_dir.display(), original_path);
-    env.set_value("Path", &new_path)
-        .expect("could not write user Path");
-
-    // setx is needed to propagate the change to the environment that volta reads
-    std::process::Command::new("setx")
-        .arg("Path")
-        .arg(&new_path)
-        .output()
-        .expect("could not run setx");
+    set_user_path(&new_path);
 
     assert_that!(
         s.volta("setup"),
@@ -201,13 +211,7 @@ fn setup_skips_when_already_configured_windows() {
     );
 
     // Restore original PATH
-    env.set_value("Path", &original_path)
-        .expect("could not restore user Path");
-    std::process::Command::new("setx")
-        .arg("Path")
-        .arg(&original_path)
-        .output()
-        .expect("could not restore Path via setx");
+    set_user_path(&original_path);
 }
 
 /// On Windows, `volta setup` prepends the shim dir to the user PATH
@@ -215,9 +219,6 @@ fn setup_skips_when_already_configured_windows() {
 #[test]
 #[cfg(windows)]
 fn setup_adds_shim_dir_to_user_path_windows() {
-    use winreg::enums::HKEY_CURRENT_USER;
-    use winreg::RegKey;
-
     let builder = sandbox();
     let volta_home = builder.root().join("volta-home");
     let shim_dir = volta_home.join("bin");
@@ -228,11 +229,7 @@ fn setup_adds_shim_dir_to_user_path_windows() {
 
     // Save original PATH and remove the shim dir if present, so setup
     // actually performs the modification.
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let env = hkcu
-        .open_subkey("Environment")
-        .expect("could not open Environment key");
-    let original_path: String = env.get_value("Path").expect("could not read user Path");
+    let original_path = read_user_path();
     let shim_str = shim_dir.display().to_string();
 
     let cleaned_path = original_path
@@ -240,14 +237,7 @@ fn setup_adds_shim_dir_to_user_path_windows() {
         .filter(|segment| segment.trim() != shim_str)
         .collect::<Vec<_>>()
         .join(";");
-
-    env.set_value("Path", &cleaned_path)
-        .expect("could not write cleaned Path");
-    std::process::Command::new("setx")
-        .arg("Path")
-        .arg(&cleaned_path)
-        .output()
-        .expect("could not propagate cleaned Path via setx");
+    set_user_path(&cleaned_path);
 
     assert_that!(
         s.volta("setup"),
@@ -255,18 +245,12 @@ fn setup_adds_shim_dir_to_user_path_windows() {
     );
 
     // Verify the shim dir was added to PATH
-    let updated_path: String = env.get_value("Path").expect("could not read updated Path");
+    let updated_path = read_user_path();
     assert!(
         updated_path.contains(&shim_str),
         "shim dir should be in user PATH after setup"
     );
 
     // Restore original PATH
-    env.set_value("Path", &original_path)
-        .expect("could not restore user Path");
-    std::process::Command::new("setx")
-        .arg("Path")
-        .arg(&original_path)
-        .output()
-        .expect("could not restore Path via setx");
+    set_user_path(&original_path);
 }
