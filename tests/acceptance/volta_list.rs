@@ -75,6 +75,18 @@ fn list_all() {
 }
 
 #[test]
+fn list_node() {
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .build();
+
+    assert_that!(
+        s.volta("list node"),
+        execs().with_status(ExitCode::Success as i32)
+    );
+}
+
+#[test]
 fn list_npm() {
     let s = sandbox()
         .platform(&platform_with_node_npm("10.99.1040", "6.2.26"))
@@ -82,6 +94,30 @@ fn list_npm() {
 
     assert_that!(
         s.volta("list npm"),
+        execs().with_status(ExitCode::Success as i32)
+    );
+}
+
+#[test]
+fn list_pnpm() {
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .build();
+
+    assert_that!(
+        s.volta("list pnpm"),
+        execs().with_status(ExitCode::Success as i32)
+    );
+}
+
+#[test]
+fn list_yarn() {
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .build();
+
+    assert_that!(
+        s.volta("list yarn"),
         execs().with_status(ExitCode::Success as i32)
     );
 }
