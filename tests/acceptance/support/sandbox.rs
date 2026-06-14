@@ -1033,6 +1033,30 @@ impl Sandbox {
         });
     }
 
+    /// Create an npm image directory for the given version (as discovered by
+    /// `npm_versions()`).
+    pub fn create_npm_image(&self, version: &str) {
+        let dir = npm_image_dir(version);
+        fs::create_dir_all(&dir)
+            .unwrap_or_else(|e| panic!("could not create npm image dir {}: {}", dir.display(), e));
+    }
+
+    /// Create a pnpm image directory for the given version (as discovered by
+    /// `pnpm_versions()`).
+    pub fn create_pnpm_image(&self, version: &str) {
+        let dir = pnpm_image_dir(version);
+        fs::create_dir_all(&dir)
+            .unwrap_or_else(|e| panic!("could not create pnpm image dir {}: {}", dir.display(), e));
+    }
+
+    /// Create a yarn image directory for the given version (as discovered by
+    /// `yarn_versions()`).
+    pub fn create_yarn_image(&self, version: &str) {
+        let dir = yarn_image_dir(version);
+        fs::create_dir_all(&dir)
+            .unwrap_or_else(|e| panic!("could not create yarn image dir {}: {}", dir.display(), e));
+    }
+
     /// Pre-populate the node inventory cache with a fixture file, simulating
     /// a previously downloaded archive (cache hit for `archive::load_native`).
     pub fn populate_node_inventory_cache(&self, version: &Version, fixture_path: &Path) {

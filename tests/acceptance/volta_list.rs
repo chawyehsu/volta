@@ -33,6 +33,34 @@ fn platform_with_node_npm(node: &str, npm: &str) -> String {
     )
 }
 
+fn platform_with_pnpm(node: &str, pnpm: &str) -> String {
+    format!(
+        r#"{{
+  "node": {{
+    "runtime": "{}",
+    "npm": null
+  }},
+  "pnpm": "{}",
+  "yarn": null
+}}"#,
+        node, pnpm
+    )
+}
+
+fn platform_with_yarn(node: &str, yarn: &str) -> String {
+    format!(
+        r#"{{
+  "node": {{
+    "runtime": "{}",
+    "npm": null
+  }},
+  "pnpm": null,
+  "yarn": "{}"
+}}"#,
+        node, yarn
+    )
+}
+
 #[test]
 fn list_active() {
     let s = sandbox()
@@ -231,5 +259,161 @@ fn list_node_none_source() {
             .with_status(ExitCode::Success as i32)
             .with_stdout_contains("runtime node@0.0.1\n")
             .with_stdout_contains("[..]node@10.99.1040[..]default[..]")
+    );
+}
+
+// ---- npm version_source ----
+
+#[test]
+fn list_npm_default_source() {
+    let s = sandbox()
+        .platform(&platform_with_node_npm("10.99.1040", "6.2.26"))
+        .build();
+
+    s.create_npm_image("6.2.26");
+
+    assert_that!(
+        s.volta("list --format plain npm"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("[..]npm@6.2.26[..]default[..]")
+    );
+}
+
+#[test]
+fn list_npm_project_source() {
+    let s = sandbox()
+        .package_json(r#"{"name":"test","volta":{"node":"10.99.1040","npm":"6.2.26"}}"#)
+        .build();
+
+    s.create_npm_image("6.2.26");
+
+    assert_that!(
+        s.volta("list --format plain npm"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("[..]npm@6.2.26[..]current @[..]package.json[..]")
+    );
+}
+
+#[test]
+fn list_npm_none_source() {
+    let s = sandbox()
+        .platform(&platform_with_node_npm("10.99.1040", "6.2.26"))
+        .build();
+
+    s.create_npm_image("6.2.26");
+    s.create_npm_image("0.0.1");
+
+    assert_that!(
+        s.volta("list --format plain npm"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("package-manager npm@0.0.1\n")
+            .with_stdout_contains("[..]npm@6.2.26[..]default[..]")
+    );
+}
+
+// ---- pnpm version_source ----
+
+#[test]
+fn list_pnpm_default_source() {
+    let s = sandbox()
+        .platform(&platform_with_pnpm("10.99.1040", "7.7.1"))
+        .build();
+
+    s.create_pnpm_image("7.7.1");
+
+    assert_that!(
+        s.volta("list --format plain pnpm"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("[..]pnpm@7.7.1[..]default[..]")
+    );
+}
+
+#[test]
+fn list_pnpm_project_source() {
+    let s = sandbox()
+        .package_json(r#"{"name":"test","volta":{"node":"10.99.1040","pnpm":"7.7.1"}}"#)
+        .build();
+
+    s.create_pnpm_image("7.7.1");
+
+    assert_that!(
+        s.volta("list --format plain pnpm"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("[..]pnpm@7.7.1[..]current @[..]package.json[..]")
+    );
+}
+
+#[test]
+fn list_pnpm_none_source() {
+    let s = sandbox()
+        .platform(&platform_with_pnpm("10.99.1040", "7.7.1"))
+        .build();
+
+    s.create_pnpm_image("7.7.1");
+    s.create_pnpm_image("0.0.1");
+
+    assert_that!(
+        s.volta("list --format plain pnpm"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("package-manager pnpm@0.0.1\n")
+            .with_stdout_contains("[..]pnpm@7.7.1[..]default[..]")
+    );
+}
+
+// ---- yarn version_source ----
+
+#[test]
+fn list_yarn_default_source() {
+    let s = sandbox()
+        .platform(&platform_with_yarn("10.99.1040", "1.2.42"))
+        .build();
+
+    s.create_yarn_image("1.2.42");
+
+    assert_that!(
+        s.volta("list --format plain yarn"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("[..]yarn@1.2.42[..]default[..]")
+    );
+}
+
+#[test]
+fn list_yarn_project_source() {
+    let s = sandbox()
+        .package_json(r#"{"name":"test","volta":{"node":"10.99.1040","yarn":"1.2.42"}}"#)
+        .build();
+
+    s.create_yarn_image("1.2.42");
+
+    assert_that!(
+        s.volta("list --format plain yarn"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("[..]yarn@1.2.42[..]current @[..]package.json[..]")
+    );
+}
+
+#[test]
+fn list_yarn_none_source() {
+    let s = sandbox()
+        .platform(&platform_with_yarn("10.99.1040", "1.2.42"))
+        .build();
+
+    s.create_yarn_image("1.2.42");
+    s.create_yarn_image("0.0.1");
+
+    assert_that!(
+        s.volta("list --format plain yarn"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("package-manager yarn@0.0.1\n")
+            .with_stdout_contains("[..]yarn@1.2.42[..]default[..]")
     );
 }
