@@ -175,3 +175,61 @@ fn list_plain_format() {
             .with_stdout_contains("[..]node[..]10.99.1040[..]")
     );
 }
+
+// ---- version_source tests ----
+
+/// When the project's package.json pins a node version, `volta list node`
+/// shows it as `(current @ <path>)`.
+#[test]
+fn list_node_project_source() {
+    let s = sandbox()
+        .package_json(r#"{"name":"test","volta":{"node":"10.99.1040"}}"#)
+        .build();
+
+    s.create_node_image("10.99.1040");
+
+    assert_that!(
+        s.volta("list --format plain node"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("[..]node@10.99.1040[..]current @[..]package.json[..]")
+    );
+}
+
+/// When the default platform pins a node version, `volta list node`
+/// shows it as `(default)`.
+#[test]
+fn list_node_default_source() {
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .build();
+
+    s.create_node_image("10.99.1040");
+
+    assert_that!(
+        s.volta("list --format plain node"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("[..]node@10.99.1040[..]default[..]")
+    );
+}
+
+/// A version in the inventory that is not referenced by the project or
+/// the default platform has no source annotation.
+#[test]
+fn list_node_none_source() {
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .build();
+
+    s.create_node_image("10.99.1040");
+    s.create_node_image("0.0.1");
+
+    assert_that!(
+        s.volta("list --format plain node"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("runtime node@0.0.1\n")
+            .with_stdout_contains("[..]node@10.99.1040[..]default[..]")
+    );
+}

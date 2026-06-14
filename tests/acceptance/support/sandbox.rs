@@ -1014,6 +1014,25 @@ impl Sandbox {
         volta_home().rm_rf();
     }
 
+    /// Create a node image directory for the given version, simulating a
+    /// fetched/installed node runtime (as discovered by `node_versions()`).
+    /// Also writes a minimal npm version file so that session initialization
+    /// can read the bundled npm version.
+    pub fn create_node_image(&self, version: &str) {
+        let dir = node_image_dir(version);
+        fs::create_dir_all(&dir)
+            .unwrap_or_else(|e| panic!("could not create node image dir {}: {}", dir.display(), e));
+
+        let npm_file = node_inventory_dir().join(format!("node-v{}-npm", version));
+        fs::write(&npm_file, "0.0.0").unwrap_or_else(|e| {
+            panic!(
+                "could not write npm version file {}: {}",
+                npm_file.display(),
+                e
+            )
+        });
+    }
+
     /// Pre-populate the node inventory cache with a fixture file, simulating
     /// a previously downloaded archive (cache hit for `archive::load_native`).
     pub fn populate_node_inventory_cache(&self, version: &Version, fixture_path: &Path) {
