@@ -187,3 +187,72 @@ fn setup_modifies_user_path_windows() {
     // The shim directory should have been created by regenerate_shims_for_dir
     assert!(shim_dir.exists(), "shim dir should exist after setup");
 }
+
+/// On Windows, `regenerate_shims_for_dir` (called by `volta setup`) only
+/// processes `.cmd` files. Pre-existing `.cmd` shims are deleted and
+/// recreated with fresh contents.
+#[test]
+#[cfg(windows)]
+fn setup_recreates_cmd_shims_windows() {
+    let builder = sandbox();
+    let volta_home = builder.root().join("volta-home");
+    let shim_dir = volta_home.join("bin");
+
+    let s = builder
+        .env("VOLTA_HOME", &volta_home.to_string_lossy())
+        .build();
+
+    // Pre-create a .cmd shim before running setup
+    fs::create_dir_all(&shim_dir).expect("could not create shim dir");
+    let cowsay_cmd = shim_dir.join("cowsay.cmd");
+    fs::write(&cowsay_cmd, "old contents").expect("could not write shim");
+
+    assert_that!(
+        s.volta("setup"),
+        execs().with_status(ExitCode::Success as i32)
+    );
+
+    // The .cmd shim should have been recreated with fresh contents
+    assert!(
+        cowsay_cmd.exists(),
+        ".cmd shim should still exist after setup"
+    );
+    let contents = fs::read_to_string(&cowsay_cmd).expect("could not read shim");
+    assert_ne!(
+        contents, "old contents",
+        ".cmd shim should have new contents"
+    );
+}
+
+/// On Windows, `regenerate_shims_for_dir` ignores non-`.cmd` files
+/// (e.g. git bash scripts without an extension).
+#[test]
+#[cfg(windows)]
+fn setup_ignores_non_cmd_files_in_shim_dir_windows() {
+    let builder = sandbox();
+    let volta_home = builder.root().join("volta-home");
+    let shim_dir = volta_home.join("bin");
+
+    let s = builder
+        .env("VOLTA_HOME", &volta_home.to_string_lossy())
+        .build();
+
+    // Pre-create a git bash script (no extension) — should be ignored
+    fs::create_dir_all(&shim_dir).expect("could not create shim dir");
+    let git_bash = shim_dir.join("cowsay");
+    fs::write(&git_bash, "#!/bin/bash\nvolta run cowsay \"$@\"")
+        .expect("could not write git bash script");
+
+    assert_that!(
+        s.volta("setup"),
+        execs().with_status(ExitCode::Success as i32)
+    );
+
+    // The git bash script should be untouched
+    assert!(git_bash.exists(), "git bash script should still exist");
+    let contents = fs::read_to_string(&git_bash).expect("could not read script");
+    assert!(
+        contents.starts_with("#!/bin/bash"),
+        "git bash script should be unchanged"
+    );
+}
