@@ -123,6 +123,18 @@ fn list_yarn() {
 }
 
 #[test]
+fn list_package() {
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .build();
+
+    assert_that!(
+        s.volta("list cowsay"),
+        execs().with_status(ExitCode::Success as i32)
+    );
+}
+
+#[test]
 fn list_default_filter() {
     let s = sandbox()
         .platform(&platform_with_node("10.99.1040"))
