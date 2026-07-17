@@ -18,6 +18,7 @@ pub mod package;
 pub mod pnpm;
 mod registry;
 mod serial;
+pub(crate) mod validate_npm_package_name;
 pub mod yarn;
 
 pub use node::{

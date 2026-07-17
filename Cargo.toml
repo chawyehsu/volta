@@ -38,7 +38,6 @@ members = ["crates/*"]
 # path crates
 fetch = { path = "crates/fetch" }
 test-support = { path = "crates/test-support" }
-validate-npm-package-name = { path = "crates/validate-npm-package-name" }
 volta-core = { path = "crates/volta-core" }
 volta-layout = { path = "crates/volta-layout" }
 volta-layout-macro = { path = "crates/volta-layout-macro" }

@@ -31,7 +31,7 @@ mockito = { workspace = true, optional = true }
 regex.workspace = true
 dirs.workspace = true
 chrono.workspace = true
-validate-npm-package-name.workspace = true
+percent-encoding.workspace = true
 textwrap.workspace = true
 log.workspace = true
 ctrlc.workspace = true
