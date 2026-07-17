@@ -815,10 +815,12 @@ fn tool_hook_with_non_utf8_output_errors() {
         .default_hooks(r#"{"node":{"distro":{"bin":"./binary-output"}}}"#)
         .build();
 
-    // Create an executable script that outputs non-UTF-8 bytes
+    // Create an executable script that outputs non-UTF-8 bytes.
+    // Use printf with octal escapes for portability across /bin/sh
+    // implementations (bash, dash, etc.).
     let volta_home = s.root().parent().unwrap().join("home/.volta");
     let hook_path = volta_home.join("binary-output");
-    std::fs::write(&hook_path, "#!/bin/sh\nprintf '\\xff\\xfe'\n").unwrap();
+    std::fs::write(&hook_path, "#!/bin/sh\nprintf '\\377\\376'\n").unwrap();
     std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o755)).unwrap();
 
     assert_that!(
