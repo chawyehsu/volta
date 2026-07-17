@@ -12,7 +12,7 @@ use crate::session::Session;
 use crate::style::{success_prefix, tool_version};
 use crate::sync::VoltaLock;
 use crate::version::VersionSpec;
-use fs_utils::ensure_containing_dir_exists;
+use fetch::fs_utils::ensure_containing_dir_exists;
 use log::info;
 use tempfile::{tempdir_in, TempDir};
 

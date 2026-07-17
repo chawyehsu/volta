@@ -19,10 +19,9 @@ console.workspace = true
 readext.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
 serde.workspace = true
-archive.workspace = true
+fetch.workspace = true
 node-semver.workspace = true
 cmdline_words_parser.workspace = true
-fs-utils.workspace = true
 cfg-if.workspace = true
 tempfile.workspace = true
 os_info.workspace = true

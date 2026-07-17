@@ -3,8 +3,8 @@
 use std::fs::{write, File};
 use std::path::Path;
 
-use archive::{Archive, Tarball};
-use fs_utils::ensure_containing_dir_exists;
+use fetch::fs_utils::ensure_containing_dir_exists;
+use fetch::{Archive, Tarball};
 use log::debug;
 use node_semver::Version;
 

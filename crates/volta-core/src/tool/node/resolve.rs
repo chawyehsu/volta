@@ -16,7 +16,7 @@ use crate::tool::Node;
 use crate::version::{VersionSpec, VersionTag};
 use attohttpc::header::HeaderMap;
 use attohttpc::Response;
-use fs_utils::ensure_containing_dir_exists;
+use fetch::fs_utils::ensure_containing_dir_exists;
 use headers::{CacheControl, Expires, HeaderMapExt};
 use log::debug;
 use node_semver::{Range, Version};

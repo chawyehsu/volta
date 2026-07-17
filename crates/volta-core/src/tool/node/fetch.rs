@@ -11,8 +11,8 @@ use crate::layout::volta_home;
 use crate::style::{progress_bar, tool_version};
 use crate::tool::{self, download_tool_error, Node};
 use crate::version::{parse_version, VersionSpec};
-use archive::{self, Archive};
-use fs_utils::ensure_containing_dir_exists;
+use fetch::fs_utils::ensure_containing_dir_exists;
+use fetch::{self, Archive};
 use log::debug;
 use node_semver::Version;
 use serde::Deserialize;
@@ -140,7 +140,7 @@ fn unpack_archive(archive: Box<dyn Archive>, version: &Version) -> Fallible<Node
 fn load_cached_distro(file: &Path) -> Option<Box<dyn Archive>> {
     if file.is_file() {
         let file = File::open(file).ok()?;
-        archive::load_native(file).ok()
+        fetch::load_native(file).ok()
     } else {
         None
     }
@@ -173,7 +173,7 @@ fn fetch_remote_distro(
     staging_path: &Path,
 ) -> Fallible<Box<dyn Archive>> {
     debug!("Downloading {} from {}", tool_version("node", version), url);
-    archive::fetch_native(url, staging_path).with_context(download_tool_error(
+    fetch::fetch_native(url, staging_path).with_context(download_tool_error(
         tool::Spec::Node(VersionSpec::Exact(version.clone())),
         url,
     ))

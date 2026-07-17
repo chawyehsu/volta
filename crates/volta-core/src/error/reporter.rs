@@ -10,7 +10,7 @@ use crate::style::format_error_cause;
 use chrono::Local;
 use ci_info::is_ci;
 use console::strip_ansi_codes;
-use fs_utils::ensure_containing_dir_exists;
+use fetch::fs_utils::ensure_containing_dir_exists;
 use log::{debug, error};
 
 /// Report an error, both to the console and to error logs

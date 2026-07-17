@@ -14,8 +14,8 @@ use crate::layout::volta_home;
 use crate::style::{progress_bar, tool_version};
 use crate::tool::{self, Yarn};
 use crate::version::VersionSpec;
-use archive::{Archive, Tarball};
-use fs_utils::ensure_containing_dir_exists;
+use fetch::fs_utils::ensure_containing_dir_exists;
+use fetch::{Archive, Tarball};
 use log::debug;
 use node_semver::Version;
 

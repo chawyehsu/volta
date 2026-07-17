@@ -1,5 +1,5 @@
 [package]
-name = "archive"
+name = "fetch"
 version = "0.1.0"
 authors = ["David Herman <david.herman@gmail.com>"]
 edition = "2021"
@@ -9,7 +9,6 @@ flate2.workspace = true
 tar.workspace = true
 zip_rs.workspace = true
 tee.workspace = true
-fs-utils.workspace = true
 verbatim.workspace = true
 cfg-if.workspace = true
 headers.workspace = true

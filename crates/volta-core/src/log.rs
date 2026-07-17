@@ -15,12 +15,7 @@ const SHIM_WARNING_PREFIX: &str = "Volta warning:";
 const MIGRATION_ERROR_PREFIX: &str = "Volta update error:";
 const MIGRATION_WARNING_PREFIX: &str = "Volta update warning:";
 const VOLTA_LOGLEVEL: &str = "VOLTA_LOGLEVEL";
-const ALLOWED_PREFIXES: [&str; 4] = [
-    "volta",
-    "archive",
-    "fs-utils",
-    "validate-npm-package-name",
-];
+const ALLOWED_PREFIXES: [&str; 3] = ["volta", "fetch", "validate-npm-package-name"];
 const WRAP_INDENT: &str = "    ";
 
 /// Represents the context from which the logger was created

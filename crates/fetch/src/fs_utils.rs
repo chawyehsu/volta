@@ -1,4 +1,4 @@
-//! This crate provides utilities for operating on the filesystem.
+//! Utilities for operating on the filesystem.
 
 use std::fs;
 use std::io;
