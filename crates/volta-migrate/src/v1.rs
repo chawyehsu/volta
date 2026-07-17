@@ -96,3 +96,51 @@ impl TryFrom<V0> for V1 {
         V1::complete_migration(new_home)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_empty_to_v1() {
+        let dir = tempdir().unwrap();
+        let empty = Empty::new(dir.path().to_owned());
+
+        let v1: V1 = empty.try_into().unwrap();
+
+        // V1 layout directories should exist
+        assert!(v1.home.root().exists());
+        assert!(v1.home.cache_dir().exists());
+        assert!(v1.home.shim_dir().exists());
+        assert!(v1.home.tools_dir().exists());
+        assert!(v1.home.tmp_dir().exists());
+        // Layout marker file should be written
+        assert!(v1.home.layout_file().exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_v0_to_v1_removes_load_files() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        // Set up V0 artifacts: load.sh, load.zsh, old binaries
+        std::fs::write(root.join("load.sh"), "#!/bin/sh").unwrap();
+        std::fs::write(root.join("load.zsh"), "#!/bin/zsh").unwrap();
+        std::fs::write(root.join("volta"), "binary").unwrap();
+        std::fs::write(root.join("shim"), "binary").unwrap();
+
+        let v0 = V0::new(root.to_owned());
+        let v1: V1 = v0.try_into().unwrap();
+
+        // load.* files should be removed
+        assert!(!root.join("load.sh").exists());
+        assert!(!root.join("load.zsh").exists());
+        // Old binaries should be removed
+        assert!(!root.join("volta").exists());
+        assert!(!root.join("shim").exists());
+        // V1 layout should be created
+        assert!(v1.home.layout_file().exists());
+    }
+}

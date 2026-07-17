@@ -182,3 +182,48 @@ fn remove_npm_version_from_node_image_dir(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_empty_to_v2() {
+        // Dead code path: detect_and_migrate routes Empty→V3, not V2.
+        // Kept as regression safety for the TryFrom impl.
+        let dir = tempdir().unwrap();
+        let empty = Empty::new(dir.path().to_owned());
+
+        let v2: V2 = empty.try_into().unwrap();
+
+        assert!(v2.home.root().exists());
+        assert!(v2.home.cache_dir().exists());
+        assert!(v2.home.shim_dir().exists());
+        assert!(v2.home.tools_dir().exists());
+        assert!(v2.home.tmp_dir().exists());
+        assert!(v2.home.layout_file().exists());
+    }
+
+    #[test]
+    fn test_v1_to_v2_swaps_layout_marker() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        // Set up a V1 layout with all required directories
+        let v1_home = v1::VoltaHome::new(root.to_owned());
+        v1_home.create().unwrap();
+        std::fs::File::create(v1_home.layout_file()).unwrap();
+        // shift_node_images needs node_image_root_dir and tmp_dir to exist
+        // (created by v1_home.create()), and will no-op if no node versions present
+        assert!(v1_home.layout_file().exists());
+
+        let v1 = V1::new(root.to_owned());
+        let v2: V2 = v1.try_into().unwrap();
+
+        // V1 layout marker should be removed, V2 should be present
+        assert!(!v1_home.layout_file().exists());
+        assert!(v2.home.layout_file().exists());
+        assert!(v2.home.root().exists());
+    }
+}

@@ -146,3 +146,46 @@ fn migrate_shared_directory(new_home: &v4::VoltaHome) -> Fallible<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_empty_to_v4() {
+        // Dead code path: detect_and_migrate routes Empty→V3, not V4.
+        // Kept as regression safety for the TryFrom impl.
+        let dir = tempdir().unwrap();
+        let empty = Empty::new(dir.path().to_owned());
+
+        let v4: V4 = empty.try_into().unwrap();
+
+        assert!(v4.home.root().exists());
+        assert!(v4.home.cache_dir().exists());
+        assert!(v4.home.shim_dir().exists());
+        assert!(v4.home.tools_dir().exists());
+        assert!(v4.home.tmp_dir().exists());
+        assert!(v4.home.layout_file().exists());
+    }
+
+    #[test]
+    fn test_v3_to_v4_swaps_layout_marker() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        // Set up a V3 layout with all required directories
+        let v3_home = volta_layout::v3::VoltaHome::new(root.to_owned());
+        v3_home.create().unwrap();
+        std::fs::File::create(v3_home.layout_file()).unwrap();
+        assert!(v3_home.layout_file().exists());
+
+        let v3 = V3::new(root.to_owned());
+        let v4: V4 = v3.try_into().unwrap();
+
+        // V3 layout marker should be removed, V4 should be present
+        assert!(!v3_home.layout_file().exists());
+        assert!(v4.home.layout_file().exists());
+        assert!(v4.home.root().exists());
+    }
+}

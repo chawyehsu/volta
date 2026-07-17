@@ -178,3 +178,89 @@ fn detect_and_migrate() -> Fallible<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn detect_tagged_v1() {
+        let dir = tempdir().unwrap();
+        let home = volta_layout::v1::VoltaHome::new(dir.path().to_owned());
+        home.create().unwrap();
+        std::fs::File::create(home.layout_file()).unwrap();
+
+        let state = detect::v1(dir.path());
+        assert!(state.is_some());
+        assert!(matches!(state.unwrap(), MigrationState::V1(_)));
+    }
+
+    #[test]
+    fn detect_tagged_v2() {
+        let dir = tempdir().unwrap();
+        let home = volta_layout::v2::VoltaHome::new(dir.path().to_owned());
+        home.create().unwrap();
+        std::fs::File::create(home.layout_file()).unwrap();
+
+        let state = detect::v2(dir.path());
+        assert!(state.is_some());
+        assert!(matches!(state.unwrap(), MigrationState::V2(_)));
+    }
+
+    #[test]
+    fn detect_tagged_v3() {
+        let dir = tempdir().unwrap();
+        let home = volta_layout::v3::VoltaHome::new(dir.path().to_owned());
+        home.create().unwrap();
+        std::fs::File::create(home.layout_file()).unwrap();
+
+        let state = detect::v3(dir.path());
+        assert!(state.is_some());
+        assert!(matches!(state.unwrap(), MigrationState::V3(_)));
+    }
+
+    #[test]
+    fn detect_tagged_v4() {
+        let dir = tempdir().unwrap();
+        let home = volta_layout::v4::VoltaHome::new(dir.path().to_owned());
+        home.create().unwrap();
+        std::fs::File::create(home.layout_file()).unwrap();
+
+        let state = detect::v4(dir.path());
+        assert!(state.is_some());
+        assert!(matches!(state.unwrap(), MigrationState::V4(_)));
+    }
+
+    #[test]
+    fn detect_tagged_returns_none_for_empty_dir() {
+        let dir = tempdir().unwrap();
+
+        let state = MigrationState::detect_tagged_state(dir.path());
+        assert!(state.is_none());
+    }
+
+    #[test]
+    fn detect_tagged_prefers_newest_version() {
+        // If multiple layout files exist, the newest should win (v4 checked first)
+        let dir = tempdir().unwrap();
+        let v3_home = volta_layout::v3::VoltaHome::new(dir.path().to_owned());
+        v3_home.create().unwrap();
+        std::fs::File::create(v3_home.layout_file()).unwrap();
+        let v4_home = volta_layout::v4::VoltaHome::new(dir.path().to_owned());
+        std::fs::File::create(v4_home.layout_file()).unwrap();
+
+        let state = MigrationState::detect_tagged_state(dir.path());
+        assert!(state.is_some());
+        assert!(matches!(state.unwrap(), MigrationState::V4(_)));
+    }
+
+    #[test]
+    fn detect_legacy_returns_empty_for_nonexistent_dir() {
+        let dir = tempdir().unwrap();
+        let nonexistent = dir.path().join("does_not_exist");
+
+        let state = MigrationState::detect_legacy_state(&nonexistent).unwrap();
+        assert!(matches!(state, MigrationState::Empty(_)));
+    }
+}

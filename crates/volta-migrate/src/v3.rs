@@ -165,3 +165,25 @@ fn migrate_single_package(config: LegacyPackageConfig, session: &mut Session) ->
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_empty_to_v3() {
+        // Live code path: detect_and_migrate routes Empty→V3.
+        let dir = tempdir().unwrap();
+        let empty = Empty::new(dir.path().to_owned());
+
+        let v3: V3 = empty.try_into().unwrap();
+
+        assert!(v3.home.root().exists());
+        assert!(v3.home.cache_dir().exists());
+        assert!(v3.home.shim_dir().exists());
+        assert!(v3.home.tools_dir().exists());
+        assert!(v3.home.tmp_dir().exists());
+        assert!(v3.home.layout_file().exists());
+    }
+}
