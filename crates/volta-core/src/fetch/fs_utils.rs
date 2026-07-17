@@ -5,7 +5,7 @@ use std::io;
 use std::path::Path;
 
 /// This creates the parent directory of the input path, assuming the input path is a file.
-pub fn ensure_containing_dir_exists<P: AsRef<Path>>(path: &P) -> io::Result<()> {
+pub(crate) fn ensure_containing_dir_exists<P: AsRef<Path>>(path: &P) -> io::Result<()> {
     path.as_ref()
         .parent()
         .ok_or_else(|| {

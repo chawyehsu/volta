@@ -4,7 +4,7 @@
 use std::io::{self, Read, Seek, SeekFrom};
 
 /// A reader that reports incremental progress while reading.
-pub struct ProgressRead<R: Read, T, F: FnMut(&T, usize) -> T> {
+pub(crate) struct ProgressRead<R: Read, T, F: FnMut(&T, usize) -> T> {
     source: R,
     accumulator: T,
     progress: F,
@@ -31,7 +31,7 @@ impl<R: Read, T, F: FnMut(&T, usize) -> T> Read for ProgressRead<R, T, F> {
 impl<R: Read, T, F: FnMut(&T, usize) -> T> ProgressRead<R, T, F> {
     /// Construct a new progress reader with the specified underlying reader,
     /// initial value for an accumulator, and progress callback.
-    pub fn new(source: R, init: T, progress: F) -> ProgressRead<R, T, F> {
+    pub(crate) fn new(source: R, init: T, progress: F) -> ProgressRead<R, T, F> {
         ProgressRead {
             source,
             accumulator: init,

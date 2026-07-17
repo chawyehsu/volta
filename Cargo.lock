@@ -572,22 +572,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
 
 [[package]]
-name = "fetch"
-version = "0.1.0"
-dependencies = [
- "attohttpc",
- "cfg-if",
- "flate2",
- "headers",
- "log",
- "tar",
- "tee",
- "thiserror 2.0.18",
- "verbatim",
- "zip",
-]
-
-[[package]]
 name = "filetime"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2202,7 +2186,7 @@ dependencies = [
  "dirs",
  "dunce",
  "envoy",
- "fetch",
+ "flate2",
  "fs2",
  "headers",
  "httpdate",
@@ -2220,13 +2204,18 @@ dependencies = [
  "retry",
  "serde",
  "serde_json",
+ "tar",
+ "tee",
  "tempfile",
  "terminal_size",
  "textwrap",
+ "thiserror 2.0.18",
+ "verbatim",
  "volta-layout",
  "walkdir",
  "which",
  "winreg",
+ "zip",
 ]
 
 [[package]]

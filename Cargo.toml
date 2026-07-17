@@ -36,7 +36,6 @@ members = ["crates/*"]
 
 [workspace.dependencies]
 # path crates
-fetch = { path = "crates/fetch" }
 test-support = { path = "crates/test-support" }
 volta-core = { path = "crates/volta-core" }
 volta-layout = { path = "crates/volta-layout" }

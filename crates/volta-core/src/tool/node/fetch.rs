@@ -5,14 +5,14 @@ use std::path::{Path, PathBuf};
 
 use super::NodeVersion;
 use crate::error::{Context, ErrorKind, Fallible};
+use crate::fetch::fs_utils::ensure_containing_dir_exists;
+use crate::fetch::{self, Archive};
 use crate::fs::{create_staging_dir, create_staging_file, rename};
 use crate::hook::ToolHooks;
 use crate::layout::volta_home;
 use crate::style::{progress_bar, tool_version};
 use crate::tool::{self, download_tool_error, Node};
 use crate::version::{parse_version, VersionSpec};
-use fetch::fs_utils::ensure_containing_dir_exists;
-use fetch::{self, Archive};
 use log::debug;
 use node_semver::Version;
 use serde::Deserialize;

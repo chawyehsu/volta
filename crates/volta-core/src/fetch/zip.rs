@@ -5,9 +5,9 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+use super::fs_utils::ensure_containing_dir_exists;
+use super::progress_read::ProgressRead;
 use super::{content_length, ArchiveError};
-use crate::fs_utils::ensure_containing_dir_exists;
-use crate::progress_read::ProgressRead;
 use tee::TeeReader;
 use verbatim::PathExt;
 use zip_rs::unstable::stream::ZipStreamReader;
@@ -15,7 +15,7 @@ use zip_rs::unstable::stream::ZipStreamReader;
 use super::Archive;
 use super::Origin;
 
-pub struct Zip {
+pub(crate) struct Zip {
     compressed_size: u64,
     data: Box<dyn Read>,
     origin: Origin,
@@ -23,7 +23,7 @@ pub struct Zip {
 
 impl Zip {
     /// Loads a cached Node zip archive from the specified file.
-    pub fn load(source: File) -> Result<Box<dyn Archive>, ArchiveError> {
+    pub(crate) fn load(source: File) -> Result<Box<dyn Archive>, ArchiveError> {
         let compressed_size = source.metadata()?.len();
 
         Ok(Box::new(Zip {
@@ -35,7 +35,7 @@ impl Zip {
 
     /// Initiate fetching of a Node zip archive from the given URL, returning
     /// a `Remote` data source.
-    pub fn fetch(url: &str, cache_file: &Path) -> Result<Box<dyn Archive>, ArchiveError> {
+    pub(crate) fn fetch(url: &str, cache_file: &Path) -> Result<Box<dyn Archive>, ArchiveError> {
         let (status, headers, response) = attohttpc::get(url).send()?.split();
 
         if !status.is_success() {
@@ -79,13 +79,14 @@ impl Archive for Zip {
 #[cfg(test)]
 pub mod tests {
 
-    use crate::zip::Zip;
+    use super::Zip;
     use std::fs::File;
     use std::path::PathBuf;
 
     fn fixture_path(fixture_dir: &str) -> PathBuf {
         let mut cargo_manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         cargo_manifest_dir.push("fixtures");
+        cargo_manifest_dir.push("fetch");
         cargo_manifest_dir.push(fixture_dir);
         cargo_manifest_dir
     }

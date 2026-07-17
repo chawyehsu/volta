@@ -3,9 +3,9 @@ use std::borrow::Cow;
 use std::error::Error;
 use std::time::Duration;
 
+use crate::fetch::Origin;
 use cfg_if::cfg_if;
 use console::{style, StyledObject};
-use fetch::Origin;
 use indicatif::{ProgressBar, ProgressStyle};
 use terminal_size::{terminal_size, Width};
 

@@ -3,6 +3,7 @@
 mod command;
 pub mod error;
 pub mod event;
+pub(crate) mod fetch;
 pub mod fs;
 mod hook;
 pub mod inventory;

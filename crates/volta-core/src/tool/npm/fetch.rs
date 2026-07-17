@@ -6,14 +6,14 @@ use std::path::Path;
 use super::super::download_tool_error;
 use super::super::registry::public_registry_package;
 use crate::error::{Context, ErrorKind, Fallible};
+use crate::fetch::fs_utils::ensure_containing_dir_exists;
+use crate::fetch::{Archive, Tarball};
 use crate::fs::{create_staging_dir, create_staging_file, rename, set_executable};
 use crate::hook::ToolHooks;
 use crate::layout::volta_home;
 use crate::style::{progress_bar, tool_version};
 use crate::tool::{self, Npm};
 use crate::version::VersionSpec;
-use fetch::fs_utils::ensure_containing_dir_exists;
-use fetch::{Archive, Tarball};
 use log::debug;
 use node_semver::Version;
 

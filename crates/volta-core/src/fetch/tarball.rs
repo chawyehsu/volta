@@ -5,14 +5,14 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+use super::fs_utils::ensure_containing_dir_exists;
+use super::progress_read::ProgressRead;
 use super::{content_length, Archive, ArchiveError, Origin};
-use crate::fs_utils::ensure_containing_dir_exists;
-use crate::progress_read::ProgressRead;
 use flate2::read::GzDecoder;
 use tee::TeeReader;
 
 /// A Node installation tarball.
-pub struct Tarball {
+pub(crate) struct Tarball {
     compressed_size: u64,
     data: Box<dyn Read>,
     origin: Origin,
@@ -20,7 +20,7 @@ pub struct Tarball {
 
 impl Tarball {
     /// Loads a tarball from the specified file.
-    pub fn load(source: File) -> Result<Box<dyn Archive>, ArchiveError> {
+    pub(crate) fn load(source: File) -> Result<Box<dyn Archive>, ArchiveError> {
         let compressed_size = source.metadata()?.len();
         Ok(Box::new(Tarball {
             compressed_size,
@@ -32,7 +32,7 @@ impl Tarball {
     /// Initiate fetching of a tarball from the given URL, returning a
     /// tarball that can be streamed (and that tees its data to a local
     /// file as it streams).
-    pub fn fetch(url: &str, cache_file: &Path) -> Result<Box<dyn Archive>, ArchiveError> {
+    pub(crate) fn fetch(url: &str, cache_file: &Path) -> Result<Box<dyn Archive>, ArchiveError> {
         let (status, headers, response) = attohttpc::get(url).send()?.split();
 
         if !status.is_success() {
@@ -75,13 +75,14 @@ impl Archive for Tarball {
 #[cfg(test)]
 pub mod tests {
 
-    use crate::tarball::Tarball;
+    use super::Tarball;
     use std::fs::File;
     use std::path::PathBuf;
 
     fn fixture_path(fixture_dir: &str) -> PathBuf {
         let mut cargo_manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         cargo_manifest_dir.push("fixtures");
+        cargo_manifest_dir.push("fetch");
         cargo_manifest_dir.push(fixture_dir);
         cargo_manifest_dir
     }
