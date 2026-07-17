@@ -26,9 +26,6 @@ pub(crate) enum ArchiveError {
     #[error("HTTP header '{0}' not found")]
     MissingHeaderError(&'static attohttpc::header::HeaderName),
 
-    #[error("unexpected content length in HTTP response: {0}")]
-    UnexpectedContentLengthError(u64),
-
     #[error("{0}")]
     IoError(#[from] std::io::Error),
 

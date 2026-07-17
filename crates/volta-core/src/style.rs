@@ -57,7 +57,7 @@ pub fn text_width() -> Option<usize> {
 /// (e.g., `Origin::Remote`), details string (e.g., `"v1.23.4"`), and logical
 /// length (i.e., the number of logical progress steps in the process being
 /// visualized by the progress bar).
-pub fn progress_bar(origin: Origin, details: &str, len: u64) -> ProgressBar {
+pub(crate) fn progress_bar(origin: Origin, details: &str, len: u64) -> ProgressBar {
     let action = action_str(origin);
     let action_width = action.len() + 2; // plus 2 spaces to look nice
     let msg_width = action_width + 1 + details.len();
