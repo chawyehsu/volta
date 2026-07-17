@@ -15,11 +15,10 @@ const SHIM_WARNING_PREFIX: &str = "Volta warning:";
 const MIGRATION_ERROR_PREFIX: &str = "Volta update error:";
 const MIGRATION_WARNING_PREFIX: &str = "Volta update warning:";
 const VOLTA_LOGLEVEL: &str = "VOLTA_LOGLEVEL";
-const ALLOWED_PREFIXES: [&str; 5] = [
+const ALLOWED_PREFIXES: [&str; 4] = [
     "volta",
     "archive",
     "fs-utils",
-    "progress-read",
     "validate-npm-package-name",
 ];
 const WRAP_INDENT: &str = "    ";

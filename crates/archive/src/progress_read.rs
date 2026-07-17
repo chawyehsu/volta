@@ -1,5 +1,5 @@
-//! This crate provides an adapter for the `std::io::Read` trait to
-//! allow reporting incremental progress to a callback function.
+//! An adapter for the `std::io::Read` trait to allow reporting incremental
+//! progress to a callback function.
 
 use std::io::{self, Read, Seek, SeekFrom};
 

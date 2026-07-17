@@ -1,7 +1,0 @@
-[package]
-name = "progress-read"
-version = "0.1.0"
-authors = ["David Herman <david.herman@gmail.com>"]
-edition = "2021"
-
-[dependencies]

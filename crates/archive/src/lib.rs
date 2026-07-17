@@ -7,6 +7,7 @@ use attohttpc::header::HeaderMap;
 use headers::{ContentLength, Header, HeaderMapExt};
 use thiserror::Error;
 
+mod progress_read;
 mod tarball;
 mod zip;
 

@@ -10,7 +10,6 @@ tar.workspace = true
 zip_rs.workspace = true
 tee.workspace = true
 fs-utils.workspace = true
-progress-read.workspace = true
 verbatim.workspace = true
 cfg-if.workspace = true
 headers.workspace = true

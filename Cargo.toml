@@ -38,7 +38,6 @@ members = ["crates/*"]
 # path crates
 archive = { path = "crates/archive" }
 fs-utils = { path = "crates/fs-utils" }
-progress-read = { path = "crates/progress-read" }
 test-support = { path = "crates/test-support" }
 validate-npm-package-name = { path = "crates/validate-npm-package-name" }
 volta-core = { path = "crates/volta-core" }

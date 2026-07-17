@@ -7,7 +7,7 @@ use std::path::Path;
 
 use super::{content_length, ArchiveError};
 use fs_utils::ensure_containing_dir_exists;
-use progress_read::ProgressRead;
+use crate::progress_read::ProgressRead;
 use tee::TeeReader;
 use verbatim::PathExt;
 use zip_rs::unstable::stream::ZipStreamReader;
