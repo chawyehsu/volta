@@ -47,3 +47,7 @@ fabric.properties
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+# agent stuff
+.claude/
+docs/adr/
