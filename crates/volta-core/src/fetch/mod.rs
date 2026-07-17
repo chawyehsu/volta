@@ -10,9 +10,11 @@ use thiserror::Error;
 pub(crate) mod fs_utils;
 mod progress_read;
 mod tarball;
+#[cfg(windows)]
 mod zip;
 
 pub(crate) use tarball::Tarball;
+#[cfg(windows)]
 pub(crate) use zip::Zip;
 
 /// Error type for this module
@@ -33,6 +35,7 @@ pub(crate) enum ArchiveError {
     #[error("{0}")]
     AttohttpcError(#[from] attohttpc::Error),
 
+    #[cfg(windows)]
     #[error("{0}")]
     ZipError(#[from] zip_rs::result::ZipError),
 }
