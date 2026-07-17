@@ -781,3 +781,115 @@ fn node_index_invalid_json() {
             .with_stderr_contains("[..]Could not parse Node version index")
     );
 }
+
+#[test]
+#[cfg(unix)]
+fn tool_hook_with_unresolvable_shebang_errors() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let s = sandbox()
+        .default_hooks(r#"{"node":{"distro":{"bin":"./bad-shebang"}}}"#)
+        .build();
+
+    // Create an executable script with a shebang pointing to a nonexistent
+    // interpreter. The OS will fail to execute it, triggering ExecuteHookError.
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let hook_path = volta_home.join("bad-shebang");
+    std::fs::write(&hook_path, "#!/nonexistent/interpreter\necho ok").unwrap();
+    std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert_that!(
+        s.volta("install node@1.2.3"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains("[..]Could not execute hook command[..]")
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn tool_hook_with_non_utf8_output_errors() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let s = sandbox()
+        .default_hooks(r#"{"node":{"distro":{"bin":"./binary-output"}}}"#)
+        .build();
+
+    // Create an executable script that outputs non-UTF-8 bytes
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let hook_path = volta_home.join("binary-output");
+    std::fs::write(&hook_path, "#!/bin/sh\nprintf '\\xff\\xfe'\n").unwrap();
+    std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert_that!(
+        s.volta("install node@1.2.3"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains("[..]Could not read output from hook command[..]")
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn unreadable_default_hooks_errors() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let s = sandbox()
+        .default_hooks(r#"{"node":{"distro":{"bin":"echo"}}}"#)
+        .build();
+
+    // Remove read permissions from hooks.json
+    let hooks_path = s.root().parent().unwrap().join("home/.volta/hooks.json");
+    std::fs::set_permissions(&hooks_path, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    assert_that!(
+        s.volta("install node@1.2.3"),
+        execs()
+            .with_status(ExitCode::FileSystemError as i32)
+            .with_stderr_contains("[..]Could not read hooks file[..]")
+    );
+}
+
+const NODE_VERSION_INFO: &str = r#"[
+{"version":"v10.99.1040","npm":"6.2.26","lts": "Dubnium","files":["linux-x64","osx-x64-tar","win-x64-zip","win-x86-zip","linux-arm64"]},
+{"version":"v9.27.6","npm":"5.6.17","lts": false,"files":["linux-x64","osx-x64-tar","win-x64-zip","win-x86-zip","linux-arm64"]},
+{"version":"v8.9.10","npm":"5.6.7","lts": false,"files":["linux-x64","osx-x64-tar","win-x64-zip","win-x86-zip","linux-arm64"]},
+{"version":"v6.19.62","npm":"3.10.1066","lts": false,"files":["linux-x64","osx-x64-tar","win-x64-zip","win-x86-zip","linux-arm64"]}
+]
+"#;
+
+#[test]
+fn node_index_expiry_parse_error() {
+    let mut s = sandbox()
+        .package_json(
+            r#"{
+  "name": "test-package",
+  "volta": {
+    "node": "10.99.1040"
+  }
+}"#,
+        )
+        .build();
+
+    // Write a node index cache with an invalid expiry date.
+    // The cache file must be prefixed with the URL (as volta writes it).
+    // Using a semver range triggers resolve_node_versions → read_cached_opt.
+    let server_url = s.server().url();
+    let node_index_url = format!("{}/node-dist/index.json", server_url);
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let cache_dir = volta_home.join("cache/node");
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    std::fs::write(
+        cache_dir.join("index.json"),
+        format!("{}{}", node_index_url, NODE_VERSION_INFO),
+    )
+    .unwrap();
+    std::fs::write(cache_dir.join("index.json.expires"), "not-a-valid-date").unwrap();
+
+    assert_that!(
+        s.volta("pin node@^10"),
+        execs()
+            .with_status(ExitCode::UnknownError as i32)
+            .with_stderr_contains("[..]Could not parse Node index cache expiration file[..]")
+    );
+}

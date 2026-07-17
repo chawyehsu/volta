@@ -371,6 +371,13 @@ impl SandboxBuilder {
         self
     }
 
+    #[allow(dead_code)]
+    /// Remove an environment variable for the sandbox (chainable)
+    pub fn env_remove(mut self, name: &str) -> Self {
+        self.root.env_vars_remove.push(name.to_string());
+        self
+    }
+
     /// Setup mock to return the available node versions (chainable)
     pub fn node_available_versions(mut self, body: &str) -> Self {
         let mock = self
