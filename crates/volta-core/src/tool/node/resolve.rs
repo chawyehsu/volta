@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime};
 use super::super::registry_fetch_error;
 use super::metadata::{NodeEntry, NodeIndex, RawNodeIndex};
 use crate::error::{Context, ErrorKind, Fallible};
-use crate::fetch::fs_utils::ensure_containing_dir_exists;
+use crate::fs::ensure_containing_dir_exists;
 use crate::fs::{create_staging_file, read_file};
 use crate::hook::ToolHooks;
 use crate::layout::volta_home;

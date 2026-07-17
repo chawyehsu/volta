@@ -7,7 +7,6 @@ use attohttpc::header::HeaderMap;
 use headers::{ContentLength, Header, HeaderMapExt};
 use thiserror::Error;
 
-pub(crate) mod fs_utils;
 mod progress_read;
 mod tarball;
 #[cfg(windows)]

@@ -5,7 +5,7 @@ use std::process::Command;
 
 use super::Tool;
 use crate::error::{Context, ErrorKind, Fallible};
-use crate::fetch::fs_utils::ensure_containing_dir_exists;
+use crate::fs::ensure_containing_dir_exists;
 use crate::fs::{remove_dir_if_exists, rename, symlink_dir};
 use crate::layout::volta_home;
 use crate::platform::{Image, PlatformSpec};

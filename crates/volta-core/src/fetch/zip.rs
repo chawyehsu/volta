@@ -5,9 +5,9 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use super::fs_utils::ensure_containing_dir_exists;
 use super::progress_read::ProgressRead;
 use super::{content_length, ArchiveError};
+use crate::fs::ensure_containing_dir_exists;
 use tee::TeeReader;
 use verbatim::PathExt;
 use zip_rs::unstable::stream::ZipStreamReader;

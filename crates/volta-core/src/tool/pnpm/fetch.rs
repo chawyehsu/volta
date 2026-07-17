@@ -3,8 +3,8 @@
 use std::fs::{write, File};
 use std::path::Path;
 
-use crate::fetch::fs_utils::ensure_containing_dir_exists;
 use crate::fetch::{Archive, Tarball};
+use crate::fs::ensure_containing_dir_exists;
 use log::debug;
 use node_semver::Version;
 

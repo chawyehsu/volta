@@ -5,7 +5,7 @@ use std::path::Path;
 
 use super::manager::PackageManager;
 use crate::error::{Context, ErrorKind, Fallible, VoltaError};
-use crate::fetch::fs_utils::ensure_containing_dir_exists;
+use crate::fs::ensure_containing_dir_exists;
 use crate::layout::volta_home;
 use crate::platform::PlatformSpec;
 use crate::version::{option_version_serde, version_serde};

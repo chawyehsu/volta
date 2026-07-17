@@ -5,7 +5,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use super::VoltaError;
-use crate::fetch::fs_utils::ensure_containing_dir_exists;
+use crate::fs::ensure_containing_dir_exists;
 use crate::layout::volta_home;
 use crate::style::format_error_cause;
 use chrono::Local;

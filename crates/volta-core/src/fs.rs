@@ -166,6 +166,22 @@ pub fn set_executable(_bin: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// Creates the parent directory of the input path, assuming the input path is a file.
+pub fn ensure_containing_dir_exists<P: AsRef<Path>>(path: &P) -> io::Result<()> {
+    path.as_ref()
+        .parent()
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "Could not determine directory information for {}",
+                    path.as_ref().display()
+                ),
+            )
+        })
+        .and_then(fs::create_dir_all)
+}
+
 /// Rename a file or directory to a new name, retrying if the operation fails because of permissions
 ///
 /// Will retry for ~30 seconds with longer and longer delays between each, to allow for virus scan
