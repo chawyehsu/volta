@@ -149,6 +149,60 @@ mod tests {
         );
     }
 
+    #[test]
+    fn yarn_image_dir() {
+        let h = home();
+        assert_eq!(
+            h.yarn_image_dir("1.22.10"),
+            PathBuf::from("/volta/tools/image/yarn/1.22.10")
+        );
+    }
+
+    #[test]
+    fn package_image_dir() {
+        let h = home();
+        assert_eq!(
+            h.package_image_dir("create-react-app", "4.0.0"),
+            PathBuf::from("/volta/tools/image/packages/create-react-app/4.0.0")
+        );
+    }
+
+    #[test]
+    fn default_package_config_file() {
+        let h = home();
+        assert_eq!(
+            h.default_package_config_file("eslint"),
+            PathBuf::from("/volta/tools/user/packages/eslint.json")
+        );
+    }
+
+    #[test]
+    fn default_tool_bin_config() {
+        let h = home();
+        assert_eq!(
+            h.default_tool_bin_config("eslint"),
+            PathBuf::from("/volta/tools/user/bins/eslint.json")
+        );
+    }
+
+    #[test]
+    fn node_npm_version_file() {
+        let h = home();
+        assert_eq!(
+            h.node_npm_version_file("14.17.0"),
+            PathBuf::from("/volta/tools/inventory/node/node-v14.17.0-npm")
+        );
+    }
+
+    #[test]
+    fn yarn_image_bin_dir() {
+        let h = home();
+        assert_eq!(
+            h.yarn_image_bin_dir("1.22.10"),
+            PathBuf::from("/volta/tools/image/yarn/1.22.10/bin")
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn shim_file() {

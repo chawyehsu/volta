@@ -142,4 +142,110 @@ mod tests {
             PathBuf::from("/volta/tools/shared/openssl")
         );
     }
+
+    #[test]
+    fn node_image_dir() {
+        let h = home();
+        assert_eq!(
+            h.node_image_dir("14.17.0"),
+            PathBuf::from("/volta/tools/image/node/14.17.0")
+        );
+    }
+
+    #[test]
+    fn npm_image_dir() {
+        let h = home();
+        assert_eq!(
+            h.npm_image_dir("6.14.13"),
+            PathBuf::from("/volta/tools/image/npm/6.14.13")
+        );
+    }
+
+    #[test]
+    fn pnpm_image_dir() {
+        let h = home();
+        assert_eq!(
+            h.pnpm_image_dir("6.32.0"),
+            PathBuf::from("/volta/tools/image/pnpm/6.32.0")
+        );
+    }
+
+    #[test]
+    fn yarn_image_dir() {
+        let h = home();
+        assert_eq!(
+            h.yarn_image_dir("1.22.10"),
+            PathBuf::from("/volta/tools/image/yarn/1.22.10")
+        );
+    }
+
+    #[test]
+    fn package_image_dir() {
+        let h = home();
+        assert_eq!(
+            h.package_image_dir("create-react-app"),
+            PathBuf::from("/volta/tools/image/packages/create-react-app")
+        );
+    }
+
+    #[test]
+    fn default_package_config_file() {
+        let h = home();
+        assert_eq!(
+            h.default_package_config_file("eslint"),
+            PathBuf::from("/volta/tools/user/packages/eslint.json")
+        );
+    }
+
+    #[test]
+    fn default_tool_bin_config() {
+        let h = home();
+        assert_eq!(
+            h.default_tool_bin_config("eslint"),
+            PathBuf::from("/volta/tools/user/bins/eslint.json")
+        );
+    }
+
+    #[test]
+    fn node_npm_version_file() {
+        let h = home();
+        assert_eq!(
+            h.node_npm_version_file("14.17.0"),
+            PathBuf::from("/volta/tools/inventory/node/node-v14.17.0-npm")
+        );
+    }
+
+    #[test]
+    fn npm_image_bin_dir() {
+        let h = home();
+        assert_eq!(
+            h.npm_image_bin_dir("6.14.13"),
+            PathBuf::from("/volta/tools/image/npm/6.14.13/bin")
+        );
+    }
+
+    #[test]
+    fn pnpm_image_bin_dir() {
+        let h = home();
+        assert_eq!(
+            h.pnpm_image_bin_dir("6.32.0"),
+            PathBuf::from("/volta/tools/image/pnpm/6.32.0/bin")
+        );
+    }
+
+    #[test]
+    fn yarn_image_bin_dir() {
+        let h = home();
+        assert_eq!(
+            h.yarn_image_bin_dir("1.22.10"),
+            PathBuf::from("/volta/tools/image/yarn/1.22.10/bin")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shim_file() {
+        let h = home();
+        assert_eq!(h.shim_file("node"), PathBuf::from("/volta/bin/node"));
+    }
 }
