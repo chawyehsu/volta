@@ -1439,3 +1439,52 @@ fn package_write_error() {
             .with_stderr_contains("[..]Could not write project manifest[..]")
     );
 }
+
+#[test]
+fn version_parse_error() {
+    // VersionSpec::from_str swallows parse errors into Tag, but
+    // ToolchainSpec::parse_split (called when loading the project)
+    // propagates VersionParseError directly via parse_version().
+    let s = sandbox()
+        .package_json(
+            r#"{
+  "name": "test-package",
+  "volta": {
+    "node": "not-a-valid-version!!!"
+  }
+}"#,
+        )
+        .build();
+
+    assert_that!(
+        s.volta("pin node@8"),
+        execs()
+            .with_status(ExitCode::NoVersionMatch as i32)
+            .with_stderr_contains("[..]Could not parse version \"not-a-valid-version!!!\"[..]")
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn read_default_npm_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let s = sandbox()
+        .package_json(&package_json_with_pinned_node("10.99.1040"))
+        .build();
+
+    // Create the node image dir so node is "already fetched"
+    s.create_node_image("10.99.1040");
+
+    // The npm version file was created by create_node_image — make it unreadable
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let npm_version_file = volta_home.join("tools/inventory/node/node-v10.99.1040-npm");
+    std::fs::set_permissions(&npm_version_file, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    assert_that!(
+        s.volta("pin node@10.99.1040"),
+        execs()
+            .with_status(ExitCode::FileSystemError as i32)
+            .with_stderr_contains("[..]Could not read default npm version[..]")
+    );
+}
