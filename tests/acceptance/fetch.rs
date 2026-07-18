@@ -188,3 +188,33 @@ fn fetch_yarn_downloads_and_saves_to_inventory() {
 
     assert!(s.yarn_inventory_archive_exists("1.2.42"));
 }
+
+#[test]
+fn persist_inventory_error() {
+    let s = sandbox()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .build();
+
+    // Create a directory at the archive filename path inside the inventory dir.
+    // The fetch flow writes the npm version file first (succeeds), then tries
+    // to persist the staging file as the archive (fails because the target
+    // path is already a directory).
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let inventory_dir = volta_home.join("tools/inventory/node");
+    let archive_name = Node::archive_filename(&node_semver::Version::parse("10.99.1040").unwrap());
+    std::fs::create_dir_all(inventory_dir.join(&archive_name)).unwrap();
+
+    let output = match s.volta("fetch node@10.99.1040").exec_with_output() {
+        Ok(output) => output,
+        Err(err) => err.output.expect("ProcessError should contain output"),
+    };
+
+    assert_ne!(output.status.code(), Some(ExitCode::Success as i32));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Could not store Node archive in inventory cache"),
+        "Expected PersistInventoryError in stderr, got: {}",
+        stderr
+    );
+}

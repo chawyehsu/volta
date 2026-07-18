@@ -417,3 +417,37 @@ fn list_yarn_none_source() {
             .with_stdout_contains("[..]yarn@1.2.42[..]default[..]")
     );
 }
+
+#[test]
+#[cfg(unix)]
+fn read_dir_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .build();
+
+    // Create the node image root dir then make it unreadable
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let image_dir = volta_home.join("tools/image/node");
+    std::fs::create_dir_all(&image_dir).unwrap();
+    std::fs::set_permissions(&image_dir, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    // exec_with_output returns Err on non-zero exit; extract output from
+    // either case to avoid panicking before restoring permissions
+    let output = match s.volta("list all").exec_with_output() {
+        Ok(output) => output,
+        Err(err) => err.output.expect("ProcessError should contain output"),
+    };
+
+    // Restore permissions so sandbox cleanup can remove the directory
+    std::fs::set_permissions(&image_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert_ne!(output.status.code(), Some(ExitCode::Success as i32));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Could not read contents from directory"),
+        "Expected ReadDirError in stderr, got: {}",
+        stderr
+    );
+}

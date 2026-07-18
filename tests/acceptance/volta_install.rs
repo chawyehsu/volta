@@ -559,3 +559,30 @@ fn install_bundled_npm_with_node_but_no_npm_version_file() {
             .with_stderr_contains("[..]Could not detect bundled npm version.[..]")
     );
 }
+
+#[test]
+#[cfg(unix)]
+fn read_platform_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .build();
+
+    // Remove read permissions from the default platform file
+    let platform_path = s
+        .root()
+        .parent()
+        .unwrap()
+        .join("home/.volta/tools/user/platform.json");
+    std::fs::set_permissions(&platform_path, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    assert_that!(
+        s.volta("install node@10.99.1040"),
+        execs()
+            .with_status(ExitCode::FileSystemError as i32)
+            .with_stderr_contains("[..]Could not read default platform file[..]")
+    );
+}
