@@ -64,34 +64,41 @@ pub trait PathExt {
 }
 
 impl PathExt for Path {
-    // delete a file if it exists
+    // delete a file, returning silently if it doesn't exist
     fn rm(&self) {
-        if !self.exists() {
-            return;
+        match fs::remove_file(self) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                // On Windows, readonly files need permission fixup before
+                // removal. Git often clones files as readonly.
+                #[cfg(windows)]
+                {
+                    let mut p = ok_or_panic!(self.metadata()).permissions();
+                    #[allow(clippy::permissions_set_readonly_false)]
+                    p.set_readonly(false);
+                    ok_or_panic! { fs::set_permissions(self, p) };
+                    fs::remove_file(self).unwrap_or_else(|e| {
+                        panic!("failed to remove file {}: {}", self.display(), e)
+                    });
+                }
+                #[cfg(not(windows))]
+                {
+                    panic!("failed to remove file {}: {}", self.display(), e);
+                }
+            }
         }
-        // On windows we can't remove a readonly file, and git will
-        // often clone files as readonly. As a result, we have some
-        // special logic to remove readonly files on windows.
-        if cfg!(windows) {
-            let mut p = ok_or_panic!(self.metadata()).permissions();
-            // This lint rule is not applicable: this is in a `cfg!(windows)` block.
-            #[allow(clippy::permissions_set_readonly_false)]
-            p.set_readonly(false);
-            ok_or_panic! { fs::set_permissions(self, p) };
-        }
-        fs::remove_file(self)
-            .unwrap_or_else(|e| panic!("failed to remove file {}: {}", self.display(), e));
     }
 
     /* Technically there is a potential race condition, but we don't
      * care all that much for our tests
      */
     fn rm_rf(&self) {
-        if !self.exists() {
-            return;
+        match remove_dir_all::remove_dir_all(self) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => panic!("failed to remove dir {}: {}", self.display(), e),
         }
-        remove_dir_all::remove_dir_all(self)
-            .unwrap_or_else(|e| panic!("failed to remove dir {}: {}", self.display(), e));
     }
 
     // remove directory contents but not the directory itself
