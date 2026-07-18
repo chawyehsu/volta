@@ -604,11 +604,7 @@ fn write_platform_error() {
     let platform_file = user_dir.join("platform.json");
     std::fs::create_dir_all(&user_dir).unwrap();
     std::fs::write(&platform_file, "{}").unwrap();
-    std::fs::set_permissions(
-        &platform_file,
-        std::fs::Permissions::from_mode(0o444),
-    )
-    .unwrap();
+    std::fs::set_permissions(&platform_file, std::fs::Permissions::from_mode(0o444)).unwrap();
 
     assert_that!(
         s.volta("install node@10.99.1040"),

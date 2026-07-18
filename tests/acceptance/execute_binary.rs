@@ -5,6 +5,7 @@ use cfg_if::cfg_if;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
+use volta_core::error::ExitCode;
 
 const PKG_CONFIG_BASIC: &str = r#"{
   "name": "cowsay",
@@ -503,5 +504,86 @@ fn project_local_binary_pnp() {
             .with_stdout_does_not_contain("Node version")
             .with_stdout_does_not_contain("Npm version")
             .with_stdout_does_not_contain("Yarn version 1.23.483")
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn read_bin_config_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // Set up a default binary with all the necessary infrastructure
+    let s = sandbox()
+        .platform(PLATFORM_NODE_NPM)
+        .package_config("cowsay", PKG_CONFIG_BASIC)
+        .binary_config("cowsay", &bin_config("cowsay"))
+        .shim("cowsay")
+        .package_image("cowsay", "1.4.0", Some(cowsay_bin_info("1.4.0")))
+        .setup_node_binary("11.10.1", "6.7.0", &node_bin("11.10.1"))
+        .setup_npm_binary("6.7.0", &npm_bin("6.7.0"))
+        .build();
+
+    // Make the bin config file unreadable
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let bin_config_file = volta_home.join("tools/user/bins/cowsay.json");
+    std::fs::set_permissions(&bin_config_file, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let output = match s.exec_shim("cowsay", "foo").exec_with_output() {
+        Ok(output) => output,
+        Err(err) => err.output.expect("ProcessError should contain output"),
+    };
+
+    // Restore permissions so sandbox cleanup can remove the file
+    std::fs::set_permissions(&bin_config_file, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+    assert_ne!(
+        output.status.code(),
+        Some(ExitCode::Success as i32),
+        "Expected failure, got success"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Could not read executable configuration"),
+        "Expected ReadBinConfigError in stderr, got: {}",
+        stderr
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn parse_bin_config_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // Set up a default binary with all the necessary infrastructure
+    let s = sandbox()
+        .platform(PLATFORM_NODE_NPM)
+        .package_config("cowsay", PKG_CONFIG_BASIC)
+        .binary_config("cowsay", &bin_config("cowsay"))
+        .shim("cowsay")
+        .package_image("cowsay", "1.4.0", Some(cowsay_bin_info("1.4.0")))
+        .setup_node_binary("11.10.1", "6.7.0", &node_bin("11.10.1"))
+        .setup_npm_binary("6.7.0", &npm_bin("6.7.0"))
+        .build();
+
+    // Corrupt the bin config file with garbage JSON
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let bin_config_file = volta_home.join("tools/user/bins/cowsay.json");
+    std::fs::write(&bin_config_file, "not valid json{{{").unwrap();
+
+    let output = match s.exec_shim("cowsay", "foo").exec_with_output() {
+        Ok(output) => output,
+        Err(err) => err.output.expect("ProcessError should contain output"),
+    };
+
+    assert_ne!(
+        output.status.code(),
+        Some(ExitCode::Success as i32),
+        "Expected failure, got success"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Could not parse executable configuration file"),
+        "Expected ParseBinConfigError in stderr, got: {}",
+        stderr
     );
 }

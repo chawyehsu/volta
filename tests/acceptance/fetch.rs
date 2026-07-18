@@ -218,3 +218,36 @@ fn persist_inventory_error() {
         stderr
     );
 }
+
+#[test]
+#[cfg(unix)]
+fn create_temp_file_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let s = sandbox()
+        .layout_file("v4")
+        .npm_available_versions(NPM_VERSION_INFO)
+        .distro_mocks::<NpmFixture>(&NPM_VERSION_FIXTURES)
+        .build();
+
+    // Make the tmp directory unwritable so creating a temp file fails
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let tmp_dir = volta_home.join("tmp");
+    std::fs::set_permissions(&tmp_dir, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let output = match s.volta("fetch npm@4.5.6").exec_with_output() {
+        Ok(output) => output,
+        Err(err) => err.output.expect("ProcessError should contain output"),
+    };
+
+    // Restore permissions so sandbox cleanup can remove the directory
+    std::fs::set_permissions(&tmp_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert_ne!(output.status.code(), Some(ExitCode::Success as i32));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Could not create temporary file"),
+        "Expected CreateTempFileError in stderr, got: {}",
+        stderr
+    );
+}
