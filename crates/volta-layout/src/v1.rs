@@ -113,3 +113,46 @@ impl VoltaHome {
         path_buf!(self.node_image_dir(node, npm), "bin")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn home() -> VoltaHome {
+        VoltaHome::new(PathBuf::from("/volta"))
+    }
+
+    #[test]
+    fn package_distro_file() {
+        let h = home();
+        assert_eq!(
+            h.package_distro_file("express", "4.17.1"),
+            PathBuf::from("/volta/tools/inventory/packages/express-4.17.1.tgz")
+        );
+    }
+
+    #[test]
+    fn package_distro_shasum() {
+        let h = home();
+        assert_eq!(
+            h.package_distro_shasum("express", "4.17.1"),
+            PathBuf::from("/volta/tools/inventory/packages/express-4.17.1.shasum")
+        );
+    }
+
+    #[test]
+    fn node_image_dir() {
+        let h = home();
+        assert_eq!(
+            h.node_image_dir("14.17.0", "6.14.13"),
+            PathBuf::from("/volta/tools/image/node/14.17.0/6.14.13")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shim_file() {
+        let h = home();
+        assert_eq!(h.shim_file("node"), PathBuf::from("/volta/bin/node"));
+    }
+}

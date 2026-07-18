@@ -119,3 +119,27 @@ impl VoltaHome {
         path_buf!(self.node_image_dir(node), "bin")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn home() -> VoltaHome {
+        VoltaHome::new(PathBuf::from("/volta"))
+    }
+
+    #[test]
+    fn shared_lib_root() {
+        let h = home();
+        assert_eq!(h.shared_lib_root(), PathBuf::from("/volta/tools/shared"));
+    }
+
+    #[test]
+    fn shared_lib_dir() {
+        let h = home();
+        assert_eq!(
+            h.shared_lib_dir("openssl"),
+            PathBuf::from("/volta/tools/shared/openssl")
+        );
+    }
+}
