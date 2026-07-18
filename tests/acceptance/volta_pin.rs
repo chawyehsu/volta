@@ -1336,3 +1336,106 @@ fn pin_bundled_npm_with_node_but_no_npm_version_file() {
             .with_stderr_contains("[..]Could not detect bundled npm version.[..]")
     );
 }
+
+#[test]
+fn package_parse_error() {
+    let s = sandbox()
+        .project_file("package.json", "not-valid-json")
+        .build();
+
+    assert_that!(
+        s.volta("pin node@18"),
+        execs()
+            .with_status(ExitCode::ConfigurationError as i32)
+            .with_stderr_contains("[..]Could not parse project manifest[..]")
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn read_node_index_expiry_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut s = sandbox()
+        .package_json(
+            r#"{
+  "name": "test-package",
+  "volta": {
+    "node": "10.99.1040"
+  }
+}"#,
+        )
+        .build();
+
+    // Write a valid node index cache with a valid expiry, then make the
+    // expiry file unreadable.
+    let server_url = s.server().url();
+    let node_index_url = format!("{}/node-dist/index.json", server_url);
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let cache_dir = volta_home.join("cache/node");
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    std::fs::write(
+        cache_dir.join("index.json"),
+        format!("{}{}", node_index_url, NODE_VERSION_INFO),
+    )
+    .unwrap();
+    std::fs::write(
+        cache_dir.join("index.json.expires"),
+        "Thu, 01 Jan 2099 00:00:00 GMT",
+    )
+    .unwrap();
+    std::fs::set_permissions(
+        cache_dir.join("index.json.expires"),
+        std::fs::Permissions::from_mode(0o000),
+    )
+    .unwrap();
+
+    assert_that!(
+        s.volta("pin node@^10"),
+        execs()
+            .with_status(ExitCode::FileSystemError as i32)
+            .with_stderr_contains("[..]Could not read Node index cache expiration[..]")
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn package_read_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let s = sandbox().package_json(BASIC_PACKAGE_JSON).build();
+
+    // Remove read permissions from package.json
+    let package_path = s.root().join("package.json");
+    std::fs::set_permissions(&package_path, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    assert_that!(
+        s.volta("pin node@18"),
+        execs()
+            .with_status(ExitCode::FileSystemError as i32)
+            .with_stderr_contains("[..]Could not read project manifest[..]")
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn package_write_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let s = sandbox()
+        .package_json(BASIC_PACKAGE_JSON)
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .build();
+
+    // Make package.json read-only after sandbox is built
+    let package_path = s.root().join("package.json");
+    std::fs::set_permissions(&package_path, std::fs::Permissions::from_mode(0o444)).unwrap();
+
+    assert_that!(
+        s.volta("pin node@^8"),
+        execs()
+            .with_status(ExitCode::FileSystemError as i32)
+            .with_stderr_contains("[..]Could not write project manifest[..]")
+    );
+}
