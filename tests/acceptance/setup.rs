@@ -7,6 +7,7 @@ use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
 
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 #[test]
@@ -20,7 +21,7 @@ fn setup_reports_no_shell_profile_when_home_is_not_writable() {
 
     let s = builder
         .env("HOME", &home.to_string_lossy())
-        .env("VOLTA_HOME", &volta_home.to_string_lossy())
+        .env(constant::ENVNAME_VOLTA_HOME, &volta_home.to_string_lossy())
         .build();
 
     fs::create_dir_all(&home).expect("could not create sandbox home directory");
@@ -49,7 +50,7 @@ fn setup_creates_profile() {
 
     let s = builder
         .env("HOME", &home.to_string_lossy())
-        .env("VOLTA_HOME", &volta_home.to_string_lossy())
+        .env(constant::ENVNAME_VOLTA_HOME, &volta_home.to_string_lossy())
         .env("SHELL", "/bin/sh")
         .build();
 
@@ -79,7 +80,7 @@ fn setup_updates_existing_profile_preserving_content() {
 
     let s = builder
         .env("HOME", &home.to_string_lossy())
-        .env("VOLTA_HOME", &volta_home.to_string_lossy())
+        .env(constant::ENVNAME_VOLTA_HOME, &volta_home.to_string_lossy())
         .env("SHELL", "/bin/sh")
         .build();
 
@@ -112,7 +113,7 @@ fn setup_skips_when_already_configured() {
 
     let s = builder
         .env("HOME", &home.to_string_lossy())
-        .env("VOLTA_HOME", &volta_home.to_string_lossy())
+        .env(constant::ENVNAME_VOLTA_HOME, &volta_home.to_string_lossy())
         .env("SHELL", "/bin/sh")
         .build();
 
@@ -143,7 +144,7 @@ fn setup_creates_zshenv_for_zsh() {
 
     let s = builder
         .env("HOME", &home.to_string_lossy())
-        .env("VOLTA_HOME", &volta_home.to_string_lossy())
+        .env(constant::ENVNAME_VOLTA_HOME, &volta_home.to_string_lossy())
         .env("SHELL", "/bin/zsh")
         .build();
 
@@ -176,7 +177,7 @@ fn setup_modifies_user_path_windows() {
     let shim_dir = volta_home.join("bin");
 
     let s = builder
-        .env("VOLTA_HOME", &volta_home.to_string_lossy())
+        .env(constant::ENVNAME_VOLTA_HOME, &volta_home.to_string_lossy())
         .build();
 
     assert_that!(
@@ -199,7 +200,7 @@ fn setup_recreates_cmd_shims_windows() {
     let shim_dir = volta_home.join("bin");
 
     let s = builder
-        .env("VOLTA_HOME", &volta_home.to_string_lossy())
+        .env(constant::ENVNAME_VOLTA_HOME, &volta_home.to_string_lossy())
         .build();
 
     // Pre-create a .cmd shim before running setup
@@ -234,7 +235,7 @@ fn setup_ignores_non_cmd_files_in_shim_dir_windows() {
     let shim_dir = volta_home.join("bin");
 
     let s = builder
-        .env("VOLTA_HOME", &volta_home.to_string_lossy())
+        .env(constant::ENVNAME_VOLTA_HOME, &volta_home.to_string_lossy())
         .build();
 
     // Pre-create a git bash script (no extension) — should be ignored

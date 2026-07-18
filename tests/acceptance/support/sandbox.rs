@@ -10,6 +10,7 @@ use headers::{Expires, Header};
 use mockito::Matcher;
 use node_semver::Version;
 use test_support::{self, ok_or_panic, paths, paths::PathExt, process::ProcessBuilder};
+use volta_core::constant;
 use volta_core::fs::{set_executable, symlink_file};
 use volta_core::tool::{Node, Npm, Pnpm, Yarn};
 
@@ -949,7 +950,7 @@ impl Sandbox {
         let mut p = test_support::process::process(program);
         p.cwd(self.root())
             // sandbox the Volta environment
-            .env("VOLTA_HOME", volta_home())
+            .env(constant::ENVNAME_VOLTA_HOME, volta_home())
             .env("VOLTA_INSTALL_DIR", cargo_dir())
             .env("PATH", &self.path)
             .env("VOLTA_MOCK_SERVER_URL", self.server.url())

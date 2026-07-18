@@ -1,6 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 
+use crate::constant;
 use crate::error::{Context, ErrorKind, Fallible};
 use cfg_if::cfg_if;
 use dunce::canonicalize;
@@ -22,7 +23,7 @@ static VOLTA_INSTALL: OnceCell<VoltaInstall> = OnceCell::new();
 
 pub fn volta_home<'a>() -> Fallible<&'a VoltaHome> {
     VOLTA_HOME.get_or_try_init(|| {
-        let home_dir = match env::var_os("VOLTA_HOME") {
+        let home_dir = match env::var_os(constant::ENVNAME_VOLTA_HOME) {
             Some(home) => PathBuf::from(home),
             None => default_home_dir()?,
         };

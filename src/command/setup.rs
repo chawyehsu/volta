@@ -35,6 +35,7 @@ mod os {
     use std::path::{Path, PathBuf};
 
     use log::{debug, warn};
+    use volta_core::constant;
     use volta_core::error::{ErrorKind, Fallible};
     use volta_core::layout::volta_home;
 
@@ -48,7 +49,7 @@ mod os {
             None => None,
         };
 
-        if env::var_os("VOLTA_HOME").is_some() && home_in_path.is_some() {
+        if env::var_os(constant::ENVNAME_VOLTA_HOME).is_some() && home_in_path.is_some() {
             debug!(
                 "Skipping dot-file modification as VOLTA_HOME is set, and included in the PATH."
             );

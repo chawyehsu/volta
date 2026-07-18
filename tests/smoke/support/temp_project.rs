@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+use volta_core::constant;
 use volta_core::fs::symlink_file;
 use volta_core::tool::{Node, Pnpm};
 
@@ -304,7 +305,7 @@ impl TempProject {
             // setup the Volta environment
             .env("PATH", &self.path)
             .env("HOME", home_dir(self.root()))
-            .env("VOLTA_HOME", volta_home(self.root()))
+            .env(constant::ENVNAME_VOLTA_HOME, volta_home(self.root()))
             .env("VOLTA_INSTALL_DIR", cargo_dir())
             .env_remove("VOLTA_NODE_VERSION")
             .env_remove("MSYSTEM"); // assume cmd.exe everywhere on windows
