@@ -4,6 +4,7 @@ use crate::support::sandbox::{sandbox, Sandbox};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
+use volta_core::error::ExitCode;
 
 const PKG_CONFIG_BASIC: &str = r#"{
   "name": "cowsay",
@@ -214,4 +215,41 @@ fn uninstall_runtime() {
             .with_status(1)
             .with_stderr_contains("[..]error: Uninstalling node is not supported yet.")
     )
+}
+
+#[test]
+#[cfg(unix)]
+fn read_bin_config_dir_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // Set up orphaned binaries (no package config) so that uninstall
+    // reads the bins directory via binaries_from_package()
+    let s = sandbox()
+        .binary_config("cowsay", &bin_config("cowsay"))
+        .build();
+
+    // Make the bins directory unreadable
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let bins_dir = volta_home.join("tools/user/bins");
+    std::fs::set_permissions(&bins_dir, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let output = match s.volta("uninstall cowsay").exec_with_output() {
+        Ok(output) => output,
+        Err(err) => err.output.expect("ProcessError should contain output"),
+    };
+
+    // Restore permissions so sandbox cleanup can remove the directory
+    std::fs::set_permissions(&bins_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert_ne!(
+        output.status.code(),
+        Some(ExitCode::Success as i32),
+        "Expected failure, got success"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Could not read executable metadata directory"),
+        "Expected ReadBinConfigDirError in stderr, got: {}",
+        stderr
+    );
 }

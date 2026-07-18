@@ -586,3 +586,34 @@ fn read_platform_error() {
             .with_stderr_contains("[..]Could not read default platform file[..]")
     );
 }
+
+#[test]
+#[cfg(unix)]
+fn write_platform_error() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let s = sandbox()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .build();
+
+    // Create a platform file and make it read-only so reading succeeds
+    // but saving fails
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let user_dir = volta_home.join("tools/user");
+    let platform_file = user_dir.join("platform.json");
+    std::fs::create_dir_all(&user_dir).unwrap();
+    std::fs::write(&platform_file, "{}").unwrap();
+    std::fs::set_permissions(
+        &platform_file,
+        std::fs::Permissions::from_mode(0o444),
+    )
+    .unwrap();
+
+    assert_that!(
+        s.volta("install node@10.99.1040"),
+        execs()
+            .with_status(ExitCode::FileSystemError as i32)
+            .with_stderr_contains("[..]Could not save platform settings[..]")
+    );
+}
