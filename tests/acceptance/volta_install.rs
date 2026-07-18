@@ -585,6 +585,9 @@ fn read_platform_error() {
             .with_status(ExitCode::FileSystemError as i32)
             .with_stderr_contains("[..]Could not read default platform file[..]")
     );
+
+    // Restore permissions so sandbox cleanup can remove the file
+    std::fs::set_permissions(&platform_path, std::fs::Permissions::from_mode(0o644)).unwrap();
 }
 
 #[test]

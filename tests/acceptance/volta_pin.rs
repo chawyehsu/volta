@@ -1396,6 +1396,13 @@ fn read_node_index_expiry_error() {
             .with_status(ExitCode::FileSystemError as i32)
             .with_stderr_contains("[..]Could not read Node index cache expiration[..]")
     );
+
+    // Restore permissions so sandbox cleanup can remove the file
+    std::fs::set_permissions(
+        cache_dir.join("index.json.expires"),
+        std::fs::Permissions::from_mode(0o644),
+    )
+    .unwrap();
 }
 
 #[test]
@@ -1415,6 +1422,9 @@ fn package_read_error() {
             .with_status(ExitCode::FileSystemError as i32)
             .with_stderr_contains("[..]Could not read project manifest[..]")
     );
+
+    // Restore permissions so sandbox cleanup can remove the file
+    std::fs::set_permissions(&package_path, std::fs::Permissions::from_mode(0o644)).unwrap();
 }
 
 #[test]
@@ -1487,4 +1497,7 @@ fn read_default_npm_error() {
             .with_status(ExitCode::FileSystemError as i32)
             .with_stderr_contains("[..]Could not read default npm version[..]")
     );
+
+    // Restore permissions so sandbox cleanup can remove the file
+    std::fs::set_permissions(&npm_version_file, std::fs::Permissions::from_mode(0o644)).unwrap();
 }

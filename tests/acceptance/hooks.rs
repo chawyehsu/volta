@@ -850,6 +850,9 @@ fn unreadable_default_hooks_errors() {
             .with_status(ExitCode::FileSystemError as i32)
             .with_stderr_contains("[..]Could not read hooks file[..]")
     );
+
+    // Restore permissions so sandbox cleanup can remove the file
+    std::fs::set_permissions(&hooks_path, std::fs::Permissions::from_mode(0o644)).unwrap();
 }
 
 const NODE_VERSION_INFO: &str = r#"[
