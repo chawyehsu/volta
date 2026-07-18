@@ -31,6 +31,19 @@ fn platform_with_node_yarn(node: &str, yarn: &str) -> String {
     )
 }
 
+fn platform_with_node_npm(node: &str, npm: &str) -> String {
+    format!(
+        r#"{{
+  "node": {{
+    "runtime": "{}",
+    "npm": "{}"
+  }},
+  "yarn": null
+}}"#,
+        node, npm
+    )
+}
+
 const NODE_VERSION_INFO: &str = r#"[
 {"version":"v10.99.1040","npm":"6.2.26","lts": "Dubnium","files":["linux-x64","osx-x64-tar","win-x64-zip","win-x86-zip", "linux-arm64"]},
 {"version":"v9.27.6","npm":"5.6.17","lts": false,"files":["linux-x64","osx-x64-tar","win-x64-zip","win-x86-zip", "linux-arm64"]},
@@ -460,5 +473,57 @@ fn npm_update_global_wrong_manager() {
         execs()
             .with_status(ExitCode::ExecutionFailure as i32)
             .with_stderr_contains("[..]The package 'my-pkg' was installed using Yarn[..]")
+    );
+}
+
+const FAKE_NPM_404: &str = "#!/bin/sh
+echo \"npm ERR! code E404\" >&2
+exit 1
+";
+
+const FAKE_NPM_FAIL: &str = "#!/bin/sh
+echo \"npm ERR! code ERESOLVE\" >&2
+exit 1
+";
+
+#[test]
+fn package_not_found() {
+    // Use setup_npm_binary to place a fake npm in the npm image dir.
+    // Image::bins() puts the npm image bin dir FIRST in PATH (before the
+    // node image bin dir), so the fake npm is found before the real one.
+    // npm_available() checks if npm_image_dir exists — since
+    // setup_npm_binary creates a file inside it, the dir exists and
+    // ensure_fetched skips downloading the real npm distro.
+    let s = sandbox()
+        .platform(&platform_with_node_npm("10.99.1040", "1.2.3"))
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .setup_npm_binary("1.2.3", FAKE_NPM_404)
+        .build();
+
+    assert_that!(
+        s.volta("install nonexistent-pkg-12345"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains(
+                "[..]Could not find 'nonexistent-pkg-12345' in the package registry[..]"
+            )
+    );
+}
+
+#[test]
+fn package_install_failed() {
+    let s = sandbox()
+        .platform(&platform_with_node_npm("10.99.1040", "1.2.3"))
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .setup_npm_binary("1.2.3", FAKE_NPM_FAIL)
+        .build();
+
+    assert_that!(
+        s.volta("install some-pkg"),
+        execs()
+            .with_status(ExitCode::UnknownError as i32)
+            .with_stderr_contains("[..]Could not install package 'some-pkg'[..]")
     );
 }
