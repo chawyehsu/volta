@@ -5,6 +5,7 @@ use cfg_if::cfg_if;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
+#[cfg(unix)]
 use volta_core::error::ExitCode;
 
 const PKG_CONFIG_BASIC: &str = r#"{
@@ -552,8 +553,6 @@ fn read_bin_config_error() {
 #[test]
 #[cfg(unix)]
 fn parse_bin_config_error() {
-    use std::os::unix::fs::PermissionsExt;
-
     // Set up a default binary with all the necessary infrastructure
     let s = sandbox()
         .platform(PLATFORM_NODE_NPM)
