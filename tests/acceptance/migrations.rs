@@ -254,3 +254,85 @@ fn missing_migrate_executable_errors() {
             )
     );
 }
+
+#[test]
+#[cfg(windows)]
+fn v3_to_v4_migrates_symlink_shims() {
+    use std::fs;
+
+    let s = sandbox().layout_file("v3").build();
+
+    let bin_dir = Sandbox::home_path(".volta/bin");
+    let dummy_target = bin_dir.join("volta-shim.exe");
+    let symlink_path = bin_dir.join("node.exe");
+    let regular_path = bin_dir.join("yarn.exe");
+
+    // Create a dummy target file for the symlink
+    fs::write(&dummy_target, b"dummy").unwrap();
+
+    // Remove the default yarn shim symlink (created by sandbox builder)
+    // and recreate as a regular file to test that non-symlinks are untouched
+    fs::remove_file(&regular_path).unwrap();
+    fs::write(&regular_path, b"regular shim").unwrap();
+
+    // Create a symlink shim (should be migrated to .cmd script)
+    if std::os::windows::fs::symlink_file(&dummy_target, &symlink_path).is_err() {
+        // Skip if we don't have symlink privileges
+        return;
+    }
+
+    assert!(Sandbox::shim_exists("node"));
+    assert!(Sandbox::shim_exists("yarn"));
+
+    // Run migration
+    assert_that!(s.volta("--version"), execs().with_status(0));
+
+    // Symlink shim should be replaced: old .exe removed, .cmd script created
+    assert!(!Sandbox::shim_exists("node"));
+    assert!(Sandbox::path_exists(".volta/bin/node.cmd"));
+
+    // Regular file shim should be untouched
+    assert!(Sandbox::shim_exists("yarn"));
+}
+
+#[test]
+#[cfg(windows)]
+fn v3_to_v4_migrates_symlink_shared_dirs() {
+    use std::fs;
+
+    let s = sandbox().layout_file("v3").build();
+
+    let shared_root = Sandbox::home_path(".volta/tools/shared");
+    let orig_target = Sandbox::home_path(".volta/tools/shared-orig/openssl");
+    let symlink_path = shared_root.join("openssl");
+    let regular_dir = shared_root.join("zlib");
+
+    // Create the shared lib root and a dummy target directory
+    fs::create_dir_all(&orig_target).unwrap();
+    fs::write(orig_target.join("libcrypto.a"), b"dummy lib").unwrap();
+
+    // Create a regular (non-symlink) directory with content
+    fs::create_dir_all(&regular_dir).unwrap();
+    fs::write(regular_dir.join("libz.a"), b"regular lib").unwrap();
+
+    // Create a directory symlink (should be migrated to junction)
+    if std::os::windows::fs::symlink_dir(&orig_target, &symlink_path).is_err() {
+        // Skip if we don't have symlink privileges
+        return;
+    }
+
+    assert!(Sandbox::path_exists(".volta/tools/shared/openssl"));
+    assert!(Sandbox::path_exists(".volta/tools/shared/zlib"));
+
+    // Run migration
+    assert_that!(s.volta("--version"), execs().with_status(0));
+
+    // Both directories should still exist with contents accessible
+    assert!(Sandbox::path_exists(
+        ".volta/tools/shared/openssl/libcrypto.a"
+    ));
+    assert!(Sandbox::path_exists(".volta/tools/shared/zlib/libz.a"));
+
+    // Clean up junction before sandbox Drop (which can't handle junctions)
+    let _ = fs::remove_dir(&symlink_path);
+}

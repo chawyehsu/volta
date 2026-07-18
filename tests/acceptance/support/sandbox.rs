@@ -934,6 +934,11 @@ impl Sandbox {
         self.root.clone()
     }
 
+    /// Path within the sandbox home directory, e.g. `home_path(".volta/bin")`
+    pub fn home_path(path: &str) -> PathBuf {
+        sandbox_path(path)
+    }
+
     /// Create a `ProcessBuilder` to run a program in the project.
     /// Example:
     ///         assert_that(
