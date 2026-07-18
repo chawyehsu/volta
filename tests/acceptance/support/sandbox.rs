@@ -723,7 +723,7 @@ impl SandboxBuilder {
     /// Create the project
     pub fn build(mut self) -> Sandbox {
         // First, clean the directory if it already exists
-        self.rm_root();
+        self.root.root().rm_rf();
 
         // Create the empty directory
         self.root.root().mkdir_p();
@@ -773,10 +773,6 @@ impl SandboxBuilder {
 
         let SandboxBuilder { root, .. } = self;
         root
-    }
-
-    fn rm_root(&self) {
-        self.root.root().rm_rf()
     }
 }
 
