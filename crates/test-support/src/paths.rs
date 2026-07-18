@@ -55,36 +55,6 @@ pub fn home() -> PathBuf {
     root().join("home")
 }
 
-enum Remove {
-    File,
-    Dir,
-}
-impl Remove {
-    fn to_str(&self) -> &'static str {
-        match *self {
-            Remove::File => "remove file",
-            Remove::Dir => "remove dir",
-        }
-    }
-
-    fn at(&self, path: &Path) {
-        if cfg!(windows) {
-            let mut p = ok_or_panic!(path.metadata()).permissions();
-            // This lint rule is not applicable: this is in a `cfg!(windows)` block.
-            #[allow(clippy::permissions_set_readonly_false)]
-            p.set_readonly(false);
-            ok_or_panic! { fs::set_permissions(path, p) };
-        }
-        match *self {
-            Remove::File => fs::remove_file(path),
-            Remove::Dir => fs::remove_dir_all(path), // ensure all dir contents are removed
-        }
-        .unwrap_or_else(|e| {
-            panic!("failed to {} {}: {}", self.to_str(), path.display(), e);
-        })
-    }
-}
-
 pub trait PathExt {
     fn rm(&self);
     fn rm_rf(&self);
@@ -102,7 +72,15 @@ impl PathExt for Path {
         // On windows we can't remove a readonly file, and git will
         // often clone files as readonly. As a result, we have some
         // special logic to remove readonly files on windows.
-        Remove::File.at(self);
+        if cfg!(windows) {
+            let mut p = ok_or_panic!(self.metadata()).permissions();
+            // This lint rule is not applicable: this is in a `cfg!(windows)` block.
+            #[allow(clippy::permissions_set_readonly_false)]
+            p.set_readonly(false);
+            ok_or_panic! { fs::set_permissions(self, p) };
+        }
+        fs::remove_file(self)
+            .unwrap_or_else(|e| panic!("failed to remove file {}: {}", self.display(), e));
     }
 
     /* Technically there is a potential race condition, but we don't
@@ -112,20 +90,14 @@ impl PathExt for Path {
         if !self.exists() {
             return;
         }
-        self.rm_contents();
-        Remove::Dir.at(self);
+        remove_dir_all::remove_dir_all(self)
+            .unwrap_or_else(|e| panic!("failed to remove dir {}: {}", self.display(), e));
     }
 
     // remove directory contents but not the directory itself
     fn rm_contents(&self) {
-        for file in ok_or_panic! { fs::read_dir(self) } {
-            let file = ok_or_panic! { file };
-            if file.file_type().map(|m| m.is_dir()).unwrap_or(false) {
-                file.path().rm_rf();
-            } else {
-                file.path().rm();
-            }
-        }
+        remove_dir_all::remove_dir_contents(self)
+            .unwrap_or_else(|e| panic!("failed to remove dir contents {}: {}", self.display(), e));
     }
 
     // ensure the directory is created and empty
