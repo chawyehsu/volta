@@ -951,7 +951,7 @@ impl Sandbox {
         p.cwd(self.root())
             // sandbox the Volta environment
             .env(constant::ENVNAME_VOLTA_HOME, volta_home())
-            .env("VOLTA_INSTALL_DIR", cargo_dir())
+            .env(constant::ENVNAME_VOLTA_INSTALL_DIR, cargo_dir())
             .env("PATH", &self.path)
             .env("VOLTA_MOCK_SERVER_URL", self.server.url())
             .env("VOLTA_POSTSCRIPT", volta_postscript())

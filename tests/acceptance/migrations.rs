@@ -3,6 +3,7 @@ use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
 
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 #[test]
@@ -240,7 +241,10 @@ fn missing_migrate_executable_errors() {
     let broken_install_dir = builder.root().join("broken-install");
 
     let s = builder
-        .env("VOLTA_INSTALL_DIR", &broken_install_dir.to_string_lossy())
+        .env(
+            constant::ENVNAME_VOLTA_INSTALL_DIR,
+            &broken_install_dir.to_string_lossy(),
+        )
         .build();
 
     s.remove_volta_home();

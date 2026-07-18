@@ -306,7 +306,7 @@ impl TempProject {
             .env("PATH", &self.path)
             .env("HOME", home_dir(self.root()))
             .env(constant::ENVNAME_VOLTA_HOME, volta_home(self.root()))
-            .env("VOLTA_INSTALL_DIR", cargo_dir())
+            .env(constant::ENVNAME_VOLTA_INSTALL_DIR, cargo_dir())
             .env_remove("VOLTA_NODE_VERSION")
             .env_remove("MSYSTEM"); // assume cmd.exe everywhere on windows
 

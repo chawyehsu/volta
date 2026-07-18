@@ -34,7 +34,7 @@ pub fn volta_home<'a>() -> Fallible<&'a VoltaHome> {
 
 pub fn volta_install<'a>() -> Fallible<&'a VoltaInstall> {
     VOLTA_INSTALL.get_or_try_init(|| {
-        let install_dir = match env::var_os("VOLTA_INSTALL_DIR") {
+        let install_dir = match env::var_os(constant::ENVNAME_VOLTA_INSTALL_DIR) {
             Some(install) => PathBuf::from(install),
             None => default_install_dir()?,
         };
