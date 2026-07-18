@@ -253,3 +253,38 @@ fn read_bin_config_dir_error() {
         stderr
     );
 }
+
+#[test]
+#[cfg(unix)]
+fn shim_remove_error() {
+    let s = sandbox()
+        .package_config("cowsay", PKG_CONFIG_BASIC)
+        .binary_config("cowsay", &bin_config("cowsay"))
+        .shim("cowsay")
+        .build();
+
+    // Replace the shim symlink with a directory so that fs::remove_file
+    // fails with IsADirectory (not NotFound), triggering ShimRemoveError.
+    // The migration skips non-symlink entries, so this won't break migration.
+    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let shim_path = volta_home.join("bin/cowsay");
+    std::fs::remove_file(&shim_path).unwrap();
+    std::fs::create_dir(&shim_path).unwrap();
+
+    let output = match s.volta("uninstall cowsay").exec_with_output() {
+        Ok(output) => output,
+        Err(err) => err.output.expect("ProcessError should contain output"),
+    };
+
+    assert_ne!(
+        output.status.code(),
+        Some(ExitCode::Success as i32),
+        "Expected failure, got success"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Could not remove shim for \"cowsay\""),
+        "Expected ShimRemoveError in stderr, got: {}",
+        stderr
+    );
+}
