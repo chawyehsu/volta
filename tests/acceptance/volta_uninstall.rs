@@ -255,7 +255,6 @@ fn read_bin_config_dir_error() {
 }
 
 #[test]
-#[cfg(unix)]
 fn shim_remove_error() {
     let s = sandbox()
         .package_config("cowsay", PKG_CONFIG_BASIC)
@@ -263,13 +262,26 @@ fn shim_remove_error() {
         .shim("cowsay")
         .build();
 
-    // Replace the shim symlink with a directory so that fs::remove_file
-    // fails with IsADirectory (not NotFound), triggering ShimRemoveError.
-    // The migration skips non-symlink entries, so this won't break migration.
     let volta_home = s.root().parent().unwrap().join("home/.volta");
-    let shim_path = volta_home.join("bin/cowsay");
-    std::fs::remove_file(&shim_path).unwrap();
-    std::fs::create_dir(&shim_path).unwrap();
+    cfg_if::cfg_if! {
+        if #[cfg(unix)] {
+            // Replace the shim symlink with a directory so that fs::remove_file
+            // fails with IsADirectory (not NotFound), triggering ShimRemoveError.
+            // The migration skips non-symlink entries, so this won't break migration.
+            let shim_path = volta_home.join("bin/cowsay");
+            std::fs::remove_file(&shim_path).unwrap();
+            std::fs::create_dir(&shim_path).unwrap();
+        } else if #[cfg(windows)] {
+            // Replace the .cmd shim with a directory so that fs::remove_file
+            // fails with PermissionDenied (not NotFound), triggering ShimRemoveError.
+            let shim_path = volta_home.join("bin/cowsay.exe");
+            std::fs::remove_file(&shim_path).unwrap();
+            // `.exe` shim created in sandbox migrated to `.cmd` shim in layout v4,
+            // so we need to create a directory with the `.cmd` extension.
+            let shim_path = volta_home.join("bin/cowsay.cmd");
+            std::fs::create_dir(&shim_path).unwrap();
+        }
+    }
 
     let output = match s.volta("uninstall cowsay").exec_with_output() {
         Ok(output) => output,
