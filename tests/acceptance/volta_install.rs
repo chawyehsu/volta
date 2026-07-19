@@ -6,6 +6,7 @@ use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
 
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 fn platform_with_node(node: &str) -> String {
@@ -335,7 +336,7 @@ fn install_pnpm_without_node_errors() {
     let s = sandbox()
         .pnpm_available_versions(PNPM_VERSION_INFO)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(

@@ -4,6 +4,7 @@ use hamcrest2::prelude::*;
 use node_semver::Version;
 use test_support::matchers::execs;
 
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 const NODE_VERSION_INFO: &str = r#"[
@@ -108,7 +109,7 @@ fn install_corrupted_pnpm_leaves_inventory_unchanged() {
         .pnpm_available_versions(PNPM_VERSION_INFO)
         .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -127,7 +128,7 @@ fn install_valid_pnpm_saves_to_inventory() {
         .pnpm_available_versions(PNPM_VERSION_INFO)
         .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(

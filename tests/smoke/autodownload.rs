@@ -1,4 +1,5 @@
 use crate::support::temp_project::temp_project;
+use volta_core::constant;
 
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
@@ -95,7 +96,7 @@ fn autodownload_yarn_3() {
 fn autodownload_pnpm() {
     let p = temp_project()
         .package_json(PACKAGE_JSON_WITH_PINNED_NODE_PNPM)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(

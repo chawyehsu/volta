@@ -6,6 +6,7 @@ use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
 
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 // Helper: build a fake bin binary that echoes the provided environment variables.
@@ -521,7 +522,7 @@ fn command_line_pnpm() {
         .pnpm_available_versions(PNPM_VERSION_INFO)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
         .env(VOLTA_LOGLEVEL, "debug")
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -541,7 +542,7 @@ fn inherited_pnpm() {
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
         .package_json(&package_json_with_pinned_node_pnpm("10.99.1040", "7.7.1"))
         .env(VOLTA_LOGLEVEL, "debug")
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -561,7 +562,7 @@ fn force_no_pnpm() {
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
         .package_json(&package_json_with_pinned_node_pnpm("10.99.1040", "7.7.1"))
         .env(VOLTA_LOGLEVEL, "debug")
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -648,7 +649,7 @@ fn no_default_pnpm() {
   "packages": {}
 }"#,
         )
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -679,7 +680,7 @@ fn command_line_node_no_pnpm() {
     let s = sandbox()
         .node_available_versions(NODE_VERSION_INFO)
         .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -709,7 +710,7 @@ fn pnpm_global_install_unimplemented() {
         .node_available_versions(NODE_VERSION_INFO)
         .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
         .package_json(&package_json_with_pinned_node("10.99.1040"))
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(

@@ -8,6 +8,7 @@ use crate::support::sandbox::sandbox;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 const WORKSPACE_PACKAGE_JSON: &str = r#"
@@ -500,7 +501,7 @@ fn pnpm_latest_with_hook_reads_index() {
     let mut s = sandbox()
         .default_hooks(&pnpm_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
     let _mock = s
         .server()
@@ -537,7 +538,7 @@ fn pnpm_no_version_with_hook_reads_index() {
     let mut s = sandbox()
         .default_hooks(&pnpm_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
     let _mock = s
         .server()

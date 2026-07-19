@@ -1,10 +1,10 @@
 use std::env;
 use std::fmt;
 
+use crate::constant;
 use crate::error::{ErrorKind, Fallible};
 use crate::session::Session;
 use crate::tool::{Node, Npm, Pnpm, Yarn};
-use crate::VOLTA_FEATURE_PNPM;
 use node_semver::Version;
 
 mod image;
@@ -284,7 +284,7 @@ impl Platform {
         // Only force download of the pnpm version if the pnpm feature flag is set. If it isn't,
         // then we won't be using the `Pnpm` tool to execute (we will be relying on the global
         // package logic), so fetching the Pnpm version would only be redundant work.
-        if env::var_os(VOLTA_FEATURE_PNPM).is_some() {
+        if env::var_os(constant::ENVNAME_VOLTA_FEATURE_PNPM).is_some() {
             if let Some(Sourced { value: version, .. }) = &self.pnpm {
                 Pnpm::new(version.clone()).ensure_fetched(session)?;
             }

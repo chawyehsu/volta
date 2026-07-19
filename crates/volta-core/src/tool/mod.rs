@@ -2,13 +2,13 @@ use std::env;
 use std::fmt::{self, Display};
 use std::path::PathBuf;
 
+use crate::constant;
 use crate::error::{ErrorKind, Fallible};
 use crate::layout::volta_home;
 use crate::session::Session;
 use crate::style::{note_prefix, success_prefix, tool_version};
 use crate::sync::VoltaLock;
 use crate::version::VersionSpec;
-use crate::VOLTA_FEATURE_PNPM;
 use cfg_if::cfg_if;
 use log::{debug, info};
 
@@ -96,7 +96,7 @@ impl Spec {
                 // to handle resolving (and ultimately fetching / installing) pnpm. If not, then
                 // fall back to the global package behavior, which was the case prior to pnpm
                 // support being added
-                if env::var_os(VOLTA_FEATURE_PNPM).is_some() {
+                if env::var_os(constant::ENVNAME_VOLTA_FEATURE_PNPM).is_some() {
                     let version = pnpm::resolve(version, session)?;
                     Ok(Box::new(Pnpm::new(version)))
                 } else {
@@ -131,7 +131,7 @@ impl Spec {
             }
             .into()),
             Spec::Pnpm(_) => {
-                if env::var_os(VOLTA_FEATURE_PNPM).is_some() {
+                if env::var_os(constant::ENVNAME_VOLTA_FEATURE_PNPM).is_some() {
                     Err(ErrorKind::Unimplemented {
                         feature: "Uninstalling pnpm".into(),
                     }

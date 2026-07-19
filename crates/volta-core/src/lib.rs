@@ -22,5 +22,3 @@ pub mod sync;
 pub mod tool;
 pub mod toolchain;
 pub mod version;
-
-const VOLTA_FEATURE_PNPM: &str = "VOLTA_FEATURE_PNPM";

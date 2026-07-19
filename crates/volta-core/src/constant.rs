@@ -5,3 +5,6 @@ pub const ENVNAME_VOLTA_HOME: &str = "VOLTA_HOME";
 
 /// The environment variable name for Volta's install directory.
 pub const ENVNAME_VOLTA_INSTALL_DIR: &str = "VOLTA_INSTALL_DIR";
+
+/// The environment variable name for Volta's feature flag for pnpm support.
+pub const ENVNAME_VOLTA_FEATURE_PNPM: &str = "VOLTA_FEATURE_PNPM";

@@ -8,6 +8,7 @@ use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
 
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 const PACKAGE_JSON_NODE_ONLY: &str = r#"{
@@ -381,7 +382,7 @@ fn uses_project_pnpm_if_available() {
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
         .env("VOLTA_LOGLEVEL", "debug")
         .env("VOLTA_WRITE_EVENTS_FILE", "true")
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .default_hooks(&events_hooks_json())
         .executable_file(SCRIPT_FILENAME, EVENTS_EXECUTABLE)
         .build();
@@ -418,7 +419,7 @@ fn uses_default_pnpm_in_project_without_pnpm() {
         .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
         .env("VOLTA_LOGLEVEL", "debug")
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -438,7 +439,7 @@ fn uses_default_pnpm_outside_project() {
         .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
         .env("VOLTA_LOGLEVEL", "debug")
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -456,7 +457,7 @@ fn uses_pnpm_throws_project_error_in_project() {
     let s = sandbox()
         .platform(PLATFORM_NODE_ONLY)
         .package_json(PACKAGE_JSON_NODE_ONLY)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(

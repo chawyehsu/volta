@@ -2,6 +2,7 @@ use crate::support::temp_project::temp_project;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
+use volta_core::constant;
 
 const PACKAGE_JSON: &str = r#"
 {
@@ -22,7 +23,7 @@ fn link_global_command_unsupported() {
     let p = temp_project()
         .package_json(PACKAGE_JSON)
         .project_file("index.js", INDEX_JS)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     // Install node and pnpm to ensure pnpm is available

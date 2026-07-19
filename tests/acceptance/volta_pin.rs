@@ -5,6 +5,7 @@ use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;
 
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 const BASIC_PACKAGE_JSON: &str = r#"{
@@ -966,7 +967,7 @@ fn pin_pnpm_no_node() {
         .package_json(BASIC_PACKAGE_JSON)
         .pnpm_available_versions(PNPM_VERSION_INFO)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -987,7 +988,7 @@ fn pin_pnpm() {
         .package_json(&package_json_with_pinned_node("1.2.3"))
         .pnpm_available_versions(PNPM_VERSION_INFO)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -1032,7 +1033,7 @@ fn pin_pnpm_reports_info() {
         .pnpm_available_versions(PNPM_VERSION_INFO)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
         .env(VOLTA_LOGLEVEL, "info")
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -1049,7 +1050,7 @@ fn pin_pnpm_latest() {
         .package_json(&package_json_with_pinned_node("1.2.3"))
         .pnpm_available_versions(PNPM_VERSION_INFO)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -1069,7 +1070,7 @@ fn pin_pnpm_no_version() {
         .package_json(&package_json_with_pinned_node("1.2.3"))
         .pnpm_available_versions(PNPM_VERSION_INFO)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -1087,7 +1088,7 @@ fn pin_pnpm_no_version() {
 fn pin_pnpm_missing_release() {
     let s = sandbox()
         .package_json(&package_json_with_pinned_node("1.2.3"))
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .mock_not_found()
         .build();
 
@@ -1112,7 +1113,7 @@ fn pin_node_and_pnpm() {
         .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
         .pnpm_available_versions(PNPM_VERSION_INFO)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -1132,7 +1133,7 @@ fn pin_pnpm_leaves_npm() {
         .package_json(&package_json_with_pinned_node_npm("1.2.3", "3.4.5"))
         .pnpm_available_versions(PNPM_VERSION_INFO)
         .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -1197,7 +1198,7 @@ fn pin_pnpm_version_not_found() {
     let s = sandbox()
         .package_json(&package_json_with_pinned_node("1.2.3"))
         .pnpm_available_versions(PNPM_VERSION_INFO)
-        .env("VOLTA_FEATURE_PNPM", "1")
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
