@@ -53,7 +53,7 @@ ctrlc = "3.5.2"
 # `oldtime` feature by default to avoid a breaking change. Additionally, using
 # the feature list explicitly lets us drop the `wasmbind` feature, which we do
 # not need.
-chrono = { version = "0.4.44", default-features = false, features = [
+chrono = { version = "0.4.45", default-features = false, features = [
     "alloc",
     "std",
     "clock",
