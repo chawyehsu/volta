@@ -12,7 +12,7 @@ mod common;
 use common::{ensure_layout, Error};
 
 /// The entry point for the `volta` CLI.
-pub fn main() {
+pub fn main() -> std::process::ExitCode {
     let volta = cli::Volta::parse();
     let verbosity = match (&volta.verbose, &volta.quiet) {
         (false, false) => LogVerbosity::Default,
@@ -38,18 +38,18 @@ pub fn main() {
     match result {
         Ok(exit_code) => {
             session.add_event_end(ActivityKind::Volta, exit_code);
-            session.exit(exit_code);
+            session.exit(exit_code)
         }
         Err(Error::Tool(code)) => {
             session.add_event_tool_end(ActivityKind::Volta, code);
-            session.exit_tool(code);
+            session.exit_tool(code)
         }
         Err(Error::Volta(err)) => {
             report_error(env!("CARGO_PKG_VERSION"), &err);
             session.add_event_error(ActivityKind::Volta, &err);
             let code = err.exit_code();
             session.add_event_end(ActivityKind::Volta, code);
-            session.exit(code);
+            session.exit(code)
         }
     }
 }

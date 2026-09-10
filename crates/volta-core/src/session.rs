@@ -170,14 +170,14 @@ impl Session {
         }
     }
 
-    pub fn exit(self, code: ExitCode) -> ! {
+    pub fn exit(self, code: ExitCode) -> std::process::ExitCode {
         self.publish_to_event_log();
-        code.exit();
+        code.exit()
     }
 
-    pub fn exit_tool(self, code: i32) -> ! {
+    pub fn exit_tool(self, code: i32) -> std::process::ExitCode {
         self.publish_to_event_log();
-        exit(code);
+        exit(code)
     }
 }
 

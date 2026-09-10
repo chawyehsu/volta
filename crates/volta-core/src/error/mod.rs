@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::fmt;
-use std::process::exit;
 
 mod kind;
 mod reporter;
@@ -124,7 +123,10 @@ pub enum ExitCode {
 }
 
 impl ExitCode {
-    pub fn exit(self) -> ! {
-        exit(self as i32);
+    pub fn exit(self) -> std::process::ExitCode {
+        match self {
+            ExitCode::Success => std::process::ExitCode::SUCCESS,
+            _ => std::process::ExitCode::from(self as u8),
+        }
     }
 }
