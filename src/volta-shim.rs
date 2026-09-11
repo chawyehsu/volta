@@ -7,7 +7,7 @@ use volta_core::run::execute_shim;
 use volta_core::session::{ActivityKind, Session};
 use volta_core::signal::setup_signal_handler;
 
-pub fn main() {
+pub fn main() -> std::process::ExitCode {
     Logger::init(LogContext::Shim, LogVerbosity::Default)
         .expect("Only a single Logger should be initialized");
     setup_signal_handler();
@@ -19,17 +19,17 @@ pub fn main() {
     match result {
         Ok(()) => {
             session.add_event_end(ActivityKind::Tool, ExitCode::Success);
-            session.exit(ExitCode::Success);
+            session.exit(ExitCode::Success)
         }
         Err(Error::Tool(code)) => {
             session.add_event_tool_end(ActivityKind::Tool, code);
-            session.exit_tool(code);
+            session.exit_tool(code)
         }
         Err(Error::Volta(err)) => {
             report_error(env!("CARGO_PKG_VERSION"), &err);
             session.add_event_error(ActivityKind::Tool, &err);
             session.add_event_end(ActivityKind::Tool, err.exit_code());
-            session.exit(ExitCode::ExecutionFailure);
+            session.exit(ExitCode::ExecutionFailure)
         }
     }
 }

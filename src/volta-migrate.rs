@@ -3,7 +3,7 @@ use volta_core::layout::volta_home;
 use volta_core::log::{LogContext, LogVerbosity, Logger};
 use volta_migrate::run_migration;
 
-pub fn main() {
+pub fn main() -> std::process::ExitCode {
     Logger::init(LogContext::Migration, LogVerbosity::Default)
         .expect("Only a single Logger should be initialized");
 
@@ -11,7 +11,7 @@ pub fn main() {
     // the Homebrew formula runs volta-migrate with `--no-create` flag in the post-install phase.
     let no_create = matches!(std::env::args_os().nth(1), Some(flag) if flag == "--no-create");
     if no_create && volta_home().map_or(true, |home| !home.root().exists()) {
-        ExitCode::Success.exit();
+        return ExitCode::Success.exit();
     }
 
     let exit_code = match run_migration() {
@@ -22,5 +22,5 @@ pub fn main() {
         }
     };
 
-    exit_code.exit();
+    exit_code.exit()
 }

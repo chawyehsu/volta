@@ -3,7 +3,6 @@
 //! hook configuration, and the state of the local inventory.
 
 use std::fmt::{self, Display, Formatter};
-use std::process::exit;
 
 use crate::error::{ExitCode, Fallible, VoltaError};
 use crate::event::EventLog;
@@ -170,14 +169,20 @@ impl Session {
         }
     }
 
-    pub fn exit(self, code: ExitCode) -> ! {
+    pub fn exit(self, code: ExitCode) -> std::process::ExitCode {
         self.publish_to_event_log();
-        code.exit();
+        code.exit()
     }
 
-    pub fn exit_tool(self, code: i32) -> ! {
+    pub fn exit_tool(self, code: i32) -> std::process::ExitCode {
         self.publish_to_event_log();
-        exit(code);
+        // NOTE: Due to limitations in the Rust standard library, there is
+        // currently no suitable way to convert a massive Windows system error
+        // code (or negative exit code) into a `ExitCode` with `u8` inner code;
+        // for the time being, we are using `ExitCode::FAILURE`.
+        u8::try_from(code)
+            .map(std::process::ExitCode::from)
+            .unwrap_or(std::process::ExitCode::FAILURE)
     }
 }
 
