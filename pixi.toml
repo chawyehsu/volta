@@ -38,8 +38,12 @@ authors = [
 [package.build]
 backend = { name = "pixi-build-rust", version = "*" }
 
-# [package.build.config]
+[package.build.config]
 # env = { RUSTC_WRAPPER = "sccache", SCCACHE_GHA_ENABLED = "true" }
+# The default profile is "release" and it doesn't need to be specified explicitly
+# but we explicitly set it here to provide a way to override it if needed, via
+# regex/sed replacement
+extra-args = ["--profile", "release"]
 
 [dependencies]
 # bsdtar to extract conda artifacts

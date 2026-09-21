@@ -3,16 +3,21 @@ name: Build
 on:
   workflow_call:
     inputs:
-      version:
-        description: "Version/tag to include in packaged artifact names"
+      build_type:
+        description: Build release or nightly artifacts
         required: false
         type: string
+        default: release
   workflow_dispatch:
     inputs:
-      version:
-        description: "Optional version/tag to include in artifact names (e.g. v1.2.3)"
-        required: false
-        type: string
+      build_type:
+        description: Artifact type to build
+        required: true
+        type: choice
+        options:
+          - release
+          - nightly
+        default: release
 
 jobs:
   build:
@@ -20,11 +25,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "linux", os: "ubuntu-latest", suffix: "linux" }
-          - { name: "linux-arm", os: "ubuntu-24.04-arm", suffix: "linux-arm" }
-          - { name: "macos", os: "macos-latest", suffix: "macos" }
-          - { name: "windows", os: "windows-latest", suffix: "windows" }
-    name: Build - ${{ matrix.name }}
+          - { os: ubuntu-latest, platform: linux }
+          - { os: ubuntu-24.04-arm, platform: linux-aarch64 }
+          - { os: macos-26, platform: macos }
+          - { os: windows-2022, platform: windows }
+    name: Build
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -38,14 +43,20 @@ jobs:
       # - name: Setup SCCache
       #   uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
 
+      - name: Override Cargo Profile
+        if: inputs.build_type != 'release'
+        shell: bash
+        run: |
+          sed -i 's/"--profile", "release"/"--profile", "ci"/' pixi.toml
+
       # Linux: build
       - name: Build (Linux)
-        if: matrix.name == 'linux' || matrix.name == 'linux-arm'
-        run: pixi run build --target-platform ${{ matrix.name == 'linux' && 'linux-64' || 'linux-aarch64' }} --output-dir out
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-24.04-arm'
+        run: pixi run build --target-platform ${{ matrix.os == 'ubuntu-latest' && 'linux-64' || 'linux-aarch64' }} --output-dir out
 
       # macOS: build
       - name: Build (macOS)
-        if: matrix.name == 'macos'
+        if: matrix.os == 'macos-26'
         run: |
           mkdir out
           pixi run build --target-platform osx-arm64
@@ -55,7 +66,7 @@ jobs:
 
       # Windows: build
       - name: Build (Windows)
-        if: matrix.name == 'windows' || matrix.name == 'windows-arm'
+        if: matrix.os == 'windows-2022'
         shell: pwsh
         run: |
           # Windows long-path issue workaround:
@@ -67,8 +78,8 @@ jobs:
           pixi run build --target-platform win-arm64
           mv volta-*.conda out/volta-windows-arm.conda
 
-      - name: Inspect glibc requirement (Linux)
-        if: matrix.name == 'linux' || matrix.name == 'linux-arm'
+      - name: Package (Linux)
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-24.04-arm'
         run: |
           cd out
           mv volta*.conda volta.conda
@@ -79,107 +90,95 @@ jobs:
           ls
           ldd -v volta
           objdump -T volta | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
-
-      - name: Package (Linux)
-        if: matrix.name == 'linux' || matrix.name == 'linux-arm'
-        run: |
-          cd out/bin
-          version="${{ inputs.version }}"
-          version="${version#v}"
-          if [ -n "$version" ]; then
-            filename="volta-${version}-${{ matrix.suffix }}.tar.gz"
-          else
-            filename="volta-${{ matrix.suffix }}.tar.gz"
-          fi
-          tar -zcvf "$filename" volta volta-shim volta-migrate
+          filename="volta-${{ matrix.os == 'ubuntu-latest' && 'x86_64-unknown-linux-gnu' || 'aarch64-unknown-linux-gnu' }}.tar.gz"
+          tar -zcvf "$filename" volta*
           mv "$filename" ../
+          cd ${{ github.workspace }}
 
       - name: Package (macOS)
-        if: matrix.name == 'macos'
+        if: matrix.os == 'macos-26'
         run: |
           cd out
           pixi run bsdtar -xf volta-macos-arm.conda
           mv pkg*.tar.zst pkg.tar.zst
           pixi run bsdtar -xf pkg.tar.zst
           rm *.tar.zst
-          mv bin volta-macos-arm
+          cd bin
+          filename="volta-aarch64-apple-darwin.tar.gz"
+          tar -zcvf "$filename" volta*
+          mv "$filename" ../
+          cd ..
           pixi run bsdtar -xf volta-macos-x64.conda
           mv pkg*.tar.zst pkg.tar.zst
           pixi run bsdtar -xf pkg.tar.zst
           rm *.tar.zst
-          mv bin volta-macos-x64
-          mkdir bin
-          for exe in volta volta-shim volta-migrate
-          do
-            lipo -create -output "bin/$exe" "volta-macos-arm/$exe" "volta-macos-x64/$exe"
-          done
           cd bin
-          version="${{ inputs.version }}"
-          version="${version#v}"
-          if [ -n "$version" ]; then
-            filename="volta-${version}-macos.tar.gz"
-          else
-            filename="volta-macos.tar.gz"
-          fi
-          tar -zcvf "$filename" volta volta-shim volta-migrate
+          filename="volta-x86_64-apple-darwin.tar.gz"
+          tar -zcvf "$filename" volta*
           mv "$filename" ../
+          cd ${{ github.workspace }}
 
       - name: Package (Windows)
-        if: matrix.name == 'windows'
+        if: matrix.os == 'windows-2022'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = '${{ inputs.version }}'
-          if ($version.StartsWith('v')) {
-            $version = $version.Substring(1)
-          }
-          if ([string]::IsNullOrEmpty($version)) {
-            $windowsZip = 'volta-windows.zip'
-            $windowsArmZip = 'volta-windows-arm.zip'
-            $windowsMsi = 'volta-windows.msi'
-            $windowsArmMsi = 'volta-windows-arm.msi'
-          }
-          else {
-            $windowsZip = "volta-$version-windows.zip"
-            $windowsArmZip = "volta-$version-windows-arm.zip"
-            $windowsMsi = "volta-$version-windows.msi"
-            $windowsArmMsi = "volta-$version-windows-arm.msi"
-          }
+          $version = (Get-Content Cargo.toml | Select-String '^version\s*=\s*"(.*)"').Matches.Groups[1].Value
           cd out
           pixi run bsdtar -xf volta-windows.conda
           mv pkg*.tar.zst pkg.tar.zst
           pixi run bsdtar -xf pkg.tar.zst
           rm *.tar.zst
-          mv bin volta-windows
+          $filenameZip = "volta-x86_64-pc-windows-msvc.zip"
+          $filenameMsi = "volta-x86_64-pc-windows-msvc.msi"
+          Compress-Archive bin/volta*.exe $filenameZip
+          cd ..
+          candle wix/main.wxs -dVersion="$version" -dCargoTargetBinDir="out/bin" -o out/wix/volta-windows.wixobj
+          light out/wix/volta-windows.wixobj -spdb -ext WixUIExtension -ext WixUtilExtension -o "out/$filenameMsi"
+          cd out
           pixi run bsdtar -xf volta-windows-arm.conda
           mv pkg*.tar.zst pkg.tar.zst
           pixi run bsdtar -xf pkg.tar.zst
           rm *.tar.zst
-          mv bin volta-windows-arm
-          cd volta-windows
-          Compress-Archive volta*.exe "../$windowsZip"
-          cd ../volta-windows-arm
-          Compress-Archive volta*.exe "../$windowsArmZip"
-          cd ../..
-          $version = (Get-Content Cargo.toml | Select-String '^version\s*=\s*"(.*)"').Matches.Groups[1].Value
-          candle wix/main.wxs -dVersion="$version" -dCargoTargetBinDir="out/volta-windows" -o out/wix/volta-windows.wixobj
-          light out/wix/volta-windows.wixobj -spdb -ext WixUIExtension -ext WixUtilExtension -o "out/$windowsMsi"
-          candle wix/main.wxs -dVersion="$version" -dCargoTargetBinDir="out/volta-windows-arm" -o out/wix/volta-windows-arm.wixobj
-          light out/wix/volta-windows-arm.wixobj -spdb -ext WixUIExtension -ext WixUtilExtension -o "out/$windowsArmMsi"
+          $filenameZip = "volta-aarch64-pc-windows-msvc.zip"
+          $filenameMsi = "volta-aarch64-pc-windows-msvc.msi"
+          Compress-Archive bin/volta*.exe $filenameZip
+          cd ..
+          candle wix/main.wxs -dVersion="$version" -dCargoTargetBinDir="out/bin" -o out/wix/volta-windows-arm.wixobj
+          light out/wix/volta-windows-arm.wixobj -spdb -ext WixUIExtension -ext WixUtilExtension -o "out/$filenameMsi"
+          cd ${{ github.workspace }}
+
+      - name: Generate release checksums (Unix)
+        run: |
+          cd out
+          for archive in volta-*.tar.gz; do sha256sum "$archive" > "$archive.sha256"; done
+
+      - name: Create release checksums (Windows)
+        if: matrix.os == 'windows-2022'
+        shell: pwsh
+        run: |
+          Get-ChildItem out/volta-*.zip,out/volta-*.msi | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)" | Set-Content "$($_.FullName).sha256"
+          }
 
       # Upload artifacts
       - name: Upload (Unix)
-        if: matrix.name == 'linux' || matrix.name == 'linux-arm' || matrix.name == 'macos'
+        if: matrix.os != 'windows-2022'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ matrix.name }}
-          path: out/volta*${{ matrix.suffix }}.tar.gz
+          name: ${{ matrix.platform }}
+          path: |
+            out/volta-*.tar.gz
+            out/volta-*.tar.gz.sha256
 
       - name: Upload (Windows)
-        if: matrix.name == 'windows'
+        if: matrix.os == 'windows-2022'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ matrix.name }}
+          name: ${{ matrix.platform }}
           path: |
-            out/volta*windows*.msi
-            out/volta*windows*.zip
+            out/volta-*.zip
+            out/volta-*.zip.sha256
+            out/volta-*.msi
+            out/volta-*.msi.sha256
