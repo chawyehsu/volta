@@ -162,6 +162,55 @@ fn list_package() {
     );
 }
 
+const PACKAGE_CONFIG_COWSAY: &str = r#"{
+  "name": "cowsay",
+  "version": "1.4.0",
+  "platform": {
+    "node": "10.99.1040",
+    "npm": "6.2.26",
+    "yarn": null
+  },
+  "bins": ["cowsay"],
+  "manager": "Npm"
+}"#;
+
+#[test]
+fn list_package_by_name() {
+    let s = sandbox()
+        .platform(&platform_with_node_npm("10.99.1040", "6.2.26"))
+        .package_config("cowsay", PACKAGE_CONFIG_COWSAY)
+        .build();
+
+    assert_that!(
+        s.volta("list --format plain cowsay"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains(
+                "package cowsay@1.4.0 / cowsay / node@10.99.1040 npm@built-in (default)"
+            )
+    );
+}
+
+#[test]
+fn list_tool_by_binary_name() {
+    let s = sandbox()
+        .platform(&platform_with_node_npm("10.99.1040", "6.2.26"))
+        .package_config(
+            "cowsay",
+            &PACKAGE_CONFIG_COWSAY.replace("[\"cowsay\"]", "[\"cow\"]"),
+        )
+        .build();
+
+    assert_that!(
+        s.volta("list --format plain cow"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains(
+                "tool cow / cowsay@1.4.0 / node@10.99.1040 npm@built-in (default)"
+            )
+    );
+}
+
 #[test]
 fn list_default_filter() {
     let s = sandbox()
