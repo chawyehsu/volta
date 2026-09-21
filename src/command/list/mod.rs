@@ -271,12 +271,11 @@ impl Command for List {
             Format::Plain => plain::format,
         };
 
-        let filter = match (self.current, self.default) {
-            (true, false) => Filter::Current,
-            (false, true) => Filter::Default,
-            (true, true) => unreachable!("simultaneous `current` and `default` forbidden by clap"),
-            _ => Filter::None,
-        };
+        let filter = self
+            .current
+            .then_some(Filter::Current)
+            .or(self.default.then_some(Filter::Default))
+            .unwrap_or(Filter::None);
 
         let toolchain = match self.subcommand {
             // For no subcommand, show the user's current toolchain
