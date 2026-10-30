@@ -4,61 +4,61 @@ version = "0.1.0"
 authors = ["David Herman <david.herman@gmail.com>"]
 edition = "2021"
 
+[dependencies]
+cfg-if.workspace = true
+chain-map.workspace = true
+chrono.workspace = true
+ci_info.workspace = true
+cmdline_words_parser.workspace = true
+console.workspace = true
+ctrlc.workspace = true
+detect-indent.workspace = true
+dirs.workspace = true
+dunce.workspace = true
+envoy.workspace = true
+flate2.workspace = true
+fs2.workspace = true
+headers.workspace = true
+httpdate.workspace = true
+indexmap.workspace = true
+indicatif.workspace = true
+log.workspace = true
+mockito = { workspace = true, optional = true }
+node-semver.workspace = true
+once_cell.workspace = true
+os_info.workspace = true
+percent-encoding.workspace = true
+readext.workspace = true
+regex.workspace = true
+retry.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }
+tar.workspace = true
+tee.workspace = true
+tempfile.workspace = true
+terminal_size.workspace = true
+textwrap.workspace = true
+thiserror.workspace = true
+volta-layout.workspace = true
+walkdir.workspace = true
+which.workspace = true
+
+[target.'cfg(all(windows, target_arch = "aarch64"))'.dependencies]
+attohttpc = { workspace = true, features = ["tls-rustls-native-roots-ring"] }
+
+[target.'cfg(not(all(windows, target_arch = "aarch64")))'.dependencies]
+attohttpc = { workspace = true, features = ["tls-rustls-native-roots"] }
+
+[target."cfg(windows)".dependencies]
+junction.workspace = true
+verbatim.workspace = true
+winreg.workspace = true
+zip_rs.workspace = true
+
 [features]
-mock-network = ["mockito"]
 # The `cross-platform-docs` feature flag is used for generating API docs for
 # multiple platforms in one build.
 # See ci/publish-docs.yml for an example of how it's enabled.
 # See volta-core::path for an example of where it's used.
 cross-platform-docs = []
-
-[dependencies]
-terminal_size.workspace = true
-indicatif.workspace = true
-console.workspace = true
-readext.workspace = true
-serde_json = { workspace = true, features = ["preserve_order"] }
-serde.workspace = true
-flate2.workspace = true
-tar.workspace = true
-tee.workspace = true
-thiserror.workspace = true
-node-semver.workspace = true
-cmdline_words_parser.workspace = true
-cfg-if.workspace = true
-tempfile.workspace = true
-os_info.workspace = true
-detect-indent.workspace = true
-envoy.workspace = true
-mockito = { workspace = true, optional = true }
-regex.workspace = true
-dirs.workspace = true
-chrono.workspace = true
-percent-encoding.workspace = true
-textwrap.workspace = true
-log.workspace = true
-ctrlc.workspace = true
-walkdir.workspace = true
-volta-layout.workspace = true
-once_cell.workspace = true
-dunce.workspace = true
-ci_info.workspace = true
-httpdate.workspace = true
-headers.workspace = true
-chain-map.workspace = true
-indexmap.workspace = true
-retry.workspace = true
-fs2.workspace = true
-which.workspace = true
-
-[target.'cfg(windows)'.dependencies]
-winreg.workspace = true
-junction.workspace = true
-zip_rs.workspace = true
-verbatim.workspace = true
-
-[target.'cfg(not(all(windows, target_arch = "aarch64")))'.dependencies]
-attohttpc = { workspace = true, features = ["tls-rustls-native-roots"] }
-
-[target.'cfg(all(windows, target_arch = "aarch64"))'.dependencies]
-attohttpc = { workspace = true, features = ["tls-rustls-native-roots-ring"] }
+mock-network = ["mockito"]

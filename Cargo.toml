@@ -3,66 +3,34 @@ name = "volta"
 description = "The Hassle-Free JavaScript Tool Manager"
 version = "2.0.3"
 authors = [
-    "Chawye Hsu <su+git@chawyehsu.com>",
-    "David Herman <david.herman@gmail.com>",
-    "Charles Pierce <cpierce.grad@gmail.com>",
+  "Chawye Hsu <su+git@chawyehsu.com>",
+  "David Herman <david.herman@gmail.com>",
+  "Charles Pierce <cpierce.grad@gmail.com>",
 ]
 license = "BSD-2-Clause"
 categories = ["development-tools"]
 repository = "https://github.com/chawyehsu/volta"
 edition = "2021"
 
-[features]
-cross-platform-docs = ["volta-core/cross-platform-docs"]
-mock-network = ["mockito", "volta-core/mock-network"]
-smoke-tests = []
-
-[[bin]]
-name = "volta-shim"
-path = "src/volta-shim.rs"
-
-[[bin]]
-name = "volta-migrate"
-path = "src/volta-migrate.rs"
-
-[profile.release]
-lto = "fat"
-panic = "abort"
-strip = "symbols"
-codegen-units = 1
-
 [workspace]
 members = ["crates/*"]
 
 [workspace.dependencies]
-# path crates
-test-support = { path = "crates/test-support" }
-volta-core = { path = "crates/volta-core" }
-volta-layout = { path = "crates/volta-layout" }
-volta-layout-macro = { path = "crates/volta-layout-macro" }
-volta-migrate = { path = "crates/volta-migrate" }
 # external deps
-attohttpc = { version = "0.31.0", default-features = false, features = [
-    "json",
-    "compress",
-] }
+attohttpc = { version = "0.31.0", default-features = false, features = ["compress", "json"] }
 cfg-if = "1.0"
 chain-map = "0.1.0"
-ctrlc = "3.5.2"
 # We manually configure the feature list here because 0.4.16 includes the
 # `oldtime` feature by default to avoid a breaking change. Additionally, using
 # the feature list explicitly lets us drop the `wasmbind` feature, which we do
 # not need.
-chrono = { version = "0.4.44", default-features = false, features = [
-    "alloc",
-    "std",
-    "clock",
-] }
+chrono = { version = "0.4.44", default-features = false, features = ["alloc", "clock", "std"] }
 ci_info = "0.14.15"
 clap = { version = "4.6.1", features = ["color", "derive", "wrap_help"] }
 clap_complete = "4.6.5"
 cmdline_words_parser = "0.2.1"
 console = ">=0.11.3, <1.0.0"
+ctrlc = "3.5.2"
 detect-indent = "0.1"
 dirs = "6.0.0"
 dunce = "1.0.5"
@@ -93,9 +61,15 @@ tar = "0.4.46"
 tee = "0.1.0"
 tempfile = "3.27.0"
 terminal_size = "0.4.4"
+# path crates
+test-support = { path = "crates/test-support" }
 textwrap = "0.16.2"
 thiserror = "2.0.18"
 verbatim = "0.1"
+volta-core = { path = "crates/volta-core" }
+volta-layout = { path = "crates/volta-layout" }
+volta-layout-macro = { path = "crates/volta-layout-macro" }
+volta-migrate = { path = "crates/volta-migrate" }
 walkdir = "2.5.0"
 which = "8.0.2"
 winreg = "0.56.0"
@@ -103,33 +77,49 @@ winreg = "0.56.0"
 # set of capabilities, and it has a vulnerability. We also don't need to use
 # every single compression algorithm feature since we are only downloading
 # Node as a zip file
-zip_rs = { version = "=2.4.2", package = "zip", default-features = false, features = [
-    "deflate",
-    "bzip2",
-] }
+zip_rs = { package = "zip", version = "=2.4.2", default-features = false, features = ["bzip2", "deflate"] }
+
+[[bin]]
+name = "volta-shim"
+path = "src/volta-shim.rs"
+
+[[bin]]
+name = "volta-migrate"
+path = "src/volta-migrate.rs"
 
 [dependencies]
-volta-core.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-once_cell.workspace = true
-log.workspace = true
-node-semver.workspace = true
 clap.workspace = true
 clap_complete.workspace = true
-mockito = { workspace = true, optional = true }
-textwrap.workspace = true
-which.workspace = true
 dirs.workspace = true
+log.workspace = true
+mockito = { workspace = true, optional = true }
+node-semver.workspace = true
+once_cell.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+textwrap.workspace = true
+volta-core.workspace = true
 volta-migrate.workspace = true
-
-[target.'cfg(windows)'.dependencies]
-winreg.workspace = true
+which.workspace = true
 
 [dev-dependencies]
-hamcrest2.workspace = true
-envoy.workspace = true
-ci_info.workspace = true
-headers.workspace = true
 cfg-if.workspace = true
+ci_info.workspace = true
+envoy.workspace = true
+hamcrest2.workspace = true
+headers.workspace = true
 test-support.workspace = true
+
+[target."cfg(windows)".dependencies]
+winreg.workspace = true
+
+[features]
+cross-platform-docs = ["volta-core/cross-platform-docs"]
+mock-network = ["mockito", "volta-core/mock-network"]
+smoke-tests = []
+
+[profile.release]
+strip = "symbols"
+lto = "fat"
+panic = "abort"
+codegen-units = 1
