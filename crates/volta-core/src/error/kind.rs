@@ -427,6 +427,11 @@ pub enum ErrorKind {
     /// Thrown when the shim binary is called directly, not through a symlink
     RunShimDirectly,
 
+    /// Thrown when there was an error during the self-update process
+    SelfUpdateError {
+        reason: String,
+    },
+
     /// Thrown when there was an error setting a tool to executable
     SetToolExecutable {
         tool: String,
@@ -1285,6 +1290,11 @@ Please verify your internet connection.",
 
 Please use the existing shims provided by Volta (node, yarn, etc.) to run tools."
             ),
+            ErrorKind::SelfUpdateError { reason } => write!(
+                f,
+                "Failed to update volta: {}",
+                reason
+            ),
             ErrorKind::SetToolExecutable { tool } => write!(
                 f,
                 r#"Could not set "{}" to executable
@@ -1573,6 +1583,7 @@ impl ErrorKind {
             ErrorKind::ReadUserPathError => ExitCode::EnvironmentError,
             ErrorKind::RegistryFetchError { .. } => ExitCode::NetworkError,
             ErrorKind::RunShimDirectly => ExitCode::InvalidArguments,
+            ErrorKind::SelfUpdateError { .. } => ExitCode::UnknownError,
             ErrorKind::SetupToolImageError { .. } => ExitCode::FileSystemError,
             ErrorKind::SetToolExecutable { .. } => ExitCode::FileSystemError,
             ErrorKind::ShimCreateError { .. } => ExitCode::FileSystemError,

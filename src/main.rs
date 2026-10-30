@@ -9,6 +9,7 @@ use volta_core::log::{LogContext, LogVerbosity, Logger};
 use volta_core::session::{ActivityKind, Session};
 
 mod common;
+mod utils;
 use common::{Error, ensure_layout};
 
 /// The entry point for the `volta` CLI.

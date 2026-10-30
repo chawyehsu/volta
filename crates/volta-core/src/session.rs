@@ -37,6 +37,7 @@ pub enum ActivityKind {
     Setup,
     Run,
     Args,
+    SelfUpdate,
 }
 
 impl Display for ActivityKind {
@@ -65,6 +66,7 @@ impl Display for ActivityKind {
             ActivityKind::Which => "which",
             ActivityKind::Run => "run",
             ActivityKind::Args => "args",
+            ActivityKind::SelfUpdate => "self-update",
         };
         f.write_str(s)
     }

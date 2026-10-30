@@ -1,0 +1,417 @@
+use crate::command::Command;
+use clap::Args;
+use self_update::{Release, ReleaseAsset};
+use sha2::{Digest, Sha256};
+use std::{
+    env,
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+};
+use volta_core::{
+    error::{ErrorKind, ExitCode, Fallible},
+    session::{ActivityKind, Session},
+};
+
+#[derive(Args)]
+pub(crate) struct SelfUpdate {}
+
+fn fail(message: impl Into<String>) -> volta_core::error::VoltaError {
+    ErrorKind::SelfUpdateError {
+        reason: message.into(),
+    }
+    .into()
+}
+
+fn sha256_file(path: &std::path::Path) -> Fallible<String> {
+    let mut file = File::open(path).map_err(|e| fail(e.to_string()))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0; 8192];
+    loop {
+        let read = file.read(&mut buffer).map_err(|e| fail(e.to_string()))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(hex::encode(hasher.finalize()))
+}
+
+fn parse_checksum(contents: &str) -> Fallible<&str> {
+    contents
+        .split_whitespace()
+        .next()
+        .ok_or_else(|| fail("malformed checksum"))
+}
+
+/// Selects the archive and checksum assets from a GitHub release based on their names.
+fn select_assets<'a>(
+    release: &'a Release,
+    archive_name: &str,
+    checksum_name: &str,
+) -> Fallible<(&'a ReleaseAsset, &'a ReleaseAsset)> {
+    let archive = release
+        .assets()
+        .iter()
+        .find(|asset| asset.name() == archive_name)
+        .ok_or_else(|| fail(format!("release is missing {archive_name}")))?;
+    let checksum = release
+        .assets()
+        .iter()
+        .find(|asset| asset.name() == checksum_name)
+        .ok_or_else(|| fail(format!("release is missing {checksum_name}")))?;
+    Ok((archive, checksum))
+}
+
+fn extract_archive(archive_path: &Path, format: &str, destination: &Path) -> Fallible<()> {
+    let archive_kind = if format == "zip" {
+        self_update::ArchiveKind::Zip
+    } else {
+        self_update::ArchiveKind::Tar(Some(self_update::Compression::Gz))
+    };
+    self_update::Extract::from_source(archive_path)
+        .archive(archive_kind)
+        .extract_into(destination)
+        .map_err(|e| fail(e.to_string()))
+}
+
+/// Fetches the latest release from GitHub for the current repository.
+///
+/// If an API base URL is provided, it will be used instead of the default GitHub API URL.
+/// Custom API base URLs are useful for local testing.
+fn fetch_latest_release(api_base_url: Option<&str>) -> Fallible<Release> {
+    let mut builder = self_update::backends::github::Update::configure();
+    builder
+        .repo_owner("chawyehsu")
+        .repo_name("volta")
+        .bin_name(env!("CARGO_PKG_NAME"))
+        .current_version(env!("CARGO_PKG_VERSION"));
+    if let Some(url) = api_base_url {
+        builder.api_base_url(url);
+    }
+    builder
+        .build()
+        .map_err(|e| fail(e.to_string()))?
+        .get_latest_release()
+        .map_err(|e| fail(e.to_string()))?
+        .latest()
+        .cloned()
+        .ok_or_else(|| fail("GitHub returned no releases"))
+}
+
+#[derive(Debug)]
+struct StagedBinaries {
+    main: PathBuf,
+    shim: Option<PathBuf>,
+    migrate: Option<PathBuf>,
+}
+
+fn staged_path(dir: &Path, name: &str) -> PathBuf {
+    #[cfg(windows)]
+    {
+        dir.join(format!("{name}.exe"))
+    }
+    #[cfg(not(windows))]
+    {
+        dir.join(name)
+    }
+}
+
+fn validate_staged_binaries(dir: &Path) -> Fallible<StagedBinaries> {
+    let main = staged_path(dir, "volta");
+    if !main.is_file() {
+        return Err(fail("archive is missing volta"));
+    }
+
+    let optional = |name: &str| {
+        let path = staged_path(dir, name);
+        if path.exists() && !path.is_file() {
+            return Err(fail(format!("archive entry {name} is not a file")));
+        }
+        Ok(path.exists().then_some(path))
+    };
+
+    Ok(StagedBinaries {
+        main,
+        shim: optional("volta-shim")?,
+        migrate: optional("volta-migrate")?,
+    })
+}
+
+fn install_staged(staged: StagedBinaries, install: &Path) -> Fallible<()> {
+    let binaries = [
+        ("volta", Some(staged.main)),
+        ("volta-shim", staged.shim),
+        ("volta-migrate", staged.migrate),
+    ];
+
+    for (name, source) in binaries {
+        let destination = install.join(name);
+        match source {
+            Some(source) => crate::utils::replace_exe(&source, &destination)?,
+            None => crate::utils::remove_or_retire(&destination)?,
+        }
+    }
+    Ok(())
+}
+
+fn target() -> Option<(&'static str, &'static str)> {
+    Some(match (env::consts::ARCH, env::consts::OS) {
+        ("x86_64", "linux") => ("x86_64-unknown-linux-gnu", "tar.gz"),
+        ("aarch64", "linux") => ("aarch64-unknown-linux-gnu", "tar.gz"),
+        ("x86_64", "macos") => ("x86_64-apple-darwin", "tar.gz"),
+        ("aarch64", "macos") => ("aarch64-apple-darwin", "tar.gz"),
+        ("x86_64", "windows") => ("x86_64-pc-windows-msvc", "zip"),
+        ("aarch64", "windows") => ("aarch64-pc-windows-msvc", "zip"),
+        _ => return None,
+    })
+}
+
+impl Command for SelfUpdate {
+    fn run(self, session: &mut Session) -> Fallible<ExitCode> {
+        session.add_event_start(ActivityKind::SelfUpdate);
+        let result = update();
+        match result {
+            Ok(()) => {
+                session.add_event_end(ActivityKind::SelfUpdate, ExitCode::Success);
+                Ok(ExitCode::Success)
+            }
+            Err(e) => {
+                session.add_event_error(ActivityKind::SelfUpdate, &e);
+                Err(e)
+            }
+        }
+    }
+}
+
+fn api_base_url() -> Option<String> {
+    #[cfg(feature = "mock-network")]
+    if let Some(url) = env::var("VOLTA_MOCK_SERVER_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
+        return Some(url);
+    }
+
+    None
+}
+
+fn update() -> Fallible<()> {
+    let (triplet, format) = target().ok_or_else(|| fail("unsupported target"))?;
+    let current_version = env!("CARGO_PKG_VERSION");
+    let release = fetch_latest_release(api_base_url().as_deref())?;
+    let is_greater = self_update::version::bump_is_greater(current_version, release.version())
+        .ok()
+        .unwrap_or(false);
+    if !is_greater && env::var_os("VOLTA_TEST_FORCE_SELFUPDATE").is_none() {
+        println!("volta is already up-to-date");
+        return Ok(());
+    }
+
+    println!(
+        "Updating volta: {} -> {}",
+        current_version,
+        release.version()
+    );
+
+    let archive_name = format!("volta-{triplet}.{format}");
+    let checksum_name = format!("{archive_name}.sha256");
+    let (archive_asset, checksum_asset) = select_assets(&release, &archive_name, &checksum_name)?;
+    let temp = tempfile::tempdir().map_err(|e| fail(e.to_string()))?;
+    let archive_path = temp.path().join(&archive_name);
+    let mut archive_file = File::create(&archive_path).map_err(|e| fail(e.to_string()))?;
+    self_update::Download::from_url(archive_asset.download_url())
+        .request_header(
+            self_update::http::header::ACCEPT,
+            "application/octet-stream",
+        )
+        .download_to(&mut archive_file)
+        .map_err(|e| fail(e.to_string()))?;
+
+    let mut checksum_file = Vec::new();
+    self_update::Download::from_url(checksum_asset.download_url())
+        .request_header(
+            self_update::http::header::ACCEPT,
+            "application/octet-stream",
+        )
+        .download_to(&mut checksum_file)
+        .map_err(|e| fail(e.to_string()))?;
+    let checksum = String::from_utf8(checksum_file).map_err(|e| fail(e.to_string()))?;
+    let expected = parse_checksum(&checksum)?;
+    let actual = sha256_file(&archive_path)?;
+    if !actual.eq_ignore_ascii_case(expected) {
+        return Err(fail("checksum mismatch"));
+    }
+
+    let extracted = temp.path().join("extracted");
+    std::fs::create_dir(&extracted).map_err(|e| fail(e.to_string()))?;
+    extract_archive(&archive_path, format, &extracted)?;
+    let install = env::current_exe()
+        .map_err(|e| fail(e.to_string()))?
+        .parent()
+        .ok_or_else(|| fail("cannot determine install directory"))?
+        .to_owned();
+
+    let staged = validate_staged_binaries(&extracted)?;
+    install_staged(staged, &install)
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "mock-network")]
+    use super::fetch_latest_release;
+    use super::{
+        extract_archive, install_staged, parse_checksum, select_assets, validate_staged_binaries,
+    };
+    use self_update::{Release, ReleaseAsset};
+    use std::fs;
+    use tempfile::TempDir;
+
+    const DIGEST: &str = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+    #[test]
+    fn parses_coreutils_checksum() {
+        assert_eq!(
+            parse_checksum(&format!("{DIGEST}  volta.tar.gz\n")).unwrap(),
+            DIGEST
+        );
+    }
+
+    #[test]
+    fn rejects_empty_checksum() {
+        assert!(parse_checksum("\n").is_err());
+    }
+
+    #[test]
+    fn validates_required_and_optional_staged_binaries() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("volta"), b"main").unwrap();
+        fs::write(dir.path().join("volta-shim"), b"shim").unwrap();
+
+        let staged = validate_staged_binaries(dir.path()).unwrap();
+        assert!(staged.main.is_file());
+        assert!(staged.shim.is_some());
+        assert!(staged.migrate.is_none());
+    }
+
+    #[test]
+    fn rejects_staging_without_main_binary() {
+        let dir = TempDir::new().unwrap();
+        assert!(validate_staged_binaries(dir.path()).is_err());
+    }
+
+    #[test]
+    fn installs_staged_binaries_and_removes_stale_optional_files() {
+        let staged_dir = TempDir::new().unwrap();
+        let install_dir = TempDir::new().unwrap();
+        fs::write(staged_dir.path().join("volta"), b"new main").unwrap();
+        fs::write(staged_dir.path().join("volta-shim"), b"new shim").unwrap();
+        fs::write(install_dir.path().join("volta-migrate"), b"stale").unwrap();
+
+        let staged = validate_staged_binaries(staged_dir.path()).unwrap();
+        install_staged(staged, install_dir.path()).unwrap();
+
+        assert_eq!(
+            fs::read(install_dir.path().join("volta")).unwrap(),
+            b"new main"
+        );
+        assert_eq!(
+            fs::read(install_dir.path().join("volta-shim")).unwrap(),
+            b"new shim"
+        );
+        assert!(!install_dir.path().join("volta-migrate").exists());
+    }
+
+    #[test]
+    fn selects_only_the_conventional_archive_and_checksum_assets() {
+        let release = Release::builder()
+            .version("2.0.4")
+            .assets(vec![
+                ReleaseAsset::new("notes.txt", "https://example.invalid/notes"),
+                ReleaseAsset::new(
+                    "volta-x86_64-apple-darwin.tar.gz",
+                    "https://example.invalid/archive",
+                ),
+                ReleaseAsset::new(
+                    "volta-x86_64-apple-darwin.tar.gz.sha256",
+                    "https://example.invalid/checksum",
+                ),
+            ])
+            .build()
+            .unwrap();
+
+        let (archive, checksum) = select_assets(
+            &release,
+            "volta-x86_64-apple-darwin.tar.gz",
+            "volta-x86_64-apple-darwin.tar.gz.sha256",
+        )
+        .unwrap();
+        assert_eq!(archive.download_url(), "https://example.invalid/archive");
+        assert_eq!(checksum.download_url(), "https://example.invalid/checksum");
+    }
+
+    #[test]
+    fn rejects_release_without_checksum_asset() {
+        let release = Release::builder()
+            .version("2.0.4")
+            .assets(vec![ReleaseAsset::new(
+                "volta.tar.gz",
+                "https://example.invalid/archive",
+            )])
+            .build()
+            .unwrap();
+        assert!(select_assets(&release, "volta.tar.gz", "volta.tar.gz.sha256").is_err());
+    }
+
+    #[test]
+    fn extracts_tar_gz_into_staging_directory() {
+        let temp = TempDir::new().unwrap();
+        let archive_path = temp.path().join("volta.tar.gz");
+        let output = temp.path().join("extracted");
+        fs::create_dir(&output).unwrap();
+
+        let archive = fs::File::create(&archive_path).unwrap();
+        let encoder = flate2::write::GzEncoder::new(archive, flate2::Compression::default());
+        let mut builder = tar::Builder::new(encoder);
+        let content = b"binary";
+        let mut header = tar::Header::new_gnu();
+        header.set_path("volta").unwrap();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o755);
+        header.set_cksum();
+        builder.append(&header, &content[..]).unwrap();
+        builder.into_inner().unwrap().finish().unwrap();
+
+        extract_archive(&archive_path, "tar.gz", &output).unwrap();
+        assert_eq!(fs::read(output.join("volta")).unwrap(), content);
+    }
+
+    #[cfg(feature = "mock-network")]
+    #[test]
+    fn fetches_latest_release_from_a_local_github_api() {
+        let mut server = mockito::Server::new();
+        let body = r#"{
+            "tag_name": "v2.0.4",
+            "name": "Volta 2.0.4",
+            "created_at": "2026-01-01T00:00:00Z",
+            "published_at": "2026-01-01T00:00:00Z",
+            "html_url": "https://example.invalid/releases/v2.0.4",
+            "assets": [
+                {"name": "volta-x86_64-apple-darwin.tar.gz", "url": "https://example.invalid/api/archive", "browser_download_url": "PLACEHOLDER", "digest": "sha256:abc", "created_at": "2026-01-01T00:00:00Z"},
+                {"name": "volta-x86_64-apple-darwin.tar.gz.sha256", "url": "https://example.invalid/api/checksum", "browser_download_url": "PLACEHOLDER", "created_at": "2026-01-01T00:00:00Z"}
+            ]
+        }"#;
+        let mock = server
+            .mock("GET", "/repos/chawyehsu/volta/releases/latest")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(body)
+            .create();
+
+        let release = fetch_latest_release(Some(&server.url())).unwrap();
+        mock.assert();
+        assert_eq!(release.version(), "2.0.4");
+        assert_eq!(release.assets().len(), 2);
+        assert_eq!(release.assets()[0].digest(), Some("sha256:abc"));
+    }
+}
