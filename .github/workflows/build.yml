@@ -50,7 +50,7 @@ jobs:
         if: inputs.build_type != 'release'
         shell: bash
         run: |
-          sed -i 's/"--profile", "release"/"--profile", "ci"/' pixi.toml
+          sed -i.bak 's/"--profile", "release"/"--profile", "ci"/' pixi.toml && rm pixi.toml.bak
 
       # Linux: build
       - name: Build (Linux)
@@ -152,6 +152,7 @@ jobs:
           cd ${{ github.workspace }}
 
       - name: Generate release checksums (Unix)
+        if: matrix.os != 'windows-2022'
         run: |
           cd out
           for archive in volta-*.tar.gz; do sha256sum "$archive" > "$archive.sha256"; done

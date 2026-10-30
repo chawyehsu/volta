@@ -84,7 +84,7 @@ jobs:
         run: cargo test --test smoke --features smoke-tests -- --test-threads 1
 
   ci_nightly_build:
-    needs: smoke_tests
+    needs: tests
     name: Build Nightly
     if: github.event_name != 'pull_request'
     uses: ./.github/workflows/build.yml
