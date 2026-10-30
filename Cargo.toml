@@ -119,7 +119,22 @@ mock-network = ["mockito", "volta-core/mock-network"]
 smoke-tests = []
 
 [profile.release]
-strip = "symbols"
+opt-level = 3
+debug = "line-tables-only"
+split-debuginfo = "packed"
+strip = "debuginfo"
 lto = "fat"
 panic = "abort"
 codegen-units = 1
+
+[profile.ci]
+inherits = "release"
+debug = false
+strip = "none"
+lto = false
+codegen-units = 16
+
+[profile.release-debug]
+inherits = "release"
+debug = true
+strip = "none"
