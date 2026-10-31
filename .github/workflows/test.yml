@@ -27,10 +27,10 @@ jobs:
       RUSTC_WRAPPER: sccache
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup SCCache
-        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Run check
         run: cargo fmt --all --quiet -- --check
@@ -51,10 +51,10 @@ jobs:
       RUSTC_WRAPPER: sccache
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup SCCache
-        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Run tests
         run: cargo test --all --features mock-network
@@ -67,6 +67,8 @@ jobs:
 
   smoke_tests:
     needs: tests
+    # skip if it's a pull request and the commit message contains 'build(deps)', typically for dependabot
+    if: "!(github.event_name == 'pull_request' && contains(github.event.head_commit.message, 'build(deps)'))"
     name: Smoke Tests
     runs-on: ubuntu-latest
     env:
@@ -75,10 +77,10 @@ jobs:
       RUSTC_WRAPPER: sccache
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup SCCache
-        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Run tests
         run: cargo test --test smoke --features smoke-tests -- --test-threads 1
@@ -100,7 +102,7 @@ jobs:
         run: sudo npm install -g bats
 
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run tests
         run: bats dev/unix/tests/
@@ -111,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Run check
         run: |
           cd dev/unix

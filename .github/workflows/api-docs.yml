@@ -10,14 +10,10 @@ jobs:
     name: Build and publish
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Set up cargo
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-      - name: Cargo Cache
-        uses: Swatinem/rust-cache@v2
       - name: Build docs
         run: |
           cargo doc --all --features cross-platform-docs --no-deps --document-private-items
@@ -27,11 +23,9 @@ jobs:
           mv target/doc publish/main
           echo '<!doctype html><a href="volta">volta</a>' > publish/main/index.html
           echo '<!doctype html><a href="main">main</a>' > publish/index.html
-      - name: Publish docs to GitHub pages
-        uses: JamesIves/github-pages-deploy-action@releases/v3
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@1ef5a1b1df4c63fe21a2242edbee6cac921ece01 # v4.1.0
         with:
-          COMMIT_MESSAGE: Publishing GitHub Pages
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: gh-pages
-          FOLDER: publish
-          SINGLE_COMMIT: true
+          publish_branch: gh-pages
+          publish_dir: publish
+          keep_files: true
