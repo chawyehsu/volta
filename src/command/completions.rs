@@ -41,8 +41,8 @@ impl Command for Completions {
 
                 // The user may have passed a path that does not yet exist. If
                 // so, we create it, informing the user we have done so.
-                if let Some(parent) = path.parent() {
-                    if !parent.is_dir() {
+                if let Some(parent) = path.parent()
+                    && !parent.is_dir() {
                         info!(
                             "{} {} does not exist, creating it",
                             note_prefix(),
@@ -54,7 +54,6 @@ impl Command for Completions {
                             }
                         })?;
                     }
-                }
 
                 let mut file = &std::fs::File::create(&path).with_context(|| {
                     ErrorKind::CompletionsOutFileError {
