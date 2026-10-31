@@ -10,7 +10,7 @@ authors = [
 license = "BSD-2-Clause"
 categories = ["development-tools"]
 repository = "https://github.com/chawyehsu/volta"
-edition = "2021"
+edition = "2024"
 
 [workspace]
 members = ["crates/*"]

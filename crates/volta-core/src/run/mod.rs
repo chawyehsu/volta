@@ -58,7 +58,7 @@ where
 {
     // Remove the recursion environment variable so that the context is correctly re-evaluated
     // when calling `volta run` (even when called from a Node script)
-    env::remove_var(RECURSION_ENV_VAR);
+    unsafe { env::remove_var(RECURSION_ENV_VAR) };
 
     let mut runner = get_executor(exe, args, session)?;
     runner.cli_platform(cli);

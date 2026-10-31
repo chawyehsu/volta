@@ -1,8 +1,7 @@
 [package]
 name = "volta-layout"
 version = "0.1.1"
-authors = ["Chuck Pierce <cpierce.grad@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 volta-layout-macro.workspace = true

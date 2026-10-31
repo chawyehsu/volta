@@ -1,13 +1,12 @@
 [package]
 name = "volta-layout-macro"
 version = "0.1.0"
-authors = ["David Herman <david.herman@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 [lib]
 proc-macro = true
 
 [dependencies]
-syn.workspace = true
-quote.workspace = true
 proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true

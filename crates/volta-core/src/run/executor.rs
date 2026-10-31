@@ -15,8 +15,8 @@ use crate::session::Session;
 use crate::signal::pass_control_to_shim;
 use crate::style::{note_prefix, tool_version};
 use crate::sync::VoltaLock;
-use crate::tool::package::{DirectInstall, InPlaceUpgrade, PackageConfig, PackageManager};
 use crate::tool::Spec;
+use crate::tool::package::{DirectInstall, InPlaceUpgrade, PackageConfig, PackageManager};
 use log::{info, warn};
 
 pub enum Executor {
@@ -667,16 +667,16 @@ mod tests {
 
     fn with_recursion_var(value: &str) -> Fallible<u8> {
         let _guard = ENV_LOCK.lock().unwrap();
-        std::env::set_var(RECURSION_ENV_VAR, value);
+        unsafe { std::env::set_var(RECURSION_ENV_VAR, value) };
         let result = check_recursion_limit();
-        std::env::remove_var(RECURSION_ENV_VAR);
+        unsafe { std::env::remove_var(RECURSION_ENV_VAR) };
         result
     }
 
     #[test]
     fn recursion_env_var_absent_defaults_to_one() {
         let _guard = ENV_LOCK.lock().unwrap();
-        std::env::remove_var(RECURSION_ENV_VAR);
+        unsafe { std::env::remove_var(RECURSION_ENV_VAR) };
         assert_eq!(check_recursion_limit().unwrap(), 0u8);
     }
 

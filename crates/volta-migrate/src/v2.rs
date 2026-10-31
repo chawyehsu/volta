@@ -1,4 +1,4 @@
-use std::fs::{read_to_string, write, File};
+use std::fs::{File, read_to_string, write};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -106,7 +106,7 @@ fn clear_default_npm(platform_file: &Path) -> Fallible<()> {
     };
     let mut existing_platform = Platform::try_from(platform_json)?;
 
-    if let Some(ref mut node_version) = &mut existing_platform.node {
+    if let Some(node_version) = &mut existing_platform.node {
         if let Some(npm) = &node_version.npm {
             if let Ok(default_npm) = load_default_npm_version(&node_version.runtime) {
                 if *npm == default_npm {

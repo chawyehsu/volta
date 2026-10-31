@@ -2,7 +2,7 @@
 //! [`validate-npm-package-name`](https://github.com/npm/validate-npm-package-name/).
 
 use once_cell::sync::Lazy;
-use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 use regex::Regex;
 
 /// The set of characters to encode, matching the characters encoded by
@@ -83,10 +83,12 @@ pub enum Validity {
 }
 
 impl Validity {
+    #[allow(unused)]
     pub fn valid_for_old_packages(&self) -> bool {
         matches!(self, Validity::Valid | Validity::ValidForOldPackages { .. })
     }
 
+    #[allow(unused)]
     pub fn valid_for_new_packages(&self) -> bool {
         matches!(self, Validity::Valid)
     }

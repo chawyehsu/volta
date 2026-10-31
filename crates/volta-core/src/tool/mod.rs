@@ -22,7 +22,7 @@ pub(crate) mod validate_npm_package_name;
 pub mod yarn;
 
 pub use node::{
-    load_default_npm_version, Node, NODE_DISTRO_ARCH, NODE_DISTRO_EXTENSION, NODE_DISTRO_OS,
+    NODE_DISTRO_ARCH, NODE_DISTRO_EXTENSION, NODE_DISTRO_OS, Node, load_default_npm_version,
 };
 pub use npm::{BundledNpm, Npm};
 pub use package::{BinConfig, Package, PackageConfig, PackageManifest};
@@ -163,11 +163,11 @@ impl Spec {
 impl Display for Spec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            Spec::Node(ref version) => tool_version("node", version),
-            Spec::Npm(ref version) => tool_version("npm", version),
-            Spec::Pnpm(ref version) => tool_version("pnpm", version),
-            Spec::Yarn(ref version) => tool_version("yarn", version),
-            Spec::Package(ref name, ref version) => tool_version(name, version),
+            Spec::Node(version) => tool_version("node", version),
+            Spec::Npm(version) => tool_version("npm", version),
+            Spec::Pnpm(version) => tool_version("pnpm", version),
+            Spec::Yarn(version) => tool_version("yarn", version),
+            Spec::Package(name, version) => tool_version(name, version),
         };
         f.write_str(&s)
     }
