@@ -42,18 +42,17 @@ impl Command for Completions {
                 // The user may have passed a path that does not yet exist. If
                 // so, we create it, informing the user we have done so.
                 if let Some(parent) = path.parent()
-                    && !parent.is_dir() {
-                        info!(
-                            "{} {} does not exist, creating it",
-                            note_prefix(),
-                            parent.display()
-                        );
-                        std::fs::create_dir_all(parent).with_context(|| {
-                            ErrorKind::CreateDirError {
-                                dir: parent.to_path_buf(),
-                            }
-                        })?;
-                    }
+                    && !parent.is_dir()
+                {
+                    info!(
+                        "{} {} does not exist, creating it",
+                        note_prefix(),
+                        parent.display()
+                    );
+                    std::fs::create_dir_all(parent).with_context(|| ErrorKind::CreateDirError {
+                        dir: parent.to_path_buf(),
+                    })?;
+                }
 
                 let mut file = &std::fs::File::create(&path).with_context(|| {
                     ErrorKind::CompletionsOutFileError {
