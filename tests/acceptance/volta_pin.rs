@@ -1,5 +1,5 @@
 use crate::support::sandbox::{
-    sandbox, DistroMetadata, NodeFixture, NpmFixture, PnpmFixture, Yarn1Fixture, YarnBerryFixture,
+    DistroMetadata, NodeFixture, NpmFixture, PnpmFixture, Yarn1Fixture, YarnBerryFixture, sandbox,
 };
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
@@ -956,9 +956,10 @@ fn pin_node_does_not_overwrite_extends() {
         execs().with_status(ExitCode::Success as i32)
     );
 
-    assert!(s
-        .read_package_json()
-        .contains(r#""extends": "./basic.json""#));
+    assert!(
+        s.read_package_json()
+            .contains(r#""extends": "./basic.json""#)
+    );
 }
 
 #[test]

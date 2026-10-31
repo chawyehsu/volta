@@ -1,6 +1,6 @@
 //! Provides fetcher for Node distributions
 
-use std::fs::{read_to_string, write, File};
+use std::fs::{File, read_to_string, write};
 use std::path::{Path, PathBuf};
 
 use super::NodeVersion;
@@ -11,8 +11,8 @@ use crate::fs::{create_staging_dir, create_staging_file, rename};
 use crate::hook::ToolHooks;
 use crate::layout::volta_home;
 use crate::style::{progress_bar, tool_version};
-use crate::tool::{self, download_tool_error, Node};
-use crate::version::{parse_version, VersionSpec};
+use crate::tool::{self, Node, download_tool_error};
+use crate::version::{VersionSpec, parse_version};
 use log::debug;
 use node_semver::Version;
 use serde::Deserialize;

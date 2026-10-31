@@ -2,7 +2,7 @@ use crate::ir::{Entry, Ir};
 use proc_macro2::TokenStream;
 use std::collections::HashMap;
 use syn::parse::{self, Parse, ParseStream};
-use syn::{braced, Attribute, Ident, LitStr, Token, Visibility};
+use syn::{Attribute, Ident, LitStr, Token, Visibility, braced};
 
 pub(crate) type Result<T> = ::std::result::Result<T, TokenStream>;
 
@@ -163,7 +163,10 @@ impl Directory {
                     if let Some(kind) = visited_entries.get(&filename) {
                         let message = match kind {
                             EntryKind::Exe => {
-                                format!("filename `{}` is a duplicate of `{}` executable on non-Windows operating systems", filename, filename)
+                                format!(
+                                    "filename `{}` is a duplicate of `{}` executable on non-Windows operating systems",
+                                    filename, filename
+                                )
                             }
                             _ => {
                                 format!("duplicate filename `{}`", filename)
@@ -191,10 +194,16 @@ impl Directory {
                                     format!("duplicate filename `{}.exe`", filename)
                                 }
                                 EntryKind::File => {
-                                    format!("executable `{}` (on non-Windows operating systems) is a duplicate of `{}` filename", filename, filename)
+                                    format!(
+                                        "executable `{}` (on non-Windows operating systems) is a duplicate of `{}` filename",
+                                        filename, filename
+                                    )
                                 }
                                 EntryKind::Dir => {
-                                    format!("executable `{}` (on non-Windows operating systems) is a duplicate of `{}` directory name", filename, filename)
+                                    format!(
+                                        "executable `{}` (on non-Windows operating systems) is a duplicate of `{}` directory name",
+                                        filename, filename
+                                    )
                                 }
                             };
                             let error = syn::Error::new(prefix.filename.span(), message);
@@ -208,7 +217,10 @@ impl Directory {
                         if let Some(kind) = visited_entries.get(&filename) {
                             let message = match kind {
                                 EntryKind::Exe => {
-                                    format!("filename `{}` is a duplicate of `{}` executable on non-Windows operating systems", filename, filename)
+                                    format!(
+                                        "filename `{}` is a duplicate of `{}` executable on non-Windows operating systems",
+                                        filename, filename
+                                    )
                                 }
                                 _ => {
                                     format!("duplicate filename `{}`", filename)

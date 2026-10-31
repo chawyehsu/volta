@@ -1,7 +1,7 @@
 //! Provides resolution of npm Version requirements into specific versions
 
 use super::super::registry::{
-    fetch_npm_registry, public_registry_index, PackageDetails, PackageIndex,
+    PackageDetails, PackageIndex, fetch_npm_registry, public_registry_index,
 };
 use crate::error::{ErrorKind, Fallible};
 use crate::hook::ToolHooks;

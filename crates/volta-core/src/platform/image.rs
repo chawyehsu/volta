@@ -1,7 +1,7 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use super::{build_path_error, Sourced};
+use super::{Sourced, build_path_error};
 use crate::error::{Context, Fallible};
 use crate::layout::volta_home;
 use crate::tool::load_default_npm_version;

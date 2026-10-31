@@ -14,7 +14,7 @@ use crate::style::{success_prefix, tool_version};
 use crate::sync::VoltaLock;
 use crate::version::VersionSpec;
 use log::info;
-use tempfile::{tempdir_in, TempDir};
+use tempfile::{TempDir, tempdir_in};
 
 mod configure;
 mod install;

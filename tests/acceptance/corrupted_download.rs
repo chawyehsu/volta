@@ -1,4 +1,4 @@
-use crate::support::sandbox::{sandbox, DistroMetadata, NodeFixture, PnpmFixture, Yarn1Fixture};
+use crate::support::sandbox::{DistroMetadata, NodeFixture, PnpmFixture, Yarn1Fixture, sandbox};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use node_semver::Version;

@@ -2,7 +2,7 @@ use std::{thread, time};
 
 use crate::support::events_helpers::{assert_events, match_args, match_start, match_tool_end};
 use crate::support::sandbox::{
-    sandbox, DistroMetadata, NodeFixture, NpmFixture, PnpmFixture, Yarn1Fixture,
+    DistroMetadata, NodeFixture, NpmFixture, PnpmFixture, Yarn1Fixture, sandbox,
 };
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;

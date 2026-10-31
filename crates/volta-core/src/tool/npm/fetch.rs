@@ -1,6 +1,6 @@
 //! Provides fetcher for npm distributions
 
-use std::fs::{write, File};
+use std::fs::{File, write};
 use std::path::Path;
 
 use super::super::download_tool_error;

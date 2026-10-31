@@ -9,8 +9,8 @@ use super::executor::{
 use crate::error::{ErrorKind, Fallible};
 use crate::inventory::package_configs;
 use crate::platform::{Platform, PlatformSpec};
-use crate::tool::package::PackageManager;
 use crate::tool::Spec;
+use crate::tool::package::PackageManager;
 use log::debug;
 
 const UNSAFE_GLOBAL: &str = "VOLTA_UNSAFE_GLOBAL";
@@ -385,7 +385,7 @@ impl UpgradeArgs<'_> {
                         package: tool.to_string_lossy().to_string(),
                         manager: self.manager,
                     }
-                    .into())
+                    .into());
                 }
             }
         }

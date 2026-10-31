@@ -20,7 +20,7 @@ mod serial;
 #[cfg(test)]
 mod tests;
 
-use serial::{update_manifest, Manifest, ManifestKey};
+use serial::{Manifest, ManifestKey, update_manifest};
 
 /// A lazily loaded Project
 pub struct LazyProject {

@@ -3,7 +3,7 @@ use std::ffi::OsString;
 
 use super::executor::{Executor, ToolCommand, ToolKind};
 use super::parser::CommandArg;
-use super::{debug_active_image, debug_no_platform, RECURSION_ENV_VAR};
+use super::{RECURSION_ENV_VAR, debug_active_image, debug_no_platform};
 use crate::error::{ErrorKind, Fallible};
 use crate::platform::{Platform, Source, System};
 use crate::session::{ActivityKind, Session};

@@ -144,7 +144,7 @@ mod platform {
     //! Finally, filtering directory entries to find the shim files involves looking for the .cmd
     //! files.
     use std::ffi::OsStr;
-    use std::fs::{write, DirEntry, Metadata};
+    use std::fs::{DirEntry, Metadata, write};
 
     use super::ShimResult;
     use crate::error::{Context, ErrorKind, Fallible};

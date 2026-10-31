@@ -1,6 +1,6 @@
 //! Provides fetcher for pnpm distributions
 
-use std::fs::{write, File};
+use std::fs::{File, write};
 use std::path::Path;
 
 use crate::fetch::{Archive, Tarball};
@@ -14,7 +14,7 @@ use crate::hook::ToolHooks;
 use crate::layout::volta_home;
 use crate::style::{progress_bar, tool_version};
 use crate::tool::registry::public_registry_package;
-use crate::tool::{self, download_tool_error, Pnpm};
+use crate::tool::{self, Pnpm, download_tool_error};
 use crate::version::VersionSpec;
 
 pub fn fetch(version: &Version, hooks: Option<&ToolHooks<Pnpm>>) -> Fallible<()> {

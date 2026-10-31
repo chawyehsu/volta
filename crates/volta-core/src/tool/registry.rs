@@ -6,8 +6,8 @@ use crate::error::{Context, ErrorKind, Fallible};
 use crate::fs::read_dir_eager;
 use crate::style::progress_spinner;
 use crate::version::{hashmap_version_serde, version_serde};
-use attohttpc::header::ACCEPT;
 use attohttpc::Response;
+use attohttpc::header::ACCEPT;
 use node_semver::Version;
 use serde::Deserialize;
 

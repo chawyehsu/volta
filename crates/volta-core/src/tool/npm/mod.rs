@@ -2,8 +2,8 @@ use std::fmt::{self, Display};
 
 use super::node::load_default_npm_version;
 use super::{
-    check_fetched, check_shim_reachable, debug_already_fetched, info_fetched, info_installed,
-    info_pinned, info_project_version, FetchStatus, Tool,
+    FetchStatus, Tool, check_fetched, check_shim_reachable, debug_already_fetched, info_fetched,
+    info_installed, info_pinned, info_project_version,
 };
 use crate::error::{Context, ErrorKind, Fallible};
 use crate::inventory::npm_available;

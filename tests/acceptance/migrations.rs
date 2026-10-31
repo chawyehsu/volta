@@ -1,4 +1,4 @@
-use crate::support::sandbox::{sandbox, Sandbox};
+use crate::support::sandbox::{Sandbox, sandbox};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use test_support::matchers::execs;

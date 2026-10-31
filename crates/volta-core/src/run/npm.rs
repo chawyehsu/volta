@@ -4,7 +4,7 @@ use std::fs::File;
 
 use super::executor::{Executor, ToolCommand, ToolKind, UninstallCommand};
 use super::parser::{CommandArg, InterceptedCommand};
-use super::{debug_active_image, debug_no_platform, RECURSION_ENV_VAR};
+use super::{RECURSION_ENV_VAR, debug_active_image, debug_no_platform};
 use crate::error::{ErrorKind, Fallible};
 use crate::platform::{Platform, System};
 use crate::session::{ActivityKind, Session};

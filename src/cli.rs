@@ -1,9 +1,9 @@
-use clap::{builder::styling, ColorChoice, Parser};
+use clap::{ColorChoice, Parser, builder::styling};
 
 use crate::command::{self, Command};
 use volta_core::error::{ExitCode, Fallible};
 use volta_core::session::Session;
-use volta_core::style::{text_width, MAX_WIDTH};
+use volta_core::style::{MAX_WIDTH, text_width};
 
 #[derive(Parser)]
 #[command(

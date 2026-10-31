@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
-use super::validate_npm_package_name::{validate, Validity};
 use super::Spec;
+use super::validate_npm_package_name::{Validity, validate};
 use crate::error::{ErrorKind, Fallible};
 use crate::version::{VersionSpec, VersionTag};
 use once_cell::sync::Lazy;

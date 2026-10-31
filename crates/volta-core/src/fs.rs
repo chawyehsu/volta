@@ -1,6 +1,6 @@
 //! Provides utilities for operating on the filesystem.
 
-use std::fs::{self, create_dir_all, read_dir, DirEntry, File, Metadata};
+use std::fs::{self, DirEntry, File, Metadata, create_dir_all, read_dir};
 use std::io;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -9,8 +9,8 @@ use std::path::Path;
 use crate::error::{Context, ErrorKind, Fallible};
 use crate::layout::volta_home;
 use retry::delay::Fibonacci;
-use retry::{retry, OperationResult};
-use tempfile::{tempdir_in, NamedTempFile, TempDir};
+use retry::{OperationResult, retry};
+use tempfile::{NamedTempFile, TempDir, tempdir_in};
 
 /// Opens a file, creating it if it doesn't exist
 pub fn touch(path: &Path) -> io::Result<File> {

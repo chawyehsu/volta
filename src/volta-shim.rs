@@ -1,7 +1,7 @@
 mod common;
 
-use common::{ensure_layout, Error, IntoResult};
-use volta_core::error::{report_error, ExitCode};
+use common::{Error, IntoResult, ensure_layout};
+use volta_core::error::{ExitCode, report_error};
 use volta_core::log::{LogContext, LogVerbosity, Logger};
 use volta_core::run::execute_shim;
 use volta_core::session::{ActivityKind, Session};

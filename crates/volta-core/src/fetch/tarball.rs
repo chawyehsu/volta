@@ -6,7 +6,7 @@ use std::io::Read;
 use std::path::Path;
 
 use super::progress_read::ProgressRead;
-use super::{content_length, Archive, ArchiveError, Origin};
+use super::{Archive, ArchiveError, Origin, content_length};
 use crate::fs::ensure_containing_dir_exists;
 use flate2::read::GzDecoder;
 use tee::TeeReader;

@@ -6,7 +6,7 @@ use std::io::Read;
 use std::path::Path;
 
 use super::progress_read::ProgressRead;
-use super::{content_length, ArchiveError};
+use super::{ArchiveError, content_length};
 use crate::fs::ensure_containing_dir_exists;
 use tee::TeeReader;
 use verbatim::PathExt;

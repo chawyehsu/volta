@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 use std::path::Path;
 
-use super::tool;
 use super::RegistryFormat;
+use super::tool;
 use crate::error::{ErrorKind, Fallible, VoltaError};
 use crate::tool::{Node, Npm, Pnpm, Tool};
 use serde::{Deserialize, Serialize};

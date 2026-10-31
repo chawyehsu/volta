@@ -1,7 +1,7 @@
 //! Provides resolution of Yarn requirements into specific versions
 
 use super::super::registry::{
-    fetch_npm_registry, public_registry_index, PackageDetails, PackageIndex,
+    PackageDetails, PackageIndex, fetch_npm_registry, public_registry_index,
 };
 use super::super::registry_fetch_error;
 use super::metadata::{RawYarnIndex, YarnIndex};
@@ -9,7 +9,7 @@ use crate::error::{Context, ErrorKind, Fallible};
 use crate::hook::{RegistryFormat, YarnHooks};
 use crate::session::Session;
 use crate::style::progress_spinner;
-use crate::version::{parse_version, VersionSpec, VersionTag};
+use crate::version::{VersionSpec, VersionTag, parse_version};
 use attohttpc::Response;
 use log::debug;
 use node_semver::{Range, Version};

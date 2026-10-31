@@ -265,7 +265,7 @@ impl EventHooks {
 #[cfg(test)]
 pub mod tests {
 
-    use super::{tool, HookConfig, Publish, RegistryFormat};
+    use super::{HookConfig, Publish, RegistryFormat, tool};
     use std::path::PathBuf;
 
     fn fixture_path(fixture_dir: &str) -> PathBuf {

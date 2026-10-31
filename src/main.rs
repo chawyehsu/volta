@@ -9,7 +9,7 @@ use volta_core::log::{LogContext, LogVerbosity, Logger};
 use volta_core::session::{ActivityKind, Session};
 
 mod common;
-use common::{ensure_layout, Error};
+use common::{Error, ensure_layout};
 
 /// The entry point for the `volta` CLI.
 pub fn main() -> std::process::ExitCode {

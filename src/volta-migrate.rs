@@ -1,4 +1,4 @@
-use volta_core::error::{report_error, ExitCode};
+use volta_core::error::{ExitCode, report_error};
 use volta_core::layout::volta_home;
 use volta_core::log::{LogContext, LogVerbosity, Logger};
 use volta_migrate::run_migration;

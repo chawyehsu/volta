@@ -1,6 +1,6 @@
+use std::fs::File;
 #[cfg(unix)]
 use std::fs::remove_file;
-use std::fs::File;
 use std::path::PathBuf;
 
 use super::empty::Empty;

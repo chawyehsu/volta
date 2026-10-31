@@ -4,7 +4,7 @@ use std::ffi::OsString;
 use crate::command::Command;
 use crate::common::{Error, IntoResult};
 use log::warn;
-use volta_core::error::{report_error, ExitCode, Fallible};
+use volta_core::error::{ExitCode, Fallible, report_error};
 use volta_core::platform::{CliPlatform, InheritOption};
 use volta_core::run::execute_tool;
 use volta_core::session::{ActivityKind, Session};

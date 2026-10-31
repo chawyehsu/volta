@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use super::{Node, Package, PackageManager, PackageManagerKind, Toolchain};
 use once_cell::sync::Lazy;
-use textwrap::{fill, Options};
-use volta_core::style::{text_width, tool_version, MAX_WIDTH};
+use textwrap::{Options, fill};
+use volta_core::style::{MAX_WIDTH, text_width, tool_version};
 
 static INDENTATION: &str = "    ";
 static NO_RUNTIME: &str = "⚡️ No Node runtimes installed!
@@ -412,7 +412,7 @@ mod tests {
     mod active {
         use super::*;
         use crate::command::list::{
-            human::display_active, Node, PackageDetails, PackageManager, PackageManagerKind, Source,
+            Node, PackageDetails, PackageManager, PackageManagerKind, Source, human::display_active,
         };
 
         #[test]

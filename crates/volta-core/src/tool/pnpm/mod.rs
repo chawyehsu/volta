@@ -8,8 +8,8 @@ use crate::style::tool_version;
 use crate::sync::VoltaLock;
 
 use super::{
-    check_fetched, check_shim_reachable, debug_already_fetched, info_fetched, info_installed,
-    info_pinned, info_project_version, FetchStatus, Tool,
+    FetchStatus, Tool, check_fetched, check_shim_reachable, debug_already_fetched, info_fetched,
+    info_installed, info_pinned, info_project_version,
 };
 
 mod fetch;

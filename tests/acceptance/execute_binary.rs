@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::support::sandbox::{sandbox, PackageBinInfo};
+use crate::support::sandbox::{PackageBinInfo, sandbox};
 use cfg_if::cfg_if;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;

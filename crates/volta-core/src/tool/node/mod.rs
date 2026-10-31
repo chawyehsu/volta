@@ -1,8 +1,8 @@
 use std::fmt::{self, Display};
 
 use super::{
-    check_fetched, check_shim_reachable, debug_already_fetched, info_fetched, info_installed,
-    info_pinned, info_project_version, FetchStatus, Tool,
+    FetchStatus, Tool, check_fetched, check_shim_reachable, debug_already_fetched, info_fetched,
+    info_installed, info_pinned, info_project_version,
 };
 use crate::error::{ErrorKind, Fallible};
 use crate::inventory::node_available;

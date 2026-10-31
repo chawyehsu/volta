@@ -2,8 +2,8 @@ use std::cell::Cell;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Once;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 static SMOKE_TEST_DIR: &str = "smoke_test";
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);

@@ -1,10 +1,10 @@
 //! This module provides a custom Logger implementation for use with the `log` crate
 use console::style;
-use log::{trace, Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
+use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError, trace};
 use std::env;
 use std::fmt::Display;
 use std::io::IsTerminal;
-use textwrap::{fill, Options, WordSplitter};
+use textwrap::{Options, WordSplitter, fill};
 
 use crate::style::text_width;
 

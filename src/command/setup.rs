@@ -231,8 +231,8 @@ mod os {
     use log::debug;
     use volta_core::error::{Context, ErrorKind, Fallible};
     use volta_core::layout::volta_home;
-    use winreg::enums::HKEY_CURRENT_USER;
     use winreg::RegKey;
+    use winreg::enums::HKEY_CURRENT_USER;
 
     pub fn setup_environment() -> Fallible<()> {
         let shim_dir = volta_home()?.shim_dir().to_string_lossy().to_string();
