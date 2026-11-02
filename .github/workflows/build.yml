@@ -27,9 +27,9 @@ jobs:
         include:
           - { os: ubuntu-latest, platform: linux }
           - { os: ubuntu-24.04-arm, platform: linux-aarch64 }
-          - { os: macos-26, platform: macos }
+          - { os: ubuntu-latest, platform: macos-cross }
           - { os: windows-2022, platform: windows }
-    name: Build
+    name: Build (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     env:
       SCCACHE_GHA_ENABLED: true
@@ -54,22 +54,36 @@ jobs:
 
       # Linux: build
       - name: Build (Linux)
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-24.04-arm'
-        run: pixi run build --target-platform ${{ matrix.os == 'ubuntu-latest' && 'linux-64' || 'linux-aarch64' }} --output-dir out
+        if: matrix.platform == 'linux' || matrix.platform == 'linux-aarch64'
+        run: pixi run build --target-platform ${{ matrix.platform == 'linux' && 'linux-64' || 'linux-aarch64' }} --output-dir out
 
-      # macOS: build
-      - name: Build (macOS)
-        if: matrix.os == 'macos-26'
+      # macOS: cross-build from Linux
+      - name: Download macOS SDK
+        if: matrix.platform == 'macos-cross'
+        run: |
+          # Keep in sync with c_stdlib_version in pixi.toml
+          SDK_VERSION=11.0
+          SDK_DIR="$GITHUB_WORKSPACE/.pixi/macos-sdk"
+          mkdir -p "$SDK_DIR"
+          curl -fsSL -o "$SDK_DIR/MacOSX${SDK_VERSION}.sdk.tar.xz" \
+            "https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX${SDK_VERSION}.sdk.tar.xz"
+          echo "d3feee3ef9c6016b526e1901013f264467bb927865a03422a9cb925991cc9783  $SDK_DIR/MacOSX${SDK_VERSION}.sdk.tar.xz" | sha256sum -c -
+          tar -xf "$SDK_DIR/MacOSX${SDK_VERSION}.sdk.tar.xz" -C "$SDK_DIR"
+          rm "$SDK_DIR/MacOSX${SDK_VERSION}.sdk.tar.xz"
+          sed -i "s|__MACOS_SDK_ROOT__|$SDK_DIR/MacOSX${SDK_VERSION}.sdk|g" pixi.toml
+
+      - name: Build (macOS cross)
+        if: matrix.platform == 'macos-cross'
         run: |
           mkdir out
-          pixi run build --target-platform osx-arm64
+          pixi run build --build-platform linux-64 --target-platform osx-arm64
           mv volta-*.conda out/volta-macos-arm.conda
-          pixi run build --target-platform osx-64
+          pixi run build --build-platform linux-64 --target-platform osx-64
           mv volta-*.conda out/volta-macos-x64.conda
 
       # Windows: build
       - name: Build (Windows)
-        if: matrix.os == 'windows-2022'
+        if: matrix.platform == 'windows'
         shell: pwsh
         run: |
           # Windows long-path issue workaround:
@@ -82,7 +96,7 @@ jobs:
           mv volta-*.conda out/volta-windows-arm.conda
 
       - name: Package (Linux)
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-24.04-arm'
+        if: matrix.platform == 'linux' || matrix.platform == 'linux-aarch64'
         run: |
           cd out
           mv volta*.conda volta.conda
@@ -93,13 +107,13 @@ jobs:
           ls
           ldd -v volta
           objdump -T volta | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
-          filename="volta-${{ matrix.os == 'ubuntu-latest' && 'x86_64-unknown-linux-gnu' || 'aarch64-unknown-linux-gnu' }}.tar.gz"
+          filename="volta-${{ matrix.platform == 'linux' && 'x86_64-unknown-linux-gnu' || 'aarch64-unknown-linux-gnu' }}.tar.gz"
           tar -zcvf "$filename" volta*
           mv "$filename" ../
           cd ${{ github.workspace }}
 
       - name: Package (macOS)
-        if: matrix.os == 'macos-26'
+        if: matrix.platform == 'macos-cross'
         run: |
           cd out
           pixi run bsdtar -xf volta-macos-arm.conda
@@ -122,7 +136,7 @@ jobs:
           cd ${{ github.workspace }}
 
       - name: Package (Windows)
-        if: matrix.os == 'windows-2022'
+        if: matrix.platform == 'windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -152,13 +166,13 @@ jobs:
           cd ${{ github.workspace }}
 
       - name: Generate release checksums (Unix)
-        if: matrix.os != 'windows-2022'
+        if: matrix.platform != 'windows'
         run: |
           cd out
           for archive in volta-*.tar.gz; do sha256sum "$archive" > "$archive.sha256"; done
 
       - name: Create release checksums (Windows)
-        if: matrix.os == 'windows-2022'
+        if: matrix.platform == 'windows'
         shell: pwsh
         run: |
           Get-ChildItem out/volta-*.zip,out/volta-*.msi | ForEach-Object {
@@ -168,7 +182,7 @@ jobs:
 
       # Upload artifacts
       - name: Upload (Unix)
-        if: matrix.os != 'windows-2022'
+        if: matrix.platform != 'windows'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ matrix.platform }}
@@ -177,7 +191,7 @@ jobs:
             out/volta-*.tar.gz.sha256
 
       - name: Upload (Windows)
-        if: matrix.os == 'windows-2022'
+        if: matrix.platform == 'windows'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ matrix.platform }}
