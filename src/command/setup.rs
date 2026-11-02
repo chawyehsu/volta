@@ -38,6 +38,7 @@ mod os {
     use volta_core::constant;
     use volta_core::error::{ErrorKind, Fallible};
     use volta_core::layout::volta_home;
+    use volta_core::tool::node::HostPlatform;
 
     pub fn setup_environment() -> Fallible<()> {
         let home = volta_home()?;
@@ -154,17 +155,19 @@ mod os {
         }
 
         if shell.contains("bash") && !bash_added {
-            let suggested_bash_profile = if cfg!(target_os = "macos") {
-                "~/.bash_profile"
-            } else {
-                "~/.bashrc"
-            };
-
             warn!(
                 "We detected that you are using bash, however we couldn't find any bash profile scripts.
 If you run into problems running Volta, create {} and run `volta setup` again.",
-                suggested_bash_profile
+                suggested_bash_profile(HostPlatform::current())
             );
+        }
+    }
+
+    fn suggested_bash_profile(platform: HostPlatform) -> &'static str {
+        if platform.is_macos() {
+            "~/.bash_profile"
+        } else {
+            "~/.bashrc"
         }
     }
 
@@ -221,6 +224,25 @@ If you run into problems running Volta, create {} and run `volta setup` again.",
             "{}\nset -gx VOLTA_HOME \"{}\"\nset -gx PATH \"$VOLTA_HOME/bin\" $PATH\n",
             contents, volta_home,
         )
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn suggests_bash_profile_per_platform() {
+            for platform in HostPlatform::ALL {
+                assert_eq!(
+                    suggested_bash_profile(platform),
+                    if platform.is_macos() {
+                        "~/.bash_profile"
+                    } else {
+                        "~/.bashrc"
+                    }
+                );
+            }
+        }
     }
 }
 

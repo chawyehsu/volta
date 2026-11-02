@@ -932,6 +932,7 @@ impl Sandbox {
     }
 
     /// Path within the sandbox home directory, e.g. `home_path(".volta/bin")`
+    #[cfg(windows)]
     pub fn home_path(path: &str) -> PathBuf {
         sandbox_path(path)
     }
