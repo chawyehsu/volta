@@ -145,11 +145,51 @@ fn install_staged(staged: StagedBinaries, install: &Path) -> Fallible<()> {
         ("volta-migrate", staged.migrate),
     ];
 
-    for (name, source) in binaries {
+    let backup = tempfile::tempdir_in(install).map_err(|e| fail(e.to_string()))?;
+    let originals = binaries
+        .iter()
+        .map(|(name, _)| {
+            let destination = crate::utils::exe_path(&install.join(*name));
+            let backup_path = backup.path().join(
+                destination
+                    .file_name()
+                    .ok_or_else(|| fail("install destination has no file name"))?,
+            );
+            if destination.exists() {
+                std::fs::copy(&destination, &backup_path).map_err(|e| fail(e.to_string()))?;
+                Ok((*name, Some(backup_path)))
+            } else {
+                Ok((*name, None))
+            }
+        })
+        .collect::<Fallible<Vec<_>>>()?;
+
+    for (name, source) in &binaries {
+        let destination = install.join(*name);
+        let result = match source {
+            Some(source) => crate::utils::replace_exe(source, &destination),
+            None => crate::utils::remove_or_retire(&destination).map(|_| ()),
+        };
+        if let Err(error) = result {
+            return match rollback_install(&originals, install) {
+                Ok(()) => Err(error),
+                Err(rollback_error) => {
+                    Err(fail(format!("{error}; rollback failed: {rollback_error}")))
+                }
+            };
+        }
+    }
+    Ok(())
+}
+
+fn rollback_install(originals: &[(&str, Option<PathBuf>)], install: &Path) -> Fallible<()> {
+    for (name, backup) in originals {
         let destination = install.join(name);
-        match source {
-            Some(source) => crate::utils::replace_exe(&source, &destination)?,
-            None => crate::utils::remove_or_retire(&destination)?,
+        match backup {
+            Some(backup) => crate::utils::replace_exe(backup, &destination)?,
+            None => {
+                crate::utils::remove_or_retire(&destination)?;
+            }
         }
     }
     Ok(())
@@ -261,13 +301,18 @@ mod tests {
     #[cfg(feature = "mock-network")]
     use super::fetch_latest_release;
     use super::{
-        extract_archive, install_staged, parse_checksum, select_assets, validate_staged_binaries,
+        StagedBinaries, extract_archive, install_staged, parse_checksum, select_assets,
+        validate_staged_binaries,
     };
     use self_update::{Release, ReleaseAsset};
     use std::fs;
     use tempfile::TempDir;
 
     const DIGEST: &str = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+    fn bin(name: &str) -> String {
+        format!("{name}{}", std::env::consts::EXE_SUFFIX)
+    }
 
     #[test]
     fn parses_coreutils_checksum() {
@@ -285,8 +330,8 @@ mod tests {
     #[test]
     fn validates_required_and_optional_staged_binaries() {
         let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("volta"), b"main").unwrap();
-        fs::write(dir.path().join("volta-shim"), b"shim").unwrap();
+        fs::write(dir.path().join(bin("volta")), b"main").unwrap();
+        fs::write(dir.path().join(bin("volta-shim")), b"shim").unwrap();
 
         let staged = validate_staged_binaries(dir.path()).unwrap();
         assert!(staged.main.is_file());
@@ -304,22 +349,69 @@ mod tests {
     fn installs_staged_binaries_and_removes_stale_optional_files() {
         let staged_dir = TempDir::new().unwrap();
         let install_dir = TempDir::new().unwrap();
-        fs::write(staged_dir.path().join("volta"), b"new main").unwrap();
-        fs::write(staged_dir.path().join("volta-shim"), b"new shim").unwrap();
-        fs::write(install_dir.path().join("volta-migrate"), b"stale").unwrap();
+        fs::write(staged_dir.path().join(bin("volta")), b"new main").unwrap();
+        fs::write(staged_dir.path().join(bin("volta-shim")), b"new shim").unwrap();
+        fs::write(install_dir.path().join(bin("volta-migrate")), b"stale").unwrap();
 
         let staged = validate_staged_binaries(staged_dir.path()).unwrap();
         install_staged(staged, install_dir.path()).unwrap();
 
         assert_eq!(
-            fs::read(install_dir.path().join("volta")).unwrap(),
+            fs::read(install_dir.path().join(bin("volta"))).unwrap(),
             b"new main"
         );
         assert_eq!(
-            fs::read(install_dir.path().join("volta-shim")).unwrap(),
+            fs::read(install_dir.path().join(bin("volta-shim"))).unwrap(),
             b"new shim"
         );
-        assert!(!install_dir.path().join("volta-migrate").exists());
+        assert!(!install_dir.path().join(bin("volta-migrate")).exists());
+    }
+
+    #[test]
+    fn failed_replacement_keeps_existing_binary() {
+        let dir = TempDir::new().unwrap();
+        let destination = dir.path().join(bin("volta"));
+        fs::write(&destination, b"old main").unwrap();
+
+        let missing = dir.path().join(bin("missing"));
+        assert!(crate::utils::replace_exe(&missing, &dir.path().join("volta")).is_err());
+
+        assert_eq!(fs::read(destination).unwrap(), b"old main");
+    }
+
+    #[test]
+    fn restores_previous_binaries_when_a_later_replacement_fails() {
+        let staged_dir = TempDir::new().unwrap();
+        let install_dir = TempDir::new().unwrap();
+        fs::write(staged_dir.path().join(bin("volta")), b"new main").unwrap();
+        fs::write(install_dir.path().join(bin("volta")), b"old main").unwrap();
+        fs::write(install_dir.path().join(bin("volta-shim")), b"old shim").unwrap();
+        fs::write(
+            install_dir.path().join(bin("volta-migrate")),
+            b"old migrate",
+        )
+        .unwrap();
+
+        let staged = StagedBinaries {
+            main: staged_dir.path().join(bin("volta")),
+            shim: Some(staged_dir.path().join(bin("missing"))),
+            migrate: None,
+        };
+
+        assert!(install_staged(staged, install_dir.path()).is_err());
+
+        assert_eq!(
+            fs::read(install_dir.path().join(bin("volta"))).unwrap(),
+            b"old main"
+        );
+        assert_eq!(
+            fs::read(install_dir.path().join(bin("volta-shim"))).unwrap(),
+            b"old shim"
+        );
+        assert_eq!(
+            fs::read(install_dir.path().join(bin("volta-migrate"))).unwrap(),
+            b"old migrate"
+        );
     }
 
     #[test]

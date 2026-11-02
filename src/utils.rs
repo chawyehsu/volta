@@ -1,14 +1,23 @@
-use std::path::Path;
-#[cfg(target_os = "windows")]
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use volta_core::error::{ErrorKind, Fallible};
+
+pub(crate) fn exe_path(path: &Path) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        path.with_extension("exe")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        path.to_path_buf()
+    }
+}
 
 /// Move `old` to a unique name so the live name is freed mmediately, even while
 /// the file is still mapped by a running process (Windows permits renaming but
 /// not deleting a running image).
 #[cfg(target_os = "windows")]
-fn retire_exe(old: &Path) -> Fallible<()> {
+fn retire_exe(old: &Path) -> Fallible<Option<PathBuf>> {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -41,8 +50,8 @@ fn retire_exe(old: &Path) -> Fallible<()> {
     let retired = trash_dir.join(&unique_name);
 
     match std::fs::rename(old, &retired) {
-        Ok(()) => Ok(()),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Ok(()) => Ok(Some(retired)),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(err) => {
             return Err(ErrorKind::SelfUpdateError {
                 reason: format!(
@@ -59,31 +68,36 @@ fn retire_exe(old: &Path) -> Fallible<()> {
 
 /// Removes the specified file, or on Windows, renames it to a retired
 /// version if it's failed to be removed.
-pub(crate) fn remove_or_retire(dst: &Path) -> Fallible<()> {
+pub(crate) fn remove_or_retire(dst: &Path) -> Fallible<Option<PathBuf>> {
     #[cfg(windows)]
     {
-        let dst = dst.with_extension("exe");
-        std::fs::remove_file(&dst).or_else(|_| retire_exe(&dst).map(|_| ()))?;
+        let dst = exe_path(dst);
+        match std::fs::remove_file(&dst) {
+            Ok(()) => Ok(None),
+            Err(_) => retire_exe(&dst),
+        }
     }
     #[cfg(not(windows))]
     {
         let _ = std::fs::remove_file(dst);
+        Ok(None)
     }
-    Ok(())
 }
 
 pub(crate) fn replace_exe(new: &Path, old: &Path) -> Fallible<()> {
-    #[cfg(target_os = "windows")]
-    let dest = old.with_extension("exe");
-    #[cfg(not(target_os = "windows"))]
-    let dest = old.to_path_buf();
-
-    remove_or_retire(&dest)?;
-    std::fs::copy(new, &dest).map_err(|e| ErrorKind::SelfUpdateError {
+    let dest = exe_path(old);
+    let parent = dest.parent().ok_or_else(|| ErrorKind::SelfUpdateError {
+        reason: format!("destination {} has no parent directory", dest.display()),
+    })?;
+    let staged =
+        tempfile::NamedTempFile::new_in(parent).map_err(|e| ErrorKind::SelfUpdateError {
+            reason: format!("failed to stage executable for {}: {}", dest.display(), e),
+        })?;
+    std::fs::copy(new, staged.path()).map_err(|e| ErrorKind::SelfUpdateError {
         reason: format!(
             "failed to copy {} to {}: {}",
             new.display(),
-            dest.display(),
+            staged.path().display(),
             e
         ),
     })?;
@@ -91,12 +105,36 @@ pub(crate) fn replace_exe(new: &Path, old: &Path) -> Fallible<()> {
     #[cfg(not(target_os = "windows"))]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755)).map_err(|e| {
-            ErrorKind::SelfUpdateError {
-                reason: format!("failed to set permissions for {}: {}", dest.display(), e),
-            }
-        })?;
+        std::fs::set_permissions(staged.path(), std::fs::Permissions::from_mode(0o755)).map_err(
+            |e| ErrorKind::SelfUpdateError {
+                reason: format!(
+                    "failed to set permissions for {}: {}",
+                    staged.path().display(),
+                    e
+                ),
+            },
+        )?;
     }
 
-    Ok(())
+    #[cfg(target_os = "windows")]
+    let retired = remove_or_retire(&dest)?;
+
+    match staged.persist(&dest) {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            #[cfg(target_os = "windows")]
+            if let Some(retired) = retired {
+                let _ = std::fs::rename(&retired, &dest);
+            }
+            Err(ErrorKind::SelfUpdateError {
+                reason: format!(
+                    "failed to replace {} with {}: {}",
+                    dest.display(),
+                    new.display(),
+                    error.error
+                ),
+            }
+            .into())
+        }
+    }
 }
