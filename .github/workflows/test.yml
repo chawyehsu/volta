@@ -87,7 +87,6 @@ jobs:
   ci_nightly_build:
     needs: tests
     name: Build Nightly
-    if: github.event_name != 'pull_request'
     uses: ./.github/workflows/build.yml
     with:
       build_type: nightly
