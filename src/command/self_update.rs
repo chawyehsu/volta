@@ -379,6 +379,20 @@ mod tests {
         assert_eq!(fs::read(destination).unwrap(), b"old main");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn failed_persist_keeps_existing_binary() {
+        let dir = TempDir::new().unwrap();
+        let destination = dir.path().join(bin("volta"));
+        fs::create_dir(&destination).unwrap();
+        let new = dir.path().join(bin("new"));
+        fs::write(&new, b"new main").unwrap();
+
+        assert!(crate::utils::replace_exe(&new, &dir.path().join("volta")).is_err());
+
+        assert!(destination.is_dir());
+    }
+
     #[test]
     fn restores_previous_binaries_when_a_later_replacement_fails() {
         let staged_dir = TempDir::new().unwrap();
@@ -412,6 +426,29 @@ mod tests {
             fs::read(install_dir.path().join(bin("volta-migrate"))).unwrap(),
             b"old migrate"
         );
+    }
+
+    #[test]
+    fn rollback_removes_optional_binaries_that_did_not_exist_before() {
+        let staged_dir = TempDir::new().unwrap();
+        let install_dir = TempDir::new().unwrap();
+        fs::write(staged_dir.path().join(bin("volta")), b"new main").unwrap();
+        fs::write(install_dir.path().join(bin("volta")), b"old main").unwrap();
+
+        let staged = StagedBinaries {
+            main: staged_dir.path().join(bin("volta")),
+            shim: Some(staged_dir.path().join(bin("missing"))),
+            migrate: None,
+        };
+
+        assert!(install_staged(staged, install_dir.path()).is_err());
+
+        assert_eq!(
+            fs::read(install_dir.path().join(bin("volta"))).unwrap(),
+            b"old main"
+        );
+        assert!(!install_dir.path().join(bin("volta-shim")).exists());
+        assert!(!install_dir.path().join(bin("volta-migrate")).exists());
     }
 
     #[test]
