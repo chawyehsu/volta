@@ -24,6 +24,24 @@ _Avoid_: platform
 A Rust target identifier such as `aarch64-apple-darwin`, used in release asset names.
 _Avoid_: platform
 
+## Project resolution vocabulary
+
+**Project root**:
+The nearest ancestor directory containing a `package.json`, excluding directories inside `node_modules`.
+_Avoid_: workspace root, repo root
+
+**Node version source**:
+The input that determines a project's Node version: either `volta.node` in `package.json` or a `.node-version` file.
+_Avoid_: version pin, version config
+
+**Version file**:
+A `.node-version` file that requests a Node version for a project. Volta reads it but never creates or modifies it.
+_Avoid_: pin file, version pin
+
+**Partial version**:
+A version request with fewer than three numeric components, such as `20` or `20.5`, resolved to the highest matching Node release.
+_Avoid_: loose version, range
+
 ## Release vocabulary
 
 **Release**:

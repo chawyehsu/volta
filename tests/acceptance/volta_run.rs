@@ -316,6 +316,24 @@ fn inherited_node() {
 }
 
 #[test]
+fn inherited_node_from_node_version() {
+    let s = sandbox()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .package_json(r#"{"name":"test-package"}"#)
+        .project_file(".node-version", "9.27.6\n")
+        .env(VOLTA_LOGLEVEL, "debug")
+        .build();
+
+    assert_that!(
+        s.volta("run node --version"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stderr_contains("[..]Node: 9.27.6 from project configuration")
+    );
+}
+
+#[test]
 fn command_line_npm() {
     let s = sandbox()
         .node_available_versions(NODE_VERSION_INFO)

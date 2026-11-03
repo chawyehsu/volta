@@ -6,7 +6,7 @@ use node_semver::{Range, Version};
 
 mod serial;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub enum VersionSpec {
     /// No version specified (default)
@@ -23,7 +23,7 @@ pub enum VersionSpec {
     Tag(VersionTag),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub enum VersionTag {
     /// The 'latest' tag, a special case that exists for all packages

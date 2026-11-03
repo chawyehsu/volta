@@ -2,15 +2,18 @@
 //! execution of a Volta tool, including their current directory, Volta
 //! hook configuration, and the state of the local inventory.
 
+use std::env;
 use std::fmt::{self, Display, Formatter};
+use std::path::Path;
 
-use crate::error::{ExitCode, Fallible, VoltaError};
+use crate::error::{Context, ErrorKind, ExitCode, Fallible, VoltaError};
 use crate::event::EventLog;
 use crate::hook::{HookConfig, LazyHookConfig};
 use crate::platform::PlatformSpec;
-use crate::project::{LazyProject, Project};
+use crate::project::{LazyProject, NodeVersionSource, Project, find_node_version_file};
 use crate::toolchain::{LazyToolchain, Toolchain};
 use log::debug;
+use once_cell::unsync::OnceCell;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
 pub enum ActivityKind {
@@ -84,6 +87,8 @@ pub struct Session {
     hooks: LazyHookConfig,
     toolchain: LazyToolchain,
     project: LazyProject,
+    node_version_source: OnceCell<Option<NodeVersionSource>>,
+    resolved_project_platform: OnceCell<Option<PlatformSpec>>,
     event_log: EventLog,
 }
 
@@ -94,13 +99,30 @@ impl Session {
             hooks: LazyHookConfig::init(),
             toolchain: LazyToolchain::init(),
             project: LazyProject::init(),
+            node_version_source: OnceCell::new(),
+            resolved_project_platform: OnceCell::new(),
             event_log: EventLog::init(),
         }
     }
 
     /// Produces a reference to the current Node project, if any.
     pub fn project(&self) -> Fallible<Option<&Project>> {
-        self.project.get()
+        let project = self.project.get()?;
+        self.ensure_node_version_source(project)?;
+
+        if project.is_some_and(|project| {
+            project.platform().is_none()
+                && project.partial_platform().is_some()
+                && self
+                    .node_version_source
+                    .get()
+                    .and_then(|source| source.as_ref())
+                    .is_none()
+        }) {
+            return Err(ErrorKind::NoProjectNodeInManifest.into());
+        }
+
+        Ok(project)
     }
 
     /// Produces a mutable reference to the current Node project, if any.
@@ -115,10 +137,78 @@ impl Session {
 
     /// Returns the current project's pinned platform image, if any.
     pub fn project_platform(&self) -> Fallible<Option<&PlatformSpec>> {
-        if let Some(project) = self.project()? {
-            return Ok(project.platform());
+        self.project()?;
+        self.resolved_project_platform
+            .get_or_try_init(|| self.compute_project_platform())
+            .map(Option::as_ref)
+    }
+
+    pub fn node_version_file(&self) -> Fallible<Option<&Path>> {
+        self.project()?;
+        Ok(self
+            .node_version_source
+            .get()
+            .and_then(|source| source.as_ref())
+            .map(NodeVersionSource::path))
+    }
+
+    pub fn has_project_node_version(&self) -> Fallible<bool> {
+        self.project()?;
+
+        Ok(self.project.get()?.and_then(Project::platform).is_some()
+            || self
+                .node_version_source
+                .get()
+                .and_then(|source| source.as_ref())
+                .is_some())
+    }
+
+    fn ensure_node_version_source(&self, project: Option<&Project>) -> Fallible<()> {
+        self.node_version_source.get_or_try_init(|| {
+            if project.and_then(Project::platform).is_some() {
+                return Ok(None);
+            }
+
+            let current_dir = env::current_dir().with_context(|| ErrorKind::CurrentDirError)?;
+            let project_root = project.and_then(|project| project.manifest_file().parent());
+
+            match find_node_version_file(&current_dir, project_root) {
+                Some(path) => NodeVersionSource::from_file(path).map(Some),
+                None => Ok(None),
+            }
+        })?;
+
+        Ok(())
+    }
+
+    fn compute_project_platform(&self) -> Fallible<Option<PlatformSpec>> {
+        let project = self.project.get()?;
+
+        if let Some(platform) = project.and_then(Project::platform) {
+            return Ok(Some(platform.clone()));
         }
-        Ok(None)
+
+        let Some(source) = self
+            .node_version_source
+            .get()
+            .and_then(|source| source.as_ref())
+        else {
+            if project.and_then(Project::partial_platform).is_some() {
+                return Err(ErrorKind::NoProjectNodeInManifest.into());
+            }
+
+            return Ok(None);
+        };
+
+        let node = source.resolve(self.hooks()?.node())?;
+        let partial = project.and_then(Project::partial_platform);
+
+        Ok(Some(PlatformSpec {
+            node,
+            npm: partial.and_then(|partial| partial.npm.clone()),
+            pnpm: partial.and_then(|partial| partial.pnpm.clone()),
+            yarn: partial.and_then(|partial| partial.yarn.clone()),
+        }))
     }
 
     /// Produces a reference to the current toolchain (default platform specification)

@@ -76,6 +76,13 @@ impl Tool for Pnpm {
 
     fn pin(self: Box<Self>, session: &mut Session) -> Fallible<()> {
         if session.project()?.is_some() {
+            if !session.has_project_node_version()? {
+                return Err(ErrorKind::NoPinnedNodeVersion {
+                    tool: "pnpm".into(),
+                }
+                .into());
+            }
+
             self.ensure_fetched(session)?;
 
             // Note: We know this will succeed, since we checked above

@@ -75,6 +75,10 @@ impl Tool for Npm {
     }
     fn pin(self: Box<Self>, session: &mut Session) -> Fallible<()> {
         if session.project()?.is_some() {
+            if !session.has_project_node_version()? {
+                return Err(ErrorKind::NoPinnedNodeVersion { tool: "npm".into() }.into());
+            }
+
             self.ensure_fetched(session)?;
 
             // Note: We know this will succeed, since we checked above
@@ -136,38 +140,35 @@ impl Tool for BundledNpm {
     }
 
     fn pin(self: Box<Self>, session: &mut Session) -> Fallible<()> {
-        match session.project_mut()? {
-            Some(project) => {
-                project.pin_npm(None)?;
-
-                let bundled_version = match project.platform() {
-                    Some(platform) => {
-                        let version =
-                            load_default_npm_version(&platform.node).with_context(|| {
-                                ErrorKind::NoBundledNpm {
-                                    command: "pin".into(),
-                                }
-                            })?;
-                        version.to_string()
-                    }
-                    None => {
-                        return Err(ErrorKind::NoBundledNpm {
-                            command: "pin".into(),
-                        }
-                        .into());
-                    }
-                };
-
-                info!(
-                    "{} set package.json to use bundled npm (currently {})",
-                    success_prefix(),
-                    bundled_version
-                );
-
-                Ok(())
-            }
-            None => Err(ErrorKind::NotInPackage.into()),
+        if session.project()?.is_none() {
+            return Err(ErrorKind::NotInPackage.into());
         }
+
+        if !session.has_project_node_version()? {
+            return Err(ErrorKind::NoPinnedNodeVersion { tool: "npm".into() }.into());
+        }
+
+        let node = session
+            .project_platform()?
+            .map(|platform| platform.node.clone())
+            .expect("node version source was checked above");
+
+        let project = session.project_mut()?.unwrap();
+        project.pin_npm(None)?;
+
+        let bundled_version = load_default_npm_version(&node)
+            .with_context(|| ErrorKind::NoBundledNpm {
+                command: "pin".into(),
+            })?
+            .to_string();
+
+        info!(
+            "{} set package.json to use bundled npm (currently {})",
+            success_prefix(),
+            bundled_version
+        );
+
+        Ok(())
     }
 }
 

@@ -16,10 +16,12 @@ use crate::tool::BinConfig;
 use chain_map::ChainMap;
 use indexmap::IndexSet;
 
+mod node_version;
 mod serial;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use node_version::{NodeVersionSource, find_node_version_file};
 use serial::{Manifest, ManifestKey, update_manifest};
 
 /// A lazily loaded Project
@@ -52,6 +54,7 @@ pub struct Project {
     workspace_manifests: IndexSet<PathBuf>,
     dependencies: ChainMap<String, String>,
     platform: Option<PlatformSpec>,
+    partial_platform: Option<PartialPlatform>,
 }
 
 impl Project {
@@ -109,13 +112,18 @@ impl Project {
             extends = manifest.extends;
         }
 
-        let platform = platform.map(TryInto::try_into).transpose()?;
+        let partial_platform = platform;
+        let platform = match partial_platform.as_ref() {
+            Some(partial) if partial.node.is_some() => Some(partial.clone().try_into()?),
+            _ => None,
+        };
 
         Ok(Project {
             manifest_file,
             workspace_manifests,
             dependencies,
             platform,
+            partial_platform,
         })
     }
 
@@ -135,6 +143,10 @@ impl Project {
     /// Returns a reference to the Project's `PlatformSpec`, if available
     pub fn platform(&self) -> Option<&PlatformSpec> {
         self.platform.as_ref()
+    }
+
+    pub(crate) fn partial_platform(&self) -> Option<&PartialPlatform> {
+        self.partial_platform.as_ref()
     }
 
     /// Returns true if the project dependency map contains the specified dependency
@@ -186,14 +198,30 @@ impl Project {
     pub fn pin_node(&mut self, version: Version) -> Fallible<()> {
         update_manifest(&self.manifest_file, ManifestKey::Node, Some(&version))?;
 
+        match self.partial_platform.as_mut() {
+            Some(partial) => partial.node = Some(version.clone()),
+            None => {
+                self.partial_platform = Some(PartialPlatform {
+                    node: Some(version.clone()),
+                    npm: None,
+                    pnpm: None,
+                    yarn: None,
+                });
+            }
+        }
+
         if let Some(platform) = self.platform.as_mut() {
             platform.node = version;
         } else {
+            let partial = self
+                .partial_platform
+                .as_ref()
+                .expect("partial platform was set above");
             self.platform = Some(PlatformSpec {
                 node: version,
-                npm: None,
-                pnpm: None,
-                yarn: None,
+                npm: partial.npm.clone(),
+                pnpm: partial.pnpm.clone(),
+                yarn: partial.yarn.clone(),
             });
         }
 
@@ -202,47 +230,71 @@ impl Project {
 
     /// Pins the npm version in this project's manifest file
     pub fn pin_npm(&mut self, version: Option<Version>) -> Fallible<()> {
-        if let Some(platform) = self.platform.as_mut() {
-            update_manifest(&self.manifest_file, ManifestKey::Npm, version.as_ref())?;
+        update_manifest(&self.manifest_file, ManifestKey::Npm, version.as_ref())?;
 
-            platform.npm = version;
-
-            Ok(())
-        } else {
-            Err(ErrorKind::NoPinnedNodeVersion { tool: "npm".into() }.into())
+        match self.partial_platform.as_mut() {
+            Some(partial) => partial.npm = version.clone(),
+            None => {
+                self.partial_platform = Some(PartialPlatform {
+                    node: None,
+                    npm: version.clone(),
+                    pnpm: None,
+                    yarn: None,
+                });
+            }
         }
+
+        if let Some(platform) = self.platform.as_mut() {
+            platform.npm = version;
+        }
+
+        Ok(())
     }
 
     /// Pins the pnpm version in this project's manifest file
     pub fn pin_pnpm(&mut self, version: Option<Version>) -> Fallible<()> {
-        if let Some(platform) = self.platform.as_mut() {
-            update_manifest(&self.manifest_file, ManifestKey::Pnpm, version.as_ref())?;
+        update_manifest(&self.manifest_file, ManifestKey::Pnpm, version.as_ref())?;
 
-            platform.pnpm = version;
-
-            Ok(())
-        } else {
-            Err(ErrorKind::NoPinnedNodeVersion {
-                tool: "pnpm".into(),
+        match self.partial_platform.as_mut() {
+            Some(partial) => partial.pnpm = version.clone(),
+            None => {
+                self.partial_platform = Some(PartialPlatform {
+                    node: None,
+                    npm: None,
+                    pnpm: version.clone(),
+                    yarn: None,
+                });
             }
-            .into())
         }
+
+        if let Some(platform) = self.platform.as_mut() {
+            platform.pnpm = version;
+        }
+
+        Ok(())
     }
 
     /// Pins the Yarn version in this project's manifest file
     pub fn pin_yarn(&mut self, version: Option<Version>) -> Fallible<()> {
-        if let Some(platform) = self.platform.as_mut() {
-            update_manifest(&self.manifest_file, ManifestKey::Yarn, version.as_ref())?;
+        update_manifest(&self.manifest_file, ManifestKey::Yarn, version.as_ref())?;
 
-            platform.yarn = version;
-
-            Ok(())
-        } else {
-            Err(ErrorKind::NoPinnedNodeVersion {
-                tool: "Yarn".into(),
+        match self.partial_platform.as_mut() {
+            Some(partial) => partial.yarn = version.clone(),
+            None => {
+                self.partial_platform = Some(PartialPlatform {
+                    node: None,
+                    npm: None,
+                    pnpm: None,
+                    yarn: version.clone(),
+                });
             }
-            .into())
         }
+
+        if let Some(platform) = self.platform.as_mut() {
+            platform.yarn = version;
+        }
+
+        Ok(())
     }
 }
 
@@ -273,11 +325,12 @@ pub(crate) fn find_closest_root(mut dir: PathBuf) -> Option<PathBuf> {
     Some(dir)
 }
 
-struct PartialPlatform {
-    node: Option<Version>,
-    npm: Option<Version>,
-    pnpm: Option<Version>,
-    yarn: Option<Version>,
+#[derive(Clone, Debug)]
+pub(crate) struct PartialPlatform {
+    pub(crate) node: Option<Version>,
+    pub(crate) npm: Option<Version>,
+    pub(crate) pnpm: Option<Version>,
+    pub(crate) yarn: Option<Version>,
 }
 
 impl PartialPlatform {
