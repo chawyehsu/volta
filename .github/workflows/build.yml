@@ -85,8 +85,6 @@ jobs:
       - name: Build (Windows)
         if: matrix.platform == 'windows'
         shell: pwsh
-        env:
-          AWS_LC_SYS_CMAKE_BUILDER: "1"
         run: |
           # Windows long-path issue workaround:
           New-Item -ItemType Junction -Path C:\w -Target "${{ github.workspace }}"
