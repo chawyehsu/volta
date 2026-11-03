@@ -11,6 +11,7 @@ use std::{
 use volta_core::{
     error::{ErrorKind, ExitCode, Fallible},
     session::{ActivityKind, Session},
+    sync::VoltaLock,
 };
 
 #[derive(Args)]
@@ -174,7 +175,11 @@ fn install_staged(staged: StagedBinaries, install: &Path) -> Fallible<()> {
             return match rollback_install(&originals, install) {
                 Ok(()) => Err(error),
                 Err(rollback_error) => {
-                    Err(fail(format!("{error}; rollback failed: {rollback_error}")))
+                    let backup_path = backup.keep();
+                    Err(fail(format!(
+                        "{error}; rollback failed: {rollback_error}; backups retained at {}",
+                        backup_path.display()
+                    )))
                 }
             };
         }
@@ -183,19 +188,28 @@ fn install_staged(staged: StagedBinaries, install: &Path) -> Fallible<()> {
 }
 
 fn rollback_install(originals: &[(&str, Option<PathBuf>)], install: &Path) -> Fallible<()> {
+    let mut failures = Vec::new();
     for (name, backup) in originals {
         let destination = install.join(name);
-        match backup {
-            Some(backup) => crate::utils::replace_exe(backup, &destination)?,
-            None => {
-                crate::utils::remove_or_retire(&destination)?;
-            }
+        let result = match backup {
+            Some(backup) => crate::utils::replace_exe(backup, &destination),
+            None => crate::utils::remove_or_retire(&destination).map(|_| ()),
+        };
+        if let Err(error) = result {
+            failures.push(format!("{name}: {error}"));
         }
     }
-    Ok(())
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(fail(failures.join("; ")))
+    }
 }
 
 fn target() -> Option<(&'static str, &'static str)> {
+    if cfg!(target_env = "musl") {
+        return None;
+    }
     Some(match (env::consts::ARCH, env::consts::OS) {
         ("x86_64", "linux") => ("x86_64-unknown-linux-gnu", "tar.gz"),
         ("aarch64", "linux") => ("aarch64-unknown-linux-gnu", "tar.gz"),
@@ -274,6 +288,7 @@ fn update() -> Fallible<()> {
             self_update::http::header::ACCEPT,
             "application/octet-stream",
         )
+        .max_download_size(4096)
         .download_to(&mut checksum_file)
         .map_err(|e| fail(e.to_string()))?;
     let checksum = String::from_utf8(checksum_file).map_err(|e| fail(e.to_string()))?;
@@ -293,6 +308,7 @@ fn update() -> Fallible<()> {
         .to_owned();
 
     let staged = validate_staged_binaries(&extracted)?;
+    let _lock = VoltaLock::acquire()?;
     install_staged(staged, &install)
 }
 
@@ -301,8 +317,8 @@ mod tests {
     #[cfg(feature = "mock-network")]
     use super::fetch_latest_release;
     use super::{
-        StagedBinaries, extract_archive, install_staged, parse_checksum, select_assets,
-        validate_staged_binaries,
+        StagedBinaries, extract_archive, install_staged, parse_checksum, rollback_install,
+        select_assets, validate_staged_binaries,
     };
     use self_update::{Release, ReleaseAsset};
     use std::fs;
@@ -449,6 +465,37 @@ mod tests {
         );
         assert!(!install_dir.path().join(bin("volta-shim")).exists());
         assert!(!install_dir.path().join(bin("volta-migrate")).exists());
+    }
+
+    #[test]
+    fn rollback_attempts_every_restore_after_a_failure() {
+        let install_dir = TempDir::new().unwrap();
+        let backup_dir = TempDir::new().unwrap();
+        let missing_backup = backup_dir.path().join(bin("missing"));
+        let valid_backup = backup_dir.path().join(bin("volta-shim"));
+        fs::write(&valid_backup, b"old shim").unwrap();
+        fs::write(install_dir.path().join(bin("volta-shim")), b"new shim").unwrap();
+
+        let originals = [
+            ("volta", Some(missing_backup)),
+            ("volta-shim", Some(valid_backup)),
+        ];
+
+        assert!(rollback_install(&originals, install_dir.path()).is_err());
+        assert_eq!(
+            fs::read(install_dir.path().join(bin("volta-shim"))).unwrap(),
+            b"old shim"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn removing_a_directory_as_an_optional_binary_is_an_error() {
+        let dir = TempDir::new().unwrap();
+        let destination = dir.path().join(bin("volta-migrate"));
+        fs::create_dir(&destination).unwrap();
+
+        assert!(crate::utils::remove_or_retire(&destination).is_err());
     }
 
     #[test]

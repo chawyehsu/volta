@@ -79,8 +79,14 @@ pub(crate) fn remove_or_retire(dst: &Path) -> Fallible<Option<PathBuf>> {
     }
     #[cfg(not(windows))]
     {
-        let _ = std::fs::remove_file(dst);
-        Ok(None)
+        match std::fs::remove_file(dst) {
+            Ok(()) => Ok(None),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(ErrorKind::SelfUpdateError {
+                reason: format!("failed to remove {}: {}", dst.display(), error),
+            }
+            .into()),
+        }
     }
 }
 

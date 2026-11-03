@@ -102,6 +102,7 @@ fn archive_bytes(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
 enum ChecksumMode {
     Valid,
     Corrupt,
+    Oversized,
 }
 
 pub struct FixtureRelease {
@@ -165,6 +166,13 @@ impl FixtureRelease {
         }
     }
 
+    pub fn oversized_checksum() -> Self {
+        Self {
+            checksum_mode: ChecksumMode::Oversized,
+            ..Self::valid()
+        }
+    }
+
     pub fn without_archive() -> Self {
         Self {
             include_archive: false,
@@ -202,12 +210,14 @@ impl FixtureRelease {
             .map(|name| (binary_filename(name), binary_contents(name)))
             .collect();
         let archive = self.include_archive.then(|| archive_bytes(&entries));
-        let checksum = self.include_checksum.then(|| {
-            let digest = match self.checksum_mode {
-                ChecksumMode::Valid => sha256(archive.as_deref().unwrap_or_default()),
-                ChecksumMode::Corrupt => "0".repeat(64),
-            };
-            format!("{digest}  {archive_name}\n").into_bytes()
+        let checksum = self.include_checksum.then(|| match self.checksum_mode {
+            ChecksumMode::Valid => format!(
+                "{}  {archive_name}\n",
+                sha256(archive.as_deref().unwrap_or_default())
+            )
+            .into_bytes(),
+            ChecksumMode::Corrupt => format!("{}  {archive_name}\n", "0".repeat(64)).into_bytes(),
+            ChecksumMode::Oversized => vec![b'0'; 5000],
         });
 
         let asset_names = if self.legacy_names {

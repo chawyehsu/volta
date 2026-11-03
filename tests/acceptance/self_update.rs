@@ -221,6 +221,27 @@ fn checksum_mismatch_leaves_installation_untouched() {
 }
 
 #[test]
+fn oversized_checksum_is_rejected_without_replacing_binaries() {
+    let mut sandbox = sandbox().build();
+    let fixture = FixtureRelease::oversized_checksum();
+    let mocks = fixture.serve(&mut sandbox);
+    let install = FixtureInstall::new();
+    let before = snapshot(&install);
+
+    assert_that!(
+        install.command(&sandbox),
+        execs()
+            .with_status(ExitCode::UnknownError as i32)
+            .with_stderr_contains("[..]max_download_size[..]")
+    );
+
+    assert_untouched(&install, &before);
+    mocks.release.assert();
+    mocks.archive.as_ref().unwrap().assert();
+    mocks.checksum.as_ref().unwrap().assert();
+}
+
+#[test]
 fn missing_archive_fails_without_replacing_binaries() {
     let mut sandbox = sandbox().build();
     let fixture = FixtureRelease::without_archive();
