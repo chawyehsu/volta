@@ -95,7 +95,6 @@ attohttpc.workspace = true
 clap.workspace = true
 clap_complete.workspace = true
 dirs.workspace = true
-flate2.workspace = true
 # hex required by selfupdate
 hex.workspace = true
 log.workspace = true
@@ -107,7 +106,6 @@ serde.workspace = true
 serde_json.workspace = true
 # sha2 required by selfupdate
 sha2.workspace = true
-tar.workspace = true
 tempfile.workspace = true
 textwrap.workspace = true
 volta-core.workspace = true
@@ -118,14 +116,14 @@ which.workspace = true
 cfg-if.workspace = true
 ci_info.workspace = true
 envoy.workspace = true
+flate2.workspace = true
 hamcrest2.workspace = true
 headers.workspace = true
+tar.workspace = true
 test-support.workspace = true
 
 [target."cfg(windows)".dependencies]
 winreg.workspace = true
-# ziprs required by selfupdate
-zip_rs.workspace = true
 
 [features]
 cross-platform-docs = ["volta-core/cross-platform-docs"]

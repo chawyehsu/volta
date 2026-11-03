@@ -3163,7 +3163,6 @@ dependencies = [
  "volta-migrate",
  "which",
  "winreg",
- "zip 2.4.2",
 ]
 
 [[package]]

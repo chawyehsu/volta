@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use volta_core::error::{ErrorKind, Fallible};
+use volta_core::error::Fallible;
+
+use crate::command::self_update::fail;
 
 pub(crate) fn exe_path(path: &Path) -> PathBuf {
     #[cfg(target_os = "windows")]
@@ -23,24 +25,22 @@ fn retire_exe(old: &Path) -> Fallible<Option<PathBuf>> {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     const TRASH_DIR: &str = ".trash";
 
-    let bin_dir = old.parent().ok_or_else(|| ErrorKind::SelfUpdateError {
-        reason: "exe to retire has no parent directory".into(),
-    })?;
+    let bin_dir = old
+        .parent()
+        .ok_or_else(|| fail("exe to retire has no parent directory"))?;
 
     let trash_dir = bin_dir.join(TRASH_DIR);
-    std::fs::create_dir_all(&trash_dir).map_err(|e| ErrorKind::SelfUpdateError {
-        reason: format!(
+    std::fs::create_dir_all(&trash_dir).map_err(|e| {
+        fail(format!(
             "failed to create trash directory {}: {}",
             trash_dir.display(),
             e
-        ),
+        ))
     })?;
 
     let mut unique_name = old
         .file_name()
-        .ok_or_else(|| ErrorKind::SelfUpdateError {
-            reason: "retired exe has no file name".into(),
-        })?
+        .ok_or_else(|| fail("retired exe has no file name"))?
         .to_os_string();
 
     let pid = std::process::id();
@@ -53,15 +53,12 @@ fn retire_exe(old: &Path) -> Fallible<Option<PathBuf>> {
         Ok(()) => Ok(Some(retired)),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(err) => {
-            return Err(ErrorKind::SelfUpdateError {
-                reason: format!(
-                    "failed to rename {} to {}: {}",
-                    old.display(),
-                    retired.display(),
-                    err
-                ),
-            }
-            .into());
+            return Err(fail(format!(
+                "failed to rename {} to {}: {}",
+                old.display(),
+                retired.display(),
+                err
+            )));
         }
     }
 }
@@ -82,42 +79,49 @@ pub(crate) fn remove_or_retire(dst: &Path) -> Fallible<Option<PathBuf>> {
         match std::fs::remove_file(dst) {
             Ok(()) => Ok(None),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(ErrorKind::SelfUpdateError {
-                reason: format!("failed to remove {}: {}", dst.display(), error),
-            }
-            .into()),
+            Err(error) => Err(fail(format!(
+                "failed to remove {}: {}",
+                dst.display(),
+                error
+            ))),
         }
     }
 }
 
 pub(crate) fn replace_exe(new: &Path, old: &Path) -> Fallible<()> {
     let dest = exe_path(old);
-    let parent = dest.parent().ok_or_else(|| ErrorKind::SelfUpdateError {
-        reason: format!("destination {} has no parent directory", dest.display()),
+    let parent = dest.parent().ok_or_else(|| {
+        fail(format!(
+            "destination {} has no parent directory",
+            dest.display()
+        ))
     })?;
-    let staged =
-        tempfile::NamedTempFile::new_in(parent).map_err(|e| ErrorKind::SelfUpdateError {
-            reason: format!("failed to stage executable for {}: {}", dest.display(), e),
-        })?;
-    std::fs::copy(new, staged.path()).map_err(|e| ErrorKind::SelfUpdateError {
-        reason: format!(
+    let staged = tempfile::NamedTempFile::new_in(parent).map_err(|e| {
+        fail(format!(
+            "failed to stage executable for {}: {}",
+            dest.display(),
+            e
+        ))
+    })?;
+    std::fs::copy(new, staged.path()).map_err(|e| {
+        fail(format!(
             "failed to copy {} to {}: {}",
             new.display(),
             staged.path().display(),
             e
-        ),
+        ))
     })?;
 
     #[cfg(not(target_os = "windows"))]
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(staged.path(), std::fs::Permissions::from_mode(0o755)).map_err(
-            |e| ErrorKind::SelfUpdateError {
-                reason: format!(
+            |e| {
+                fail(format!(
                     "failed to set permissions for {}: {}",
                     staged.path().display(),
                     e
-                ),
+                ))
             },
         )?;
     }
@@ -132,15 +136,12 @@ pub(crate) fn replace_exe(new: &Path, old: &Path) -> Fallible<()> {
             if let Some(retired) = retired {
                 let _ = std::fs::rename(&retired, &dest);
             }
-            Err(ErrorKind::SelfUpdateError {
-                reason: format!(
-                    "failed to replace {} with {}: {}",
-                    dest.display(),
-                    new.display(),
-                    error.error
-                ),
-            }
-            .into())
+            Err(fail(format!(
+                "failed to replace {} with {}: {}",
+                dest.display(),
+                new.display(),
+                error.error
+            )))
         }
     }
 }

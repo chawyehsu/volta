@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use volta_core::{
-    error::{ErrorKind, ExitCode, Fallible},
+    error::{ErrorKind, ExitCode, Fallible, VoltaError},
     session::{ActivityKind, Session},
     sync::VoltaLock,
 };
@@ -20,7 +20,7 @@ const MAX_ARCHIVE_SIZE: u64 = 100 * 1024 * 1024;
 #[derive(Args)]
 pub(crate) struct SelfUpdate {}
 
-fn fail(message: impl Into<String>) -> volta_core::error::VoltaError {
+pub(crate) fn fail(message: impl Into<String>) -> VoltaError {
     ErrorKind::SelfUpdateError {
         reason: message.into(),
     }
