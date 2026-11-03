@@ -4,7 +4,7 @@ use volta_core::log::{LogContext, LogVerbosity, Logger};
 use volta_migrate::run_migration;
 
 pub fn main() -> std::process::ExitCode {
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     Logger::init(LogContext::Migration, LogVerbosity::Default)
         .expect("Only a single Logger should be initialized");
 
