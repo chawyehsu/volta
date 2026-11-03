@@ -29,7 +29,7 @@ enum Format {
 #[derive(Clone, PartialEq, Debug)]
 enum Source {
     /// The item is from a project. The wrapped `PathBuf` is the path to the
-    /// project's `package.json`.
+    /// project file that supplied it (`package.json` or `.node-version`).
     Project(PathBuf),
 
     /// The item is the user's default.
@@ -265,6 +265,8 @@ impl Command for List {
         session.add_event_start(ActivityKind::List);
 
         let project = session.project()?;
+        let project_platform = session.project_platform()?;
+        let node_version_file = session.node_version_file()?;
         let default_platform = session.default_platform()?;
         let format = match self.output_format() {
             Format::Human => human::format,
@@ -279,12 +281,46 @@ impl Command for List {
 
         let toolchain = match self.subcommand {
             // For no subcommand, show the user's current toolchain
-            None => Toolchain::active(project, default_platform)?,
-            Some(Subcommand::All) => Toolchain::all(project, default_platform)?,
-            Some(Subcommand::Node) => Toolchain::node(project, default_platform, &filter)?,
-            Some(Subcommand::Npm) => Toolchain::npm(project, default_platform, &filter)?,
-            Some(Subcommand::Pnpm) => Toolchain::pnpm(project, default_platform, &filter)?,
-            Some(Subcommand::Yarn) => Toolchain::yarn(project, default_platform, &filter)?,
+            None => Toolchain::active(
+                project,
+                project_platform,
+                node_version_file,
+                default_platform,
+            )?,
+            Some(Subcommand::All) => Toolchain::all(
+                project,
+                project_platform,
+                node_version_file,
+                default_platform,
+            )?,
+            Some(Subcommand::Node) => Toolchain::node(
+                project,
+                project_platform,
+                node_version_file,
+                default_platform,
+                &filter,
+            )?,
+            Some(Subcommand::Npm) => Toolchain::npm(
+                project,
+                project_platform,
+                node_version_file,
+                default_platform,
+                &filter,
+            )?,
+            Some(Subcommand::Pnpm) => Toolchain::pnpm(
+                project,
+                project_platform,
+                node_version_file,
+                default_platform,
+                &filter,
+            )?,
+            Some(Subcommand::Yarn) => Toolchain::yarn(
+                project,
+                project_platform,
+                node_version_file,
+                default_platform,
+                &filter,
+            )?,
             Some(Subcommand::PackageOrTool { name }) => {
                 Toolchain::package_or_tool(&name, project, &filter)?
             }

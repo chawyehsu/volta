@@ -20,6 +20,7 @@ mod resolve;
 
 pub use fetch::load_default_npm_version;
 pub use resolve::resolve;
+pub(crate) use resolve::resolve_with_hooks;
 
 /// A platform for which Volta can select a Node distribution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

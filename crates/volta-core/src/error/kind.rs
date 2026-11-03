@@ -106,6 +106,10 @@ pub enum ErrorKind {
         advice: String,
     },
 
+    DotNodeVersionMalformed {
+        file: PathBuf,
+    },
+
     DownloadToolNetworkError {
         tool: tool::Spec,
         from_url: String,
@@ -203,6 +207,12 @@ pub enum ErrorKind {
     /// Thrown when there is no Node version matching a requested semver specifier.
     NodeVersionNotFound {
         matching: String,
+    },
+
+    /// Thrown when a `.node-version` request does not match any Node release.
+    NodeVersionNotFoundInFile {
+        matching: String,
+        file: PathBuf,
     },
 
     NoHomeEnvironmentVar,
@@ -691,6 +701,11 @@ at {}
             ErrorKind::DeprecatedCommandError { command, advice } => {
                 write!(f, "The subcommand `{}` is deprecated.\n{}", command, advice)
             }
+            ErrorKind::DotNodeVersionMalformed { file } => write!(
+                f,
+                "The .node-version file at {} is malformed",
+                file.display()
+            ),
             ErrorKind::DownloadToolNetworkError { tool, from_url } => write!(
                 f,
                 "Could not download {}
@@ -906,6 +921,14 @@ Use `volta install node` to select a default Node first, then install a {0} vers
 
 Please verify that the version is correct."#,
                 matching
+            ),
+            ErrorKind::NodeVersionNotFoundInFile { matching, file } => write!(
+                f,
+                r#"Could not find Node version matching "{}" requested by the .node-version file at {}.
+
+Please verify that the version is correct."#,
+                matching,
+                file.display()
             ),
             ErrorKind::NoHomeEnvironmentVar => write!(
                 f,
@@ -1507,6 +1530,7 @@ impl ErrorKind {
             ErrorKind::DeleteDirectoryError { .. } => ExitCode::FileSystemError,
             ErrorKind::DeleteFileError { .. } => ExitCode::FileSystemError,
             ErrorKind::DeprecatedCommandError { .. } => ExitCode::InvalidArguments,
+            ErrorKind::DotNodeVersionMalformed { .. } => ExitCode::ConfigurationError,
             ErrorKind::DownloadToolNetworkError { .. } => ExitCode::NetworkError,
             ErrorKind::ExecuteHookError { .. } => ExitCode::ExecutionFailure,
             ErrorKind::ExtensionCycleError { .. } => ExitCode::ConfigurationError,
@@ -1528,6 +1552,7 @@ impl ErrorKind {
             ErrorKind::NoCommandLineYarn => ExitCode::ConfigurationError,
             ErrorKind::NoDefaultNodeVersion { .. } => ExitCode::ConfigurationError,
             ErrorKind::NodeVersionNotFound { .. } => ExitCode::NoVersionMatch,
+            ErrorKind::NodeVersionNotFoundInFile { .. } => ExitCode::NoVersionMatch,
             ErrorKind::NoHomeEnvironmentVar => ExitCode::EnvironmentError,
             ErrorKind::NoInstallDir => ExitCode::EnvironmentError,
             ErrorKind::NoLocalDataDir => ExitCode::EnvironmentError,

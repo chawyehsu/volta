@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use super::{Filter, Node, Package, PackageManager, Source};
 use crate::command::list::PackageManagerKind;
 use node_semver::Version;
@@ -54,23 +56,35 @@ impl Lookup {
         }
     }
 
-    fn version_source(
-        self,
+    fn project_source(
+        &self,
         project: Option<&Project>,
+        node_version_file: Option<&Path>,
+    ) -> Option<Source> {
+        match self {
+            Lookup::Runtime => node_version_file
+                .map(|path| Source::Project(path.to_owned()))
+                .or_else(|| project.map(|proj| Source::Project(proj.manifest_file().to_owned()))),
+            _ => project.map(|proj| Source::Project(proj.manifest_file().to_owned())),
+        }
+    }
+
+    fn version_source(
+        &self,
+        project: Option<&Project>,
+        project_platform: Option<&PlatformSpec>,
+        node_version_file: Option<&Path>,
         default_platform: Option<&PlatformSpec>,
         version: &Version,
     ) -> Source {
-        project
-            .and_then(|proj| {
-                proj.platform()
-                    .and_then(self.version_from_spec())
-                    .and_then(|project_version| {
-                        if &project_version == version {
-                            Some(Source::Project(proj.manifest_file().to_owned()))
-                        } else {
-                            None
-                        }
-                    })
+        project_platform
+            .and_then(self.version_from_spec())
+            .and_then(|project_version| {
+                if &project_version == version {
+                    self.project_source(project, node_version_file)
+                } else {
+                    None
+                }
             })
             .or_else(|| {
                 default_platform
@@ -88,15 +102,17 @@ impl Lookup {
 
     /// Determine the `Source` for a given kind of tool (`Lookup`).
     fn active_tool(
-        self,
+        &self,
         project: Option<&Project>,
+        project_platform: Option<&PlatformSpec>,
+        node_version_file: Option<&Path>,
         default: Option<&PlatformSpec>,
     ) -> Option<(Source, Version)> {
-        project
-            .and_then(|proj| {
-                proj.platform()
-                    .and_then(self.version_from_spec())
-                    .map(|version| (Source::Project(proj.manifest_file().to_owned()), version))
+        project_platform
+            .and_then(self.version_from_spec())
+            .and_then(|version| {
+                self.project_source(project, node_version_file)
+                    .map(|source| (source, version))
             })
             .or_else(|| {
                 default
@@ -123,36 +139,61 @@ fn tool_source(name: &str, project: Option<&Project>) -> Fallible<Source> {
 impl Toolchain {
     pub(super) fn active(
         project: Option<&Project>,
+        project_platform: Option<&PlatformSpec>,
+        node_version_file: Option<&Path>,
         default_platform: Option<&PlatformSpec>,
     ) -> Fallible<Toolchain> {
         let runtime = Lookup::Runtime
-            .active_tool(project, default_platform)
+            .active_tool(
+                project,
+                project_platform,
+                node_version_file,
+                default_platform,
+            )
             .map(|(source, version)| Box::new(Node { source, version }));
 
-        let package_managers =
-            Lookup::Npm
-                .active_tool(project, default_platform)
-                .map(|(source, version)| PackageManager {
-                    kind: PackageManagerKind::Npm,
-                    source,
-                    version,
-                })
-                .into_iter()
-                .chain(Lookup::Pnpm.active_tool(project, default_platform).map(
-                    |(source, version)| PackageManager {
+        let package_managers = Lookup::Npm
+            .active_tool(
+                project,
+                project_platform,
+                node_version_file,
+                default_platform,
+            )
+            .map(|(source, version)| PackageManager {
+                kind: PackageManagerKind::Npm,
+                source,
+                version,
+            })
+            .into_iter()
+            .chain(
+                Lookup::Pnpm
+                    .active_tool(
+                        project,
+                        project_platform,
+                        node_version_file,
+                        default_platform,
+                    )
+                    .map(|(source, version)| PackageManager {
                         kind: PackageManagerKind::Pnpm,
                         source,
                         version,
-                    },
-                ))
-                .chain(Lookup::Yarn.active_tool(project, default_platform).map(
-                    |(source, version)| PackageManager {
+                    }),
+            )
+            .chain(
+                Lookup::Yarn
+                    .active_tool(
+                        project,
+                        project_platform,
+                        node_version_file,
+                        default_platform,
+                    )
+                    .map(|(source, version)| PackageManager {
                         kind: PackageManagerKind::Yarn,
                         source,
                         version,
-                    },
-                ))
-                .collect();
+                    }),
+            )
+            .collect();
 
         let packages = Package::from_inventory_and_project(project)?;
 
@@ -165,12 +206,20 @@ impl Toolchain {
 
     pub(super) fn all(
         project: Option<&Project>,
+        project_platform: Option<&PlatformSpec>,
+        node_version_file: Option<&Path>,
         default_platform: Option<&PlatformSpec>,
     ) -> Fallible<Toolchain> {
         let runtimes = node_versions()?
             .iter()
             .map(|version| Node {
-                source: Lookup::Runtime.version_source(project, default_platform, version),
+                source: Lookup::Runtime.version_source(
+                    project,
+                    project_platform,
+                    node_version_file,
+                    default_platform,
+                    version,
+                ),
                 version: version.clone(),
             })
             .collect();
@@ -179,17 +228,35 @@ impl Toolchain {
             .iter()
             .map(|version| PackageManager {
                 kind: PackageManagerKind::Npm,
-                source: Lookup::Npm.version_source(project, default_platform, version),
+                source: Lookup::Npm.version_source(
+                    project,
+                    project_platform,
+                    node_version_file,
+                    default_platform,
+                    version,
+                ),
                 version: version.clone(),
             })
             .chain(pnpm_versions()?.iter().map(|version| PackageManager {
                 kind: PackageManagerKind::Pnpm,
-                source: Lookup::Pnpm.version_source(project, default_platform, version),
+                source: Lookup::Pnpm.version_source(
+                    project,
+                    project_platform,
+                    node_version_file,
+                    default_platform,
+                    version,
+                ),
                 version: version.clone(),
             }))
             .chain(yarn_versions()?.iter().map(|version| PackageManager {
                 kind: PackageManagerKind::Yarn,
-                source: Lookup::Yarn.version_source(project, default_platform, version),
+                source: Lookup::Yarn.version_source(
+                    project,
+                    project_platform,
+                    node_version_file,
+                    default_platform,
+                    version,
+                ),
                 version: version.clone(),
             }))
             .collect();
@@ -205,13 +272,21 @@ impl Toolchain {
 
     pub(super) fn node(
         project: Option<&Project>,
+        project_platform: Option<&PlatformSpec>,
+        node_version_file: Option<&Path>,
         default_platform: Option<&PlatformSpec>,
         filter: &Filter,
     ) -> Fallible<Toolchain> {
         let runtimes = node_versions()?
             .iter()
             .filter_map(|version| {
-                let source = Lookup::Runtime.version_source(project, default_platform, version);
+                let source = Lookup::Runtime.version_source(
+                    project,
+                    project_platform,
+                    node_version_file,
+                    default_platform,
+                    version,
+                );
                 if source.allowed_with(filter) {
                     let version = version.clone();
                     Some(Node { source, version })
@@ -226,13 +301,21 @@ impl Toolchain {
 
     pub(super) fn npm(
         project: Option<&Project>,
+        project_platform: Option<&PlatformSpec>,
+        node_version_file: Option<&Path>,
         default_platform: Option<&PlatformSpec>,
         filter: &Filter,
     ) -> Fallible<Toolchain> {
         let managers = npm_versions()?
             .iter()
             .filter_map(|version| {
-                let source = Lookup::Npm.version_source(project, default_platform, version);
+                let source = Lookup::Npm.version_source(
+                    project,
+                    project_platform,
+                    node_version_file,
+                    default_platform,
+                    version,
+                );
                 if source.allowed_with(filter) {
                     Some(PackageManager {
                         kind: PackageManagerKind::Npm,
@@ -253,13 +336,21 @@ impl Toolchain {
 
     pub(super) fn pnpm(
         project: Option<&Project>,
+        project_platform: Option<&PlatformSpec>,
+        node_version_file: Option<&Path>,
         default_platform: Option<&PlatformSpec>,
         filter: &Filter,
     ) -> Fallible<Toolchain> {
         let managers = pnpm_versions()?
             .iter()
             .filter_map(|version| {
-                let source = Lookup::Pnpm.version_source(project, default_platform, version);
+                let source = Lookup::Pnpm.version_source(
+                    project,
+                    project_platform,
+                    node_version_file,
+                    default_platform,
+                    version,
+                );
                 if source.allowed_with(filter) {
                     Some(PackageManager {
                         kind: PackageManagerKind::Pnpm,
@@ -280,13 +371,21 @@ impl Toolchain {
 
     pub(super) fn yarn(
         project: Option<&Project>,
+        project_platform: Option<&PlatformSpec>,
+        node_version_file: Option<&Path>,
         default_platform: Option<&PlatformSpec>,
         filter: &Filter,
     ) -> Fallible<Toolchain> {
         let managers = yarn_versions()?
             .iter()
             .filter_map(|version| {
-                let source = Lookup::Yarn.version_source(project, default_platform, version);
+                let source = Lookup::Yarn.version_source(
+                    project,
+                    project_platform,
+                    node_version_file,
+                    default_platform,
+                    version,
+                );
                 if source.allowed_with(filter) {
                     Some(PackageManager {
                         kind: PackageManagerKind::Yarn,
