@@ -43,9 +43,9 @@ Read the [Understanding Volta Guide](https://docs.volta.sh/guide/understanding) 
 
 ## Contributing to Volta
 
-Contributions are always welcome, no matter how large or small. Substantial feature ideas should be proposed as an [RFC](https://github.com/volta-cli/rfcs). Before contributing, please read the [code of conduct](CODE_OF_CONDUCT.md).
-
-See the [CONTRIBUTING.md](CONTRIBUTING.md) for detailed instructions on how to contribute to Volta.
+Contributions are always welcome, no matter how large or small. See the
+[CONTRIBUTING.md](CONTRIBUTING.md) for detailed instructions on how to
+contribute to Volta.
 
 ## Who is using Volta?
 
