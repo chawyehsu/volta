@@ -37,6 +37,12 @@ authors = [
 
 [package.build]
 backend = { name = "pixi-build-rust", version = "*" }
+# sccache secrets for GitHub Actions
+secrets = ["ACTIONS_RESULTS_URL", "ACTIONS_RUNTIME_TOKEN"]
+
+[package.build-dependencies."if(osx)"]
+# Provides the `codesign` command used by rattler-build when cross-compiling.
+sigtool = "*"
 
 [package.build.config]
 # env = { RUSTC_WRAPPER = "sccache", SCCACHE_GHA_ENABLED = "true" }
@@ -44,6 +50,12 @@ backend = { name = "pixi-build-rust", version = "*" }
 # but we explicitly set it here to provide a way to override it if needed, via
 # regex/sed replacement
 extra-args = ["--profile", "release"]
+
+[package.build.target.osx.config.env]
+# conda-forge cannot ship the macOS SDK; CI replaces this placeholder with the
+# absolute SDK path before cross-building.
+SDKROOT = "__MACOS_SDK_ROOT__"
+CONDA_BUILD_SYSROOT = "__MACOS_SDK_ROOT__"
 
 [dependencies]
 # bsdtar to extract conda artifacts

@@ -41,7 +41,6 @@ jobs:
       matrix:
         include:
           - { os: "ubuntu-latest" }
-          - { os: "macos-latest" }
           - { os: "windows-latest" }
     name: Acceptance Tests
     runs-on: ${{ matrix.os }}
@@ -87,8 +86,9 @@ jobs:
 
   ci_nightly_build:
     needs: tests
+    # skip if it's a pull request and the commit message contains 'build(deps)', typically for dependabot
+    if: "!(github.event_name == 'pull_request' && contains(github.event.head_commit.message, 'build(deps)'))"
     name: Build Nightly
-    if: github.event_name != 'pull_request'
     uses: ./.github/workflows/build.yml
     with:
       build_type: nightly

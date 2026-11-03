@@ -113,20 +113,7 @@ fn events_hooks_json() -> String {
 }
 
 cfg_if::cfg_if! {
-    if #[cfg(target_os = "macos")] {
-        const NODE_VERSION_FIXTURES: [DistroMetadata; 2] = [
-            DistroMetadata {
-                version: "10.99.1040",
-                compressed_size: 273,
-                uncompressed_size: Some(0x0028_0000),
-            },
-            DistroMetadata {
-                version: "9.27.6",
-                compressed_size: 272,
-                uncompressed_size: Some(0x0028_0000),
-            },
-        ];
-    } else if #[cfg(target_os = "linux")] {
+    if #[cfg(unix)] {
         const NODE_VERSION_FIXTURES: [DistroMetadata; 2] = [
             DistroMetadata {
                 version: "10.99.1040",
@@ -153,7 +140,7 @@ cfg_if::cfg_if! {
             },
         ];
     } else {
-        compile_error!("Unsupported target_os for tests (expected 'macos', 'linux', or 'windows').");
+        compile_error!("Unsupported platform for tests (expected 'unix' or 'windows').");
     }
 }
 
