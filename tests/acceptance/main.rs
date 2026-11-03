@@ -14,6 +14,7 @@ cfg_if! {
         mod merged_platform;
         mod migrations;
         mod run_shim_directly;
+        #[cfg(not(target_env = "musl"))]
         mod self_update;
         mod setup;
         mod verbose_errors;

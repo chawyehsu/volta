@@ -14,6 +14,9 @@ use volta_core::{
     sync::VoltaLock,
 };
 
+const MAX_CHECKSUM_SIZE: u64 = 4096;
+const MAX_ARCHIVE_SIZE: u64 = 100 * 1024 * 1024;
+
 #[derive(Args)]
 pub(crate) struct SelfUpdate {}
 
@@ -252,6 +255,7 @@ fn api_base_url() -> Option<String> {
 
 fn update() -> Fallible<()> {
     let (triplet, format) = target().ok_or_else(|| fail("unsupported target"))?;
+    let _lock = VoltaLock::acquire()?;
     let current_version = env!("CARGO_PKG_VERSION");
     let release = fetch_latest_release(api_base_url().as_deref())?;
     let is_greater = self_update::version::bump_is_greater(current_version, release.version())
@@ -279,6 +283,7 @@ fn update() -> Fallible<()> {
             self_update::http::header::ACCEPT,
             "application/octet-stream",
         )
+        .max_download_size(MAX_ARCHIVE_SIZE)
         .download_to(&mut archive_file)
         .map_err(|e| fail(e.to_string()))?;
 
@@ -288,7 +293,7 @@ fn update() -> Fallible<()> {
             self_update::http::header::ACCEPT,
             "application/octet-stream",
         )
-        .max_download_size(4096)
+        .max_download_size(MAX_CHECKSUM_SIZE)
         .download_to(&mut checksum_file)
         .map_err(|e| fail(e.to_string()))?;
     let checksum = String::from_utf8(checksum_file).map_err(|e| fail(e.to_string()))?;
@@ -308,7 +313,6 @@ fn update() -> Fallible<()> {
         .to_owned();
 
     let staged = validate_staged_binaries(&extracted)?;
-    let _lock = VoltaLock::acquire()?;
     install_staged(staged, &install)
 }
 
