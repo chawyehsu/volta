@@ -14,6 +14,7 @@ use common::{Error, ensure_layout};
 
 /// The entry point for the `volta` CLI.
 pub fn main() -> std::process::ExitCode {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let volta = cli::Volta::parse();
     let verbosity = match (&volta.verbose, &volta.quiet) {
         (false, false) => LogVerbosity::Default,
