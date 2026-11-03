@@ -112,6 +112,7 @@ pub struct FixtureRelease {
     include_archive: bool,
     include_checksum: bool,
     legacy_names: bool,
+    nested_bin: bool,
 }
 
 pub struct FixtureMocks {
@@ -129,6 +130,7 @@ impl FixtureRelease {
             include_archive: true,
             include_checksum: true,
             legacy_names: false,
+            nested_bin: false,
         }
     }
 
@@ -194,6 +196,13 @@ impl FixtureRelease {
         }
     }
 
+    pub fn nested_bin() -> Self {
+        Self {
+            nested_bin: true,
+            ..Self::valid()
+        }
+    }
+
     pub fn serve(&self, sandbox: &mut Sandbox) -> FixtureMocks {
         let server_url = sandbox.server().url();
         let (host_triplet, host_format) = host_target();
@@ -207,7 +216,14 @@ impl FixtureRelease {
         let entries: Vec<(String, Vec<u8>)> = self
             .binaries
             .iter()
-            .map(|name| (binary_filename(name), binary_contents(name)))
+            .map(|name| {
+                let path = if self.nested_bin {
+                    format!("bin/{}", binary_filename(name))
+                } else {
+                    binary_filename(name)
+                };
+                (path, binary_contents(name))
+            })
             .collect();
         let archive = self.include_archive.then(|| archive_bytes(&entries));
         let checksum = self.include_checksum.then(|| match self.checksum_mode {

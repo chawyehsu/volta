@@ -82,6 +82,32 @@ fn updates_all_binaries_from_fixture_release() {
 }
 
 #[test]
+fn updates_all_binaries_from_nested_bin_archive() {
+    let mut sandbox = sandbox().build();
+    let fixture = FixtureRelease::nested_bin();
+    let mocks = fixture.serve(&mut sandbox);
+    let install = FixtureInstall::new();
+
+    assert_that!(
+        install.command(&sandbox),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains(format!(
+                "Updating volta: {} -> {FIXTURE_VERSION}",
+                env!("CARGO_PKG_VERSION")
+            ))
+    );
+
+    for name in ["volta", "volta-shim", "volta-migrate"] {
+        assert_that!(installed(&install, name), eq(binary_contents(name)));
+    }
+
+    mocks.release.assert();
+    mocks.archive.as_ref().unwrap().assert();
+    mocks.checksum.as_ref().unwrap().assert();
+}
+
+#[test]
 fn volta_only_release_removes_optional_binaries() {
     let mut sandbox = sandbox().build();
     let fixture = FixtureRelease::volta_only();

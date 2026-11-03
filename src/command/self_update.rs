@@ -121,14 +121,24 @@ fn staged_path(dir: &Path, name: &str) -> PathBuf {
     }
 }
 
+fn staged_binaries_dir(dir: &Path) -> PathBuf {
+    let nested = dir.join("bin");
+    if staged_path(&nested, "volta").is_file() {
+        nested
+    } else {
+        dir.to_path_buf()
+    }
+}
+
 fn validate_staged_binaries(dir: &Path) -> Fallible<StagedBinaries> {
-    let main = staged_path(dir, "volta");
+    let root = staged_binaries_dir(dir);
+    let main = staged_path(&root, "volta");
     if !main.is_file() {
         return Err(fail("archive is missing volta"));
     }
 
     let optional = |name: &str| {
-        let path = staged_path(dir, name);
+        let path = staged_path(&root, name);
         if path.exists() && !path.is_file() {
             return Err(fail(format!("archive entry {name} is not a file")));
         }
@@ -357,6 +367,45 @@ mod tests {
         assert!(staged.main.is_file());
         assert!(staged.shim.is_some());
         assert!(staged.migrate.is_none());
+    }
+
+    #[test]
+    fn validates_binaries_in_nested_bin_directory() {
+        let dir = TempDir::new().unwrap();
+        let bin_dir = dir.path().join("bin");
+        fs::create_dir(&bin_dir).unwrap();
+        fs::write(bin_dir.join(bin("volta")), b"main").unwrap();
+        fs::write(bin_dir.join(bin("volta-shim")), b"shim").unwrap();
+
+        let staged = validate_staged_binaries(dir.path()).unwrap();
+        assert_eq!(staged.main, bin_dir.join(bin("volta")));
+        assert_eq!(staged.shim, Some(bin_dir.join(bin("volta-shim"))));
+        assert!(staged.migrate.is_none());
+    }
+
+    #[test]
+    fn prefers_nested_bin_when_both_layouts_have_main() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(bin("volta")), b"top-level").unwrap();
+        let bin_dir = dir.path().join("bin");
+        fs::create_dir(&bin_dir).unwrap();
+        fs::write(bin_dir.join(bin("volta")), b"nested").unwrap();
+
+        let staged = validate_staged_binaries(dir.path()).unwrap();
+        assert_eq!(staged.main, bin_dir.join(bin("volta")));
+    }
+
+    #[test]
+    fn falls_back_to_top_level_when_nested_bin_has_no_main() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(bin("volta")), b"main").unwrap();
+        let bin_dir = dir.path().join("bin");
+        fs::create_dir(&bin_dir).unwrap();
+        fs::write(bin_dir.join(bin("volta-shim")), b"shim").unwrap();
+
+        let staged = validate_staged_binaries(dir.path()).unwrap();
+        assert_eq!(staged.main, dir.path().join(bin("volta")));
+        assert!(staged.shim.is_none());
     }
 
     #[test]
