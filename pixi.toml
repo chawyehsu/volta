@@ -57,11 +57,6 @@ extra-args = ["--profile", "release"]
 SDKROOT = "__MACOS_SDK_ROOT__"
 CONDA_BUILD_SYSROOT = "__MACOS_SDK_ROOT__"
 
-[package.build.target.win.config.env]
-# Use CMake to build aws-lc-sys, because conda's CFLAGS inject -O2 which
-# overrides the -O0 required by jitterentropy-base.c.
-AWS_LC_SYS_CMAKE_BUILDER = "1"
-
 [dependencies]
 # bsdtar to extract conda artifacts
 libarchive = ">=3.8.7,<4"
