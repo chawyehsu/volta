@@ -18,8 +18,8 @@ permissions: {}
 
 jobs:
   style_check:
-    # skip if it's a release commit to the main branch
-    if: "!(github.event_name == 'push' && contains(github.event.head_commit.message, 'chore(main): release'))"
+    # skip if it's a release commit
+    if: "!contains(github.event.head_commit.message, 'chore(main): release')"
     name: Style Check
     runs-on: ubuntu-latest
     env:
