@@ -1,16 +1,11 @@
 [package]
 name = "volta"
-description = "The Hassle-Free JavaScript Tool Manager"
 version = "2.0.3"
-authors = [
-  "Chawye Hsu <su+git@chawyehsu.com>",
-  "David Herman <david.herman@gmail.com>",
-  "Charles Pierce <cpierce.grad@gmail.com>",
-]
+edition = "2024"
+description = "The Hassle-Free JavaScript Tool Manager"
+repository = "https://github.com/chawyehsu/volta"
 license = "BSD-2-Clause"
 categories = ["development-tools"]
-repository = "https://github.com/chawyehsu/volta"
-edition = "2024"
 
 [workspace]
 members = ["crates/*"]
