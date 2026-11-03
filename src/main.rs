@@ -10,11 +10,11 @@ use volta_core::session::{ActivityKind, Session};
 
 mod common;
 mod utils;
-use common::{Error, ensure_layout};
+use common::{Error, ensure_layout, install_crypto_provider};
 
 /// The entry point for the `volta` CLI.
 pub fn main() -> std::process::ExitCode {
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    install_crypto_provider();
     let volta = cli::Volta::parse();
     let verbosity = match (&volta.verbose, &volta.quiet) {
         (false, false) => LogVerbosity::Default,
