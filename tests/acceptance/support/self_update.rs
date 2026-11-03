@@ -1,9 +1,6 @@
 use std::env;
 use std::fs;
-use std::path::PathBuf;
-
-#[cfg(windows)]
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use mockito::Mock;
 use serde_json::json;
@@ -12,6 +9,7 @@ use tempfile::TempDir;
 use test_support::process::ProcessBuilder;
 
 use super::sandbox::{Sandbox, cargo_dir};
+use volta_core::constant;
 
 const TRIPLETS: [(&str, &str); 6] = [
     ("x86_64-unknown-linux-gnu", "tar.gz"),
@@ -328,7 +326,6 @@ impl FixtureInstall {
         Self { dir }
     }
 
-    #[cfg(windows)]
     pub fn path(&self) -> &Path {
         self.dir.path()
     }
@@ -339,7 +336,9 @@ impl FixtureInstall {
 
     pub fn command(&self, sandbox: &Sandbox) -> ProcessBuilder {
         let mut process = sandbox.process(self.binary_path("volta"));
-        process.arg("self-update");
+        process
+            .env(constant::ENVNAME_VOLTA_INSTALL_DIR, self.dir.path())
+            .arg("self-update");
         process
     }
 }

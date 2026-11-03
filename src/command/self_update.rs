@@ -10,12 +10,15 @@ use std::{
 };
 use volta_core::{
     error::{ErrorKind, ExitCode, Fallible, VoltaError},
+    layout::volta_install,
     session::{ActivityKind, Session},
     sync::VoltaLock,
 };
 
 const MAX_CHECKSUM_SIZE: u64 = 4096;
 const MAX_ARCHIVE_SIZE: u64 = 100 * 1024 * 1024;
+const MAX_EXTRACTED_SIZE: u64 = 512 * 1024 * 1024;
+const MAX_ARCHIVE_ENTRIES: usize = 1024;
 
 #[derive(Args)]
 pub(crate) struct SelfUpdate {}
@@ -67,7 +70,66 @@ fn select_assets<'a>(
     Ok((archive, checksum))
 }
 
+fn validate_archive_limits(
+    archive_path: &Path,
+    format: &str,
+    max_size: u64,
+    max_entries: usize,
+) -> Fallible<()> {
+    let mut count = 0usize;
+    let mut total = 0u64;
+
+    if format == "zip" {
+        #[cfg(windows)]
+        {
+            let file = File::open(archive_path).map_err(|e| fail(e.to_string()))?;
+            let mut archive = zip_rs::ZipArchive::new(file).map_err(|e| fail(e.to_string()))?;
+            count = archive.len();
+            for index in 0..count {
+                let entry = archive.by_index(index).map_err(|e| fail(e.to_string()))?;
+                total = total.saturating_add(entry.size());
+                if count > max_entries || total > max_size {
+                    break;
+                }
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = archive_path;
+            return Err(fail("unsupported archive format"));
+        }
+    } else {
+        let file = File::open(archive_path).map_err(|e| fail(e.to_string()))?;
+        let decoder = flate2::read::GzDecoder::new(file);
+        let mut archive = tar::Archive::new(decoder);
+        for entry in archive.entries().map_err(|e| fail(e.to_string()))? {
+            let entry = entry.map_err(|e| fail(e.to_string()))?;
+            count += 1;
+            total = total.saturating_add(entry.size());
+            if count > max_entries || total > max_size {
+                break;
+            }
+        }
+    }
+
+    if count > max_entries {
+        return Err(fail(format!(
+            "archive contains more than {max_entries} entries"
+        )));
+    }
+    if total > max_size {
+        return Err(fail(format!("archive expands beyond {max_size} bytes")));
+    }
+    Ok(())
+}
+
 fn extract_archive(archive_path: &Path, format: &str, destination: &Path) -> Fallible<()> {
+    validate_archive_limits(
+        archive_path,
+        format,
+        MAX_EXTRACTED_SIZE,
+        MAX_ARCHIVE_ENTRIES,
+    )?;
     let archive_kind = if format == "zip" {
         self_update::ArchiveKind::Zip
     } else {
@@ -132,6 +194,19 @@ fn staged_binaries_dir(dir: &Path) -> PathBuf {
 
 fn validate_staged_binaries(dir: &Path) -> Fallible<StagedBinaries> {
     let root = staged_binaries_dir(dir);
+    let other = if root.as_path() == dir {
+        dir.join("bin")
+    } else {
+        dir.to_path_buf()
+    };
+    for name in ["volta", "volta-shim", "volta-migrate"] {
+        if staged_path(&other, name).exists() {
+            return Err(fail(
+                "archive contains binaries in both the root and bin directory",
+            ));
+        }
+    }
+
     let main = staged_path(&root, "volta");
     if !main.is_file() {
         return Err(fail("archive is missing volta"));
@@ -153,6 +228,9 @@ fn validate_staged_binaries(dir: &Path) -> Fallible<StagedBinaries> {
 }
 
 fn install_staged(staged: StagedBinaries, install: &Path) -> Fallible<()> {
+    #[cfg(windows)]
+    crate::utils::cleanup_retired_executables(install);
+
     let binaries = [
         ("volta", Some(staged.main)),
         ("volta-shim", staged.shim),
@@ -197,6 +275,8 @@ fn install_staged(staged: StagedBinaries, install: &Path) -> Fallible<()> {
             };
         }
     }
+    #[cfg(windows)]
+    crate::utils::cleanup_retired_executables(install);
     Ok(())
 }
 
@@ -245,6 +325,7 @@ impl Command for SelfUpdate {
             }
             Err(e) => {
                 session.add_event_error(ActivityKind::SelfUpdate, &e);
+                session.add_event_end(ActivityKind::SelfUpdate, e.exit_code());
                 Err(e)
             }
         }
@@ -316,14 +397,10 @@ fn update() -> Fallible<()> {
     let extracted = temp.path().join("extracted");
     std::fs::create_dir(&extracted).map_err(|e| fail(e.to_string()))?;
     extract_archive(&archive_path, format, &extracted)?;
-    let install = env::current_exe()
-        .map_err(|e| fail(e.to_string()))?
-        .parent()
-        .ok_or_else(|| fail("cannot determine install directory"))?
-        .to_owned();
+    let install = volta_install()?;
 
     let staged = validate_staged_binaries(&extracted)?;
-    install_staged(staged, &install)
+    install_staged(staged, install.root())
 }
 
 #[cfg(test)]
@@ -332,7 +409,7 @@ mod tests {
     use super::fetch_latest_release;
     use super::{
         StagedBinaries, extract_archive, install_staged, parse_checksum, rollback_install,
-        select_assets, validate_staged_binaries,
+        select_assets, validate_archive_limits, validate_staged_binaries,
     };
     use self_update::{Release, ReleaseAsset};
     use std::fs;
@@ -384,15 +461,14 @@ mod tests {
     }
 
     #[test]
-    fn prefers_nested_bin_when_both_layouts_have_main() {
+    fn rejects_archive_with_binaries_in_both_layouts() {
         let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join(bin("volta")), b"top-level").unwrap();
+        fs::write(dir.path().join(bin("volta-shim")), b"top-level").unwrap();
         let bin_dir = dir.path().join("bin");
         fs::create_dir(&bin_dir).unwrap();
         fs::write(bin_dir.join(bin("volta")), b"nested").unwrap();
 
-        let staged = validate_staged_binaries(dir.path()).unwrap();
-        assert_eq!(staged.main, bin_dir.join(bin("volta")));
+        assert!(validate_staged_binaries(dir.path()).is_err());
     }
 
     #[test]
@@ -401,7 +477,7 @@ mod tests {
         fs::write(dir.path().join(bin("volta")), b"main").unwrap();
         let bin_dir = dir.path().join("bin");
         fs::create_dir(&bin_dir).unwrap();
-        fs::write(bin_dir.join(bin("volta-shim")), b"shim").unwrap();
+        fs::write(bin_dir.join("README"), b"not a binary").unwrap();
 
         let staged = validate_staged_binaries(dir.path()).unwrap();
         assert_eq!(staged.main, dir.path().join(bin("volta")));
@@ -541,7 +617,6 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
     #[test]
     fn removing_a_directory_as_an_optional_binary_is_an_error() {
         let dir = TempDir::new().unwrap();
@@ -549,6 +624,23 @@ mod tests {
         fs::create_dir(&destination).unwrap();
 
         assert!(crate::utils::remove_or_retire(&destination).is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn cleans_up_retired_executables() {
+        let dir = TempDir::new().unwrap();
+        let trash = dir.path().join(".trash");
+        fs::create_dir(&trash).unwrap();
+        let retired = trash.join("volta.exe.old.1.0");
+        fs::write(&retired, b"old").unwrap();
+        let keep = trash.join("keep");
+        fs::create_dir(&keep).unwrap();
+
+        crate::utils::cleanup_retired_executables(dir.path());
+
+        assert!(!retired.exists());
+        assert!(keep.exists());
     }
 
     #[test]
@@ -613,6 +705,46 @@ mod tests {
 
         extract_archive(&archive_path, "tar.gz", &output).unwrap();
         assert_eq!(fs::read(output.join("volta")).unwrap(), content);
+    }
+
+    #[test]
+    fn rejects_archives_that_exceed_extraction_limits() {
+        let temp = TempDir::new().unwrap();
+        let archive_path = temp.path().join("volta.tar.gz");
+        let archive = fs::File::create(&archive_path).unwrap();
+        let encoder = flate2::write::GzEncoder::new(archive, flate2::Compression::default());
+        let mut builder = tar::Builder::new(encoder);
+        let content = b"binary";
+        let mut header = tar::Header::new_gnu();
+        header.set_path("volta").unwrap();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o755);
+        header.set_cksum();
+        builder.append(&header, &content[..]).unwrap();
+        builder.into_inner().unwrap().finish().unwrap();
+
+        assert!(validate_archive_limits(&archive_path, "tar.gz", 0, 10).is_err());
+        assert!(validate_archive_limits(&archive_path, "tar.gz", 1024, 0).is_err());
+        assert!(validate_archive_limits(&archive_path, "tar.gz", 1024, 10).is_ok());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn rejects_zip_archives_that_exceed_extraction_limits() {
+        use std::io::Write;
+
+        let temp = TempDir::new().unwrap();
+        let archive_path = temp.path().join("volta.zip");
+        let archive = fs::File::create(&archive_path).unwrap();
+        let mut writer = zip_rs::ZipWriter::new(archive);
+        let options = zip_rs::write::SimpleFileOptions::default();
+        writer.start_file("volta.exe", options).unwrap();
+        writer.write_all(b"binary").unwrap();
+        writer.finish().unwrap();
+
+        assert!(validate_archive_limits(&archive_path, "zip", 0, 10).is_err());
+        assert!(validate_archive_limits(&archive_path, "zip", 1024, 0).is_err());
+        assert!(validate_archive_limits(&archive_path, "zip", 1024, 10).is_ok());
     }
 
     #[cfg(feature = "mock-network")]

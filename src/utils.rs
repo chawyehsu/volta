@@ -4,6 +4,9 @@ use volta_core::error::Fallible;
 
 use crate::command::self_update::fail;
 
+#[cfg(target_os = "windows")]
+const TRASH_DIR: &str = ".trash";
+
 pub(crate) fn exe_path(path: &Path) -> PathBuf {
     #[cfg(target_os = "windows")]
     {
@@ -15,7 +18,7 @@ pub(crate) fn exe_path(path: &Path) -> PathBuf {
     }
 }
 
-/// Move `old` to a unique name so the live name is freed mmediately, even while
+/// Move `old` to a unique name so the live name is freed immediately, even while
 /// the file is still mapped by a running process (Windows permits renaming but
 /// not deleting a running image).
 #[cfg(target_os = "windows")]
@@ -23,7 +26,6 @@ fn retire_exe(old: &Path) -> Fallible<Option<PathBuf>> {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    const TRASH_DIR: &str = ".trash";
 
     let bin_dir = old
         .parent()
@@ -71,7 +73,21 @@ pub(crate) fn remove_or_retire(dst: &Path) -> Fallible<Option<PathBuf>> {
         let dst = exe_path(dst);
         match std::fs::remove_file(&dst) {
             Ok(()) => Ok(None),
-            Err(_) => retire_exe(&dst),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => {
+                let is_file = std::fs::symlink_metadata(&dst)
+                    .map(|metadata| metadata.file_type().is_file())
+                    .unwrap_or(false);
+                if is_file {
+                    retire_exe(&dst)
+                } else {
+                    Err(fail(format!(
+                        "failed to remove {}: {}",
+                        dst.display(),
+                        error
+                    )))
+                }
+            }
         }
     }
     #[cfg(not(windows))]
@@ -84,6 +100,23 @@ pub(crate) fn remove_or_retire(dst: &Path) -> Fallible<Option<PathBuf>> {
                 dst.display(),
                 error
             ))),
+        }
+    }
+}
+
+#[cfg(windows)]
+pub(crate) fn cleanup_retired_executables(install: &Path) {
+    let trash_dir = install.join(TRASH_DIR);
+    let Ok(entries) = std::fs::read_dir(&trash_dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if entry
+            .file_type()
+            .map(|file_type| file_type.is_file())
+            .unwrap_or(false)
+        {
+            let _ = std::fs::remove_file(entry.path());
         }
     }
 }

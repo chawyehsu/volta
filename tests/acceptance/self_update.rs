@@ -8,6 +8,7 @@ use crate::support::sandbox::sandbox;
 use crate::support::self_update::{
     FIXTURE_VERSION, FixtureInstall, FixtureRelease, binary_contents,
 };
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 fn installed(install: &FixtureInstall, name: &str) -> Vec<u8> {
@@ -100,6 +101,31 @@ fn updates_all_binaries_from_nested_bin_archive() {
 
     for name in ["volta", "volta-shim", "volta-migrate"] {
         assert_that!(installed(&install, name), eq(binary_contents(name)));
+    }
+
+    mocks.release.assert();
+    mocks.archive.as_ref().unwrap().assert();
+    mocks.checksum.as_ref().unwrap().assert();
+}
+
+#[test]
+fn updates_the_configured_install_dir() {
+    let mut sandbox = sandbox().build();
+    let fixture = FixtureRelease::valid();
+    let mocks = fixture.serve(&mut sandbox);
+    let source = FixtureInstall::new();
+    let target = FixtureInstall::new();
+
+    assert_that!(
+        source
+            .command(&sandbox)
+            .env(constant::ENVNAME_VOLTA_INSTALL_DIR, target.path()),
+        execs().with_status(ExitCode::Success as i32)
+    );
+
+    for name in ["volta", "volta-shim", "volta-migrate"] {
+        assert_that!(installed(&target, name), eq(binary_contents(name)));
+        assert_ne!(installed(&source, name), binary_contents(name));
     }
 
     mocks.release.assert();
