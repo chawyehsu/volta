@@ -125,6 +125,9 @@ test-support.workspace = true
 [target."cfg(windows)".dependencies]
 winreg.workspace = true
 
+[target."cfg(windows)".dev-dependencies]
+zip_rs.workspace = true
+
 [features]
 cross-platform-docs = ["volta-core/cross-platform-docs"]
 mock-network = ["mockito", "volta-core/mock-network"]
