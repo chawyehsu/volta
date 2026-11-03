@@ -3151,7 +3151,6 @@ dependencies = [
  "mockito",
  "node-semver",
  "once_cell",
- "rustls",
  "self_update",
  "serde",
  "serde_json",

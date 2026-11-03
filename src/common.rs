@@ -8,10 +8,6 @@ pub enum Error {
     Tool(i32),
 }
 
-pub fn install_crypto_provider() {
-    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-}
-
 pub fn ensure_layout() -> Result<(), Error> {
     let home = volta_home().map_err(Error::Volta)?;
 

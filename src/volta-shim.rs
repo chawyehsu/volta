@@ -1,6 +1,6 @@
 mod common;
 
-use common::{Error, IntoResult, ensure_layout, install_crypto_provider};
+use common::{Error, IntoResult, ensure_layout};
 use volta_core::error::{ExitCode, report_error};
 use volta_core::log::{LogContext, LogVerbosity, Logger};
 use volta_core::run::execute_shim;
@@ -8,7 +8,6 @@ use volta_core::session::{ActivityKind, Session};
 use volta_core::signal::setup_signal_handler;
 
 pub fn main() -> std::process::ExitCode {
-    install_crypto_provider();
     Logger::init(LogContext::Shim, LogVerbosity::Default)
         .expect("Only a single Logger should be initialized");
     setup_signal_handler();
