@@ -1,11 +1,6 @@
 use std::collections::HashSet;
 
-use super::NODE_DISTRO_IDENTIFIER;
-#[cfg(any(
-    all(target_os = "macos", target_arch = "aarch64"),
-    all(target_os = "windows", target_arch = "aarch64")
-))]
-use super::NODE_DISTRO_IDENTIFIER_FALLBACK;
+use super::HostPlatform;
 use crate::version::{option_version_serde, version_serde};
 use node_semver::Version;
 use serde::{Deserialize, Deserializer};
@@ -38,31 +33,12 @@ pub struct RawNodeEntry {
 
 impl From<RawNodeIndex> for NodeIndex {
     fn from(raw: RawNodeIndex) -> NodeIndex {
+        let distro = HostPlatform::current().node_distro();
         let entries = raw
             .0
             .into_iter()
             .filter_map(|entry| {
-                #[cfg(not(any(
-                    all(target_os = "macos", target_arch = "aarch64"),
-                    all(target_os = "windows", target_arch = "aarch64")
-                )))]
-                if entry.npm.is_some() && entry.files.contains(NODE_DISTRO_IDENTIFIER) {
-                    Some(NodeEntry {
-                        version: entry.version,
-                        lts: entry.lts,
-                    })
-                } else {
-                    None
-                }
-
-                #[cfg(any(
-                    all(target_os = "macos", target_arch = "aarch64"),
-                    all(target_os = "windows", target_arch = "aarch64")
-                ))]
-                if entry.npm.is_some()
-                    && (entry.files.contains(NODE_DISTRO_IDENTIFIER)
-                        || entry.files.contains(NODE_DISTRO_IDENTIFIER_FALLBACK))
-                {
+                if entry.npm.is_some() && distro.supports(&entry.files) {
                     Some(NodeEntry {
                         version: entry.version,
                         lts: entry.lts,
