@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+attohttpc = { workspace = true, features = ["tls-rustls-native-roots"] }
 cfg-if.workspace = true
 chain-map.workspace = true
 chrono.workspace = true
@@ -41,12 +42,6 @@ thiserror.workspace = true
 volta-layout.workspace = true
 walkdir.workspace = true
 which.workspace = true
-
-[target.'cfg(all(windows, target_arch = "aarch64"))'.dependencies]
-attohttpc = { workspace = true, features = ["tls-rustls-native-roots-ring"] }
-
-[target.'cfg(not(all(windows, target_arch = "aarch64")))'.dependencies]
-attohttpc = { workspace = true, features = ["tls-rustls-native-roots"] }
 
 [target."cfg(windows)".dependencies]
 junction.workspace = true

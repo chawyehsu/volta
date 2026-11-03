@@ -14,8 +14,17 @@ const NODE_VERSION_INFO: &str = r#"[
 ]
 "#;
 
+static CI_MOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn ci_mock_guard() -> std::sync::MutexGuard<'static, ()> {
+    CI_MOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 #[test]
 fn no_cause_shown_if_no_verbose_flag() {
+    let _ci_guard = ci_mock_guard();
     let s = sandbox().node_available_versions(NODE_VERSION_INFO).build();
 
     // Mock `is_ci` to false so that this works even when running in Volta's CI Test Suite
@@ -31,6 +40,7 @@ fn no_cause_shown_if_no_verbose_flag() {
 
 #[test]
 fn cause_shown_if_verbose_flag() {
+    let _ci_guard = ci_mock_guard();
     let s = sandbox().node_available_versions(NODE_VERSION_INFO).build();
 
     // Mock `is_ci` to false so that this correctly tests the verbose flag
@@ -58,6 +68,7 @@ fn no_cause_if_no_underlying_error() {
 
 #[test]
 fn error_log_if_underlying_cause() {
+    let _ci_guard = ci_mock_guard();
     let s = sandbox().node_available_versions(NODE_VERSION_INFO).build();
 
     // Mock `is_ci` to false so that this works even when running Volta's CI Test Suite
@@ -93,6 +104,7 @@ fn no_error_log_if_no_underlying_cause() {
 
 #[test]
 fn cause_shown_in_ci() {
+    let _ci_guard = ci_mock_guard();
     let s = sandbox()
         .node_available_versions(NODE_VERSION_INFO)
         .env("VOLTA_LOGLEVEL", "error")
@@ -114,6 +126,7 @@ fn cause_shown_in_ci() {
 
 #[test]
 fn no_error_log_in_ci() {
+    let _ci_guard = ci_mock_guard();
     let s = sandbox().node_available_versions(NODE_VERSION_INFO).build();
 
     // Mock a CI environment so this works even when running locally
