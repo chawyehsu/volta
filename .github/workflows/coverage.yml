@@ -21,7 +21,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-    if: github.actor != 'dependabot[bot]'
+    # skip if the commit message contains 'build(deps)', typically for dependabot
+    if: "!contains(github.event.head_commit.message, 'build(deps)')"
     env:
       SCCACHE_GHA_ENABLED: true
       RUSTC_WRAPPER: sccache
