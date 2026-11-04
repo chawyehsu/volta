@@ -205,6 +205,7 @@ pub enum ErrorKind {
         matching: String,
     },
 
+    /// Thrown when the home directory could not be determined
     NoHomeEnvironmentVar,
 
     /// Thrown when the install dir could not be determined
