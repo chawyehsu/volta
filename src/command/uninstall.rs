@@ -7,30 +7,30 @@ use crate::command::Command;
 
 #[derive(clap::Args)]
 pub(crate) struct Uninstall {
-    /// The tool to uninstall, like `ember-cli-update`, `typescript`, or <package>
-    tool: String,
+    /// Tools to uninstall, like `node@12.11.1`, `yarn@1.22`, or `typescript`
+    #[arg(value_name = "tool[@version]", required = true)]
+    tools: Vec<String>,
 }
 
 impl Command for Uninstall {
     fn run(self, session: &mut Session) -> Fallible<ExitCode> {
         session.add_event_start(ActivityKind::Uninstall);
 
-        let tool = tool::Spec::try_from_str(&self.tool)?;
+        for tool in tool::Spec::from_strings(&self.tools, "uninstall")? {
+            // For packages, specifically report that we do not support uninstalling
+            // specific versions. For runtimes and package managers, version specs are
+            // supported and are used to select which cached versions to remove.
+            if let tool::Spec::Package(_name, version) = &tool {
+                let VersionSpec::None = version else {
+                    return Err(ErrorKind::Unimplemented {
+                        feature: "uninstalling specific versions of tools".into(),
+                    }
+                    .into());
+                };
+            }
 
-        // For packages, specifically report that we do not support uninstalling
-        // specific versions. For runtimes and package managers, we currently
-        // *intentionally* let this fall through to inform the user that we do
-        // not support uninstalling those *at all*.
-        if let tool::Spec::Package(_name, version) = &tool {
-            let VersionSpec::None = version else {
-                return Err(ErrorKind::Unimplemented {
-                    feature: "uninstalling specific versions of tools".into(),
-                }
-                .into());
-            };
+            tool.uninstall(session)?;
         }
-
-        tool.uninstall()?;
 
         session.add_event_end(ActivityKind::Uninstall, ExitCode::Success);
         Ok(ExitCode::Success)
