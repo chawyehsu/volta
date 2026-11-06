@@ -1,9 +1,10 @@
-use crate::support::sandbox::{
-    DistroMetadata, NodeFixture, NpmFixture, PnpmFixture, Yarn1Fixture, YarnBerryFixture, sandbox,
-};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{
+    DistroMetadata, NodeFixture, NpmFixture, PnpmFixture, Tool, Yarn1Fixture, YarnBerryFixture,
+    sandbox,
+};
 
 use volta_core::constant;
 use volta_core::error::ExitCode;
@@ -828,8 +829,11 @@ fn pin_npm_missing_release() {
 fn pin_npm_bundled_removes_npm() {
     let s = sandbox()
         .package_json(&package_json_with_pinned_node_npm("1.2.3", "4.5.6"))
-        .node_npm_version_file("1.2.3", "3.2.1")
         .build();
+    s.tool(Tool::Node)
+        .version("1.2.3")
+        .npm_file()
+        .write("3.2.1");
 
     assert_that!(
         s.volta("pin npm@bundled"),
@@ -846,9 +850,12 @@ fn pin_npm_bundled_removes_npm() {
 fn pin_npm_bundled_reports_info() {
     let s = sandbox()
         .package_json(&package_json_with_pinned_node_npm("1.2.3", "4.5.6"))
-        .node_npm_version_file("1.2.3", "3.2.1")
         .env("VOLTA_LOGLEVEL", "info")
         .build();
+    s.tool(Tool::Node)
+        .version("1.2.3")
+        .npm_file()
+        .write("3.2.1");
 
     assert_that!(
         s.volta("pin npm@bundled"),
@@ -1463,10 +1470,10 @@ fn read_default_npm_error() {
         .build();
 
     // Create the node image dir so node is "already fetched"
-    s.create_node_image("10.99.1040");
+    s.tool(Tool::Node).version("10.99.1040").image().create();
 
-    // The npm version file was created by create_node_image — make it unreadable
-    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    // The npm version file was created by the image — make it unreadable
+    let volta_home = s.volta_home();
     let npm_version_file = volta_home.join("tools/inventory/node/node-v10.99.1040-npm");
     std::fs::set_permissions(&npm_version_file, std::fs::Permissions::from_mode(0o000)).unwrap();
 

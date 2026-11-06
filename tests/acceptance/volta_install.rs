@@ -1,10 +1,10 @@
-use crate::support::sandbox::{
-    DistroMetadata, NodeFixture, NpmFixture, PnpmFixture, Sandbox, Yarn1Fixture, YarnBerryFixture,
-    sandbox,
-};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{
+    DistroMetadata, NodeFixture, NpmFixture, PnpmFixture, Tool, Yarn1Fixture, YarnBerryFixture,
+    sandbox,
+};
 
 use volta_core::constant;
 use volta_core::error::ExitCode;
@@ -261,27 +261,30 @@ fn install_node_with_npm_hides_bundled_version() {
 fn install_npm_bundled_clears_npm() {
     let s = sandbox()
         .platform(&platform_with_node_npm("8.9.10", "6.2.26"))
-        .node_npm_version_file("8.9.10", "5.6.7")
         .build();
+    s.tool(Tool::Node)
+        .version("8.9.10")
+        .npm_file()
+        .write("5.6.7");
 
     assert_that!(
         s.volta("install npm@bundled"),
         execs().with_status(ExitCode::Success as i32)
     );
 
-    assert_eq!(
-        Sandbox::read_default_platform(),
-        platform_with_node("8.9.10")
-    );
+    assert_eq!(s.read_default_platform(), platform_with_node("8.9.10"));
 }
 
 #[test]
 fn install_npm_bundled_reports_info() {
     let s = sandbox()
         .platform(&platform_with_node_npm("8.9.10", "6.2.26"))
-        .node_npm_version_file("8.9.10", "5.6.7")
         .env("VOLTA_LOGLEVEL", "info")
         .build();
+    s.tool(Tool::Node)
+        .version("8.9.10")
+        .npm_file()
+        .write("5.6.7");
 
     assert_that!(
         s.volta("install npm@bundled"),

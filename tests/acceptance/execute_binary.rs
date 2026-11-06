@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use crate::support::sandbox::{PackageBinInfo, sandbox};
 use cfg_if::cfg_if;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{PackageBinInfo, Tool, sandbox};
 #[cfg(unix)]
 use volta_core::error::ExitCode;
 
@@ -275,12 +275,22 @@ fn default_binary_no_project() {
         .shim("cowsay")
         .shim("cowthink")
         .package_image("cowsay", "1.4.0", Some(cowsay_bin_info("1.4.0")))
-        .setup_node_binary("11.10.1", "6.7.0", &node_bin("11.10.1"))
-        .setup_npm_binary("6.7.0", &npm_bin("6.7.0"))
-        .setup_yarn_binary("1.23.483", &yarn_bin("1.23.483"))
-        .setup_pnpm_binary("7.7.1", &pnpm_bin("7.7.1"))
         .add_dir_to_path(PathBuf::from("/bin"))
         .build();
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .npm_file()
+        .write("6.7.0");
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .binary(&node_bin("11.10.1"));
+    s.tool(Tool::Npm).version("6.7.0").binary(&npm_bin("6.7.0"));
+    s.tool(Tool::Yarn)
+        .version("1.23.483")
+        .binary(&yarn_bin("1.23.483"));
+    s.tool(Tool::Pnpm)
+        .version("7.7.1")
+        .binary(&pnpm_bin("7.7.1"));
 
     // control should be passed directly to the bin
     assert_that!(
@@ -309,12 +319,22 @@ fn default_binary_sets_node_path() {
         .binary_config("envcheck", &envcheck_bin_config("envcheck"))
         .shim("envcheck")
         .package_image("envcheck", "1.4.0", Some(envcheck_bin_info("1.4.0")))
-        .setup_node_binary("11.10.1", "6.7.0", &node_bin("11.10.1"))
-        .setup_npm_binary("6.7.0", &npm_bin("6.7.0"))
-        .setup_yarn_binary("1.23.483", &yarn_bin("1.23.483"))
-        .setup_pnpm_binary("7.7.1", &pnpm_bin("7.7.1"))
         .add_dir_to_path(PathBuf::from("/bin"))
         .build();
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .npm_file()
+        .write("6.7.0");
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .binary(&node_bin("11.10.1"));
+    s.tool(Tool::Npm).version("6.7.0").binary(&npm_bin("6.7.0"));
+    s.tool(Tool::Yarn)
+        .version("1.23.483")
+        .binary(&yarn_bin("1.23.483"));
+    s.tool(Tool::Pnpm)
+        .version("7.7.1")
+        .binary(&pnpm_bin("7.7.1"));
 
     assert_that!(
         s.exec_shim("envcheck", "foo"),
@@ -410,12 +430,22 @@ fn default_binary_no_project_dep() {
         .shim("cowsay")
         .shim("cowthink")
         .package_image("cowsay", "1.4.0", Some(cowsay_bin_info("1.4.0")))
-        .setup_node_binary("11.10.1", "6.7.0", &node_bin("11.10.1"))
-        .setup_npm_binary("6.7.0", &npm_bin("6.7.0"))
-        .setup_yarn_binary("1.23.483", &yarn_bin("1.23.483"))
-        .setup_pnpm_binary("7.7.1", &pnpm_bin("7.7.1"))
         .add_dir_to_path(PathBuf::from("/bin"))
         .build();
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .npm_file()
+        .write("6.7.0");
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .binary(&node_bin("11.10.1"));
+    s.tool(Tool::Npm).version("6.7.0").binary(&npm_bin("6.7.0"));
+    s.tool(Tool::Yarn)
+        .version("1.23.483")
+        .binary(&yarn_bin("1.23.483"));
+    s.tool(Tool::Pnpm)
+        .version("7.7.1")
+        .binary(&pnpm_bin("7.7.1"));
 
     assert_that!(
         s.exec_shim("cowsay", "foo"),
@@ -446,14 +476,30 @@ fn project_local_binary() {
         .shim("cowsay")
         .shim("cowthink")
         .package_image("cowsay", "1.4.0", Some(cowsay_bin_info("1.4.0")))
-        .setup_node_binary("11.10.1", "6.7.0", &node_bin("11.10.1"))
-        .setup_node_binary("10.99.1040", "6.7.0", &node_bin("10.99.1040"))
-        .setup_npm_binary("6.7.0", &npm_bin("6.7.0"))
-        .setup_yarn_binary("1.23.483", &yarn_bin("1.23.483"))
-        .setup_pnpm_binary("7.7.1", &pnpm_bin("7.7.1"))
         .project_bins(cowsay_bin_info("1.5.0"))
         .add_dir_to_path(PathBuf::from("/bin"))
         .build();
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .npm_file()
+        .write("6.7.0");
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .binary(&node_bin("11.10.1"));
+    s.tool(Tool::Node)
+        .version("10.99.1040")
+        .npm_file()
+        .write("6.7.0");
+    s.tool(Tool::Node)
+        .version("10.99.1040")
+        .binary(&node_bin("10.99.1040"));
+    s.tool(Tool::Npm).version("6.7.0").binary(&npm_bin("6.7.0"));
+    s.tool(Tool::Yarn)
+        .version("1.23.483")
+        .binary(&yarn_bin("1.23.483"));
+    s.tool(Tool::Pnpm)
+        .version("7.7.1")
+        .binary(&pnpm_bin("7.7.1"));
 
     // control should be passed directly to the local bin
     assert_that!(
@@ -484,14 +530,30 @@ fn project_local_binary_pnp() {
         .shim("cowsay")
         .shim("cowthink")
         .package_image("cowsay", "1.4.0", Some(cowsay_bin_info("1.4.0")))
-        .setup_node_binary("11.10.1", "6.7.0", &node_bin("11.10.1"))
-        .setup_node_binary("10.99.1040", "6.7.0", &node_bin("10.99.1040"))
-        .setup_npm_binary("6.7.0", &npm_bin("6.7.0"))
-        .setup_yarn_binary("1.23.483", &yarn_bin("1.23.483"))
-        .setup_yarn_binary("3.12.1092", &yarn_bin("3.12.1092"))
         .project_pnp()
         .add_dir_to_path(PathBuf::from("/bin"))
         .build();
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .npm_file()
+        .write("6.7.0");
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .binary(&node_bin("11.10.1"));
+    s.tool(Tool::Node)
+        .version("10.99.1040")
+        .npm_file()
+        .write("6.7.0");
+    s.tool(Tool::Node)
+        .version("10.99.1040")
+        .binary(&node_bin("10.99.1040"));
+    s.tool(Tool::Npm).version("6.7.0").binary(&npm_bin("6.7.0"));
+    s.tool(Tool::Yarn)
+        .version("1.23.483")
+        .binary(&yarn_bin("1.23.483"));
+    s.tool(Tool::Yarn)
+        .version("3.12.1092")
+        .binary(&yarn_bin("3.12.1092"));
 
     // this should run 'yarn cowsay' to execute the binary
     assert_that!(
@@ -520,12 +582,18 @@ fn read_bin_config_error() {
         .binary_config("cowsay", &bin_config("cowsay"))
         .shim("cowsay")
         .package_image("cowsay", "1.4.0", Some(cowsay_bin_info("1.4.0")))
-        .setup_node_binary("11.10.1", "6.7.0", &node_bin("11.10.1"))
-        .setup_npm_binary("6.7.0", &npm_bin("6.7.0"))
         .build();
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .npm_file()
+        .write("6.7.0");
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .binary(&node_bin("11.10.1"));
+    s.tool(Tool::Npm).version("6.7.0").binary(&npm_bin("6.7.0"));
 
     // Make the bin config file unreadable
-    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let volta_home = s.volta_home();
     let bin_config_file = volta_home.join("tools/user/bins/cowsay.json");
     std::fs::set_permissions(&bin_config_file, std::fs::Permissions::from_mode(0o000)).unwrap();
 
@@ -560,12 +628,18 @@ fn parse_bin_config_error() {
         .binary_config("cowsay", &bin_config("cowsay"))
         .shim("cowsay")
         .package_image("cowsay", "1.4.0", Some(cowsay_bin_info("1.4.0")))
-        .setup_node_binary("11.10.1", "6.7.0", &node_bin("11.10.1"))
-        .setup_npm_binary("6.7.0", &npm_bin("6.7.0"))
         .build();
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .npm_file()
+        .write("6.7.0");
+    s.tool(Tool::Node)
+        .version("11.10.1")
+        .binary(&node_bin("11.10.1"));
+    s.tool(Tool::Npm).version("6.7.0").binary(&npm_bin("6.7.0"));
 
     // Corrupt the bin config file with garbage JSON
-    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let volta_home = s.volta_home();
     let bin_config_file = volta_home.join("tools/user/bins/cowsay.json");
     std::fs::write(&bin_config_file, "not valid json{{{").unwrap();
 

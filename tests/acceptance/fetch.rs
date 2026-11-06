@@ -2,11 +2,11 @@
 
 use std::path::Path;
 
-use crate::support::sandbox::{DistroMetadata, NodeFixture, NpmFixture, Yarn1Fixture, sandbox};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use node_semver::Version;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{DistroMetadata, NodeFixture, NpmFixture, Tool, Yarn1Fixture, sandbox};
 use volta_core::error::ExitCode;
 use volta_core::tool::Node;
 
@@ -113,7 +113,7 @@ fn fetch_node_downloads_and_saves_to_inventory() {
         execs().with_status(ExitCode::Success as i32)
     );
 
-    assert!(s.node_inventory_archive_exists(&Version::parse("10.99.1040").unwrap()));
+    assert!(s.tool(Tool::Node).version("10.99.1040").archive().exists());
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn fetch_corrupted_node_errors() {
         execs().with_status(ExitCode::UnknownError as i32)
     );
 
-    assert!(!s.node_inventory_archive_exists(&Version::parse("0.0.1").unwrap()));
+    assert!(!s.tool(Tool::Node).version("0.0.1").archive().exists());
 }
 
 // ---- node fetch: exercises archive::load_native (cache hit) ----
@@ -142,9 +142,13 @@ fn fetch_node_uses_cached_archive() {
 
     // Pre-populate the inventory cache with a valid fixture so that
     // load_cached_distro finds it and archive::load_native is exercised.
-    let version = Version::parse("10.99.1040").unwrap();
-    let fixture = Path::new("tests/fixtures").join(Node::archive_filename(&version));
-    s.populate_node_inventory_cache(&version, &fixture);
+    let fixture = Path::new("tests/fixtures").join(Node::archive_filename(
+        &Version::parse("10.99.1040").unwrap(),
+    ));
+    s.tool(Tool::Node)
+        .version("10.99.1040")
+        .archive()
+        .write_from(&fixture);
 
     assert_that!(
         s.volta("fetch node@10.99.1040"),
@@ -152,7 +156,7 @@ fn fetch_node_uses_cached_archive() {
     );
 
     // Archive should still be present after the fetch
-    assert!(s.node_inventory_archive_exists(&version));
+    assert!(s.tool(Tool::Node).version("10.99.1040").archive().exists());
 }
 
 // ---- npm fetch ----
@@ -169,7 +173,7 @@ fn fetch_npm_downloads_and_saves_to_inventory() {
         execs().with_status(ExitCode::Success as i32)
     );
 
-    assert!(s.npm_inventory_archive_exists("4.5.6"));
+    assert!(s.tool(Tool::Npm).version("4.5.6").archive().exists());
 }
 
 // ---- yarn fetch ----
@@ -186,7 +190,7 @@ fn fetch_yarn_downloads_and_saves_to_inventory() {
         execs().with_status(ExitCode::Success as i32)
     );
 
-    assert!(s.yarn_inventory_archive_exists("1.2.42"));
+    assert!(s.tool(Tool::Yarn).version("1.2.42").archive().exists());
 }
 
 #[test]
@@ -200,7 +204,7 @@ fn persist_inventory_error() {
     // The fetch flow writes the npm version file first (succeeds), then tries
     // to persist the staging file as the archive (fails because the target
     // path is already a directory).
-    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let volta_home = s.volta_home();
     let inventory_dir = volta_home.join("tools/inventory/node");
     let archive_name = Node::archive_filename(&node_semver::Version::parse("10.99.1040").unwrap());
     std::fs::create_dir_all(inventory_dir.join(&archive_name)).unwrap();
@@ -231,7 +235,7 @@ fn create_temp_file_error() {
         .build();
 
     // Make the tmp directory unwritable so creating a temp file fails
-    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let volta_home = s.volta_home();
     let tmp_dir = volta_home.join("tmp");
     std::fs::set_permissions(&tmp_dir, std::fs::Permissions::from_mode(0o000)).unwrap();
 

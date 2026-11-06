@@ -1,10 +1,10 @@
-use crate::support::sandbox::{
-    DistroMetadata, NodeFixture, NpmFixture, PackageBinInfo, PnpmFixture, Yarn1Fixture,
-    YarnBerryFixture, sandbox,
-};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{
+    DistroMetadata, NodeFixture, NpmFixture, PackageBinInfo, PnpmFixture, Tool, Yarn1Fixture,
+    YarnBerryFixture, sandbox,
+};
 
 use volta_core::constant;
 use volta_core::error::ExitCode;
@@ -572,9 +572,11 @@ fn run_npm_link_env_variable_passed() {
                 contents: fake_bin_echo_envs(&["MY_LINK_VAR"]),
             }]),
         )
-        .setup_npm_binary("8.1.5", &fake_bin_echo_envs(&["MY_LINK_VAR"]))
         .env(VOLTA_LOGLEVEL, "debug")
         .build();
+    s.tool(Tool::Npm)
+        .version("8.1.5")
+        .binary(&fake_bin_echo_envs(&["MY_LINK_VAR"]));
 
     assert_that!(
         s.volta("run --env MY_LINK_VAR=hello_link --node 10.99.1040 npm link test-pkg"),

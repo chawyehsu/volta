@@ -1,9 +1,9 @@
 //! Tests for `volta uninstall`.
 
-use crate::support::sandbox::{Sandbox, sandbox};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::sandbox;
 use volta_core::error::ExitCode;
 
 const PKG_CONFIG_BASIC: &str = r#"{
@@ -89,12 +89,12 @@ fn uninstall_package_basic() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::package_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
-    assert!(!Sandbox::package_image_exists("cowsay"));
+    assert!(!s.package_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
+    assert!(!s.package_image_exists("cowsay"));
 }
 
 // The setup here is the same as the above, but here we check to make sure that
@@ -139,12 +139,12 @@ fn uninstall_package_no_bins() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::package_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
-    assert!(!Sandbox::package_image_exists("cowsay"));
+    assert!(!s.package_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
+    assert!(!s.package_image_exists("cowsay"));
 }
 
 #[test]
@@ -170,12 +170,12 @@ fn uninstall_package_no_image() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::package_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
-    assert!(!Sandbox::package_image_exists("cowsay"));
+    assert!(!s.package_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
+    assert!(!s.package_image_exists("cowsay"));
 }
 
 #[test]
@@ -200,10 +200,10 @@ fn uninstall_package_orphaned_bins() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
 }
 
 #[test]
@@ -229,7 +229,7 @@ fn read_bin_config_dir_error() {
         .build();
 
     // Make the bins directory unreadable
-    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let volta_home = s.volta_home();
     let bins_dir = volta_home.join("tools/user/bins");
     std::fs::set_permissions(&bins_dir, std::fs::Permissions::from_mode(0o000)).unwrap();
 
@@ -262,7 +262,7 @@ fn shim_remove_error() {
         .shim("cowsay")
         .build();
 
-    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let volta_home = s.volta_home();
     cfg_if::cfg_if! {
         if #[cfg(unix)] {
             // Replace the shim symlink with a directory so that fs::remove_file

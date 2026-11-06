@@ -4,10 +4,10 @@ use std::{thread, time};
 use crate::support::events_helpers::{
     assert_events, match_args, match_end, match_error, match_start,
 };
-use crate::support::sandbox::sandbox;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::sandbox;
 use volta_core::constant;
 use volta_core::error::ExitCode;
 
