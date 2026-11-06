@@ -77,8 +77,8 @@ impl CacheBuilder {
 
 // environment variables
 pub struct EnvVar {
-    name: String,
-    value: String,
+    pub(crate) name: String,
+    pub(crate) value: String,
 }
 
 impl EnvVar {

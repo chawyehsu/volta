@@ -1,57 +1,18 @@
-use node_semver::Version;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::io::Read;
+use std::path::PathBuf;
 
+use node_semver::Version;
+use tempfile::TempDir;
+
+use crate::fs::PathExt;
+use crate::process::ProcessBuilder;
+use crate::sandbox::{EnvVar, FileBuilder};
 use volta_core::constant;
 use volta_core::fs::symlink_file;
 use volta_core::tool::{Node, Pnpm};
-
-use test_support::{self, ok_or_panic, paths, paths::PathExt, process::ProcessBuilder};
-
-#[derive(PartialEq, Clone)]
-pub struct FileBuilder {
-    path: PathBuf,
-    contents: String,
-}
-
-impl FileBuilder {
-    pub fn new(path: PathBuf, contents: &str) -> FileBuilder {
-        FileBuilder {
-            path,
-            contents: contents.to_string(),
-        }
-    }
-
-    pub fn build(&self) {
-        self.dirname().mkdir_p();
-
-        let mut file = File::create(&self.path)
-            .unwrap_or_else(|e| panic!("could not create file {}: {}", self.path.display(), e));
-
-        ok_or_panic! { file.write_all(self.contents.as_bytes()) };
-    }
-
-    fn dirname(&self) -> &Path {
-        self.path.parent().unwrap()
-    }
-}
-
-pub struct EnvVar {
-    name: String,
-    value: String,
-}
-
-impl EnvVar {
-    pub fn new(name: &str, value: &str) -> Self {
-        EnvVar {
-            name: name.to_string(),
-            value: value.to_string(),
-        }
-    }
-}
 
 #[must_use]
 pub struct TempProjectBuilder {
@@ -60,15 +21,17 @@ pub struct TempProjectBuilder {
 }
 
 impl TempProjectBuilder {
-    /// Root of the project, ex: `/path/to/cargo/target/smoke_test/t0/foo`
+    /// Root of the project, e.g. `/tmp/<tempdir>/`
     pub fn root(&self) -> PathBuf {
         self.root.root()
     }
 
-    pub fn new(root: PathBuf) -> TempProjectBuilder {
+    pub fn new() -> TempProjectBuilder {
+        let tempdir = tempfile::tempdir()
+            .unwrap_or_else(|e| panic!("could not create temp directory: {}", e));
         TempProjectBuilder {
             root: TempProject {
-                root: root.clone(),
+                tempdir,
                 path: OsString::new(),
                 env_vars: vec![],
             },
@@ -105,12 +68,6 @@ impl TempProjectBuilder {
 
     /// Create the project
     pub fn build(mut self) -> TempProject {
-        // First, clean the temporary project directory if it already exists
-        self.rm_root();
-
-        // Create the empty directory
-        self.root.root().mkdir_p();
-
         // make sure these directories exist and are empty
         node_cache_dir(self.root()).ensure_empty();
         volta_bin_dir(self.root()).ensure_empty();
@@ -150,12 +107,13 @@ impl TempProjectBuilder {
             .join()
             .expect("Failed to join paths");
 
-        let TempProjectBuilder { root, .. } = self;
-        root
+        self.root
     }
+}
 
-    fn rm_root(&self) {
-        self.root.root().rm_rf()
+impl Default for TempProjectBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -282,15 +240,15 @@ fn package_distro_file_name(name: &str, version: &str) -> String {
 }
 
 pub struct TempProject {
-    root: PathBuf,
+    tempdir: TempDir,
     path: OsString,
     env_vars: Vec<EnvVar>,
 }
 
 impl TempProject {
-    /// Root of the project, ex: `/path/to/cargo/target/integration_test/t0/foo`
+    /// Root of the project, e.g. `/tmp/<tempdir>/`
     pub fn root(&self) -> PathBuf {
-        self.root.clone()
+        self.tempdir.path().to_path_buf()
     }
 
     /// Create a `ProcessBuilder` to run a program in the project.
@@ -300,7 +258,7 @@ impl TempProject {
     ///             execs().with_stdout("bar\n"),
     ///         );
     pub fn process<T: AsRef<OsStr>>(&self, program: T) -> ProcessBuilder {
-        let mut p = test_support::process::process(program);
+        let mut p = crate::process::process(program);
         p.cwd(self.root())
             // setup the Volta environment
             .env("PATH", &self.path)
@@ -323,14 +281,14 @@ impl TempProject {
     /// Example:
     ///     assert_that(p.volta("use node 9.5"), execs());
     pub fn volta(&self, cmd: &str) -> ProcessBuilder {
-        let mut p = self.process(&volta_exe());
+        let mut p = self.process(volta_exe());
         split_and_add_args(&mut p, cmd);
         p
     }
 
     /// Create a `ProcessBuilder` to run Node.
     pub fn node(&self, cmd: &str) -> ProcessBuilder {
-        let mut p = self.process(&self.node_exe());
+        let mut p = self.process(self.node_exe());
         split_and_add_args(&mut p, cmd);
         p
     }
@@ -341,7 +299,7 @@ impl TempProject {
 
     /// Create a `ProcessBuilder` to run Yarn.
     pub fn yarn(&self, cmd: &str) -> ProcessBuilder {
-        let mut p = self.process(&self.yarn_exe());
+        let mut p = self.process(self.yarn_exe());
         split_and_add_args(&mut p, cmd);
         p
     }
@@ -352,7 +310,7 @@ impl TempProject {
 
     /// Create a `ProcessBuilder` to run Npm.
     pub fn npm(&self, cmd: &str) -> ProcessBuilder {
-        let mut p = self.process(&self.npm_exe());
+        let mut p = self.process(self.npm_exe());
         split_and_add_args(&mut p, cmd);
         p
     }
@@ -363,7 +321,7 @@ impl TempProject {
 
     /// Create a `ProcessBuilder` to run pnpm.
     pub fn pnpm(&self, cmd: &str) -> ProcessBuilder {
-        let mut p = self.process(&self.pnpm_exe());
+        let mut p = self.process(self.pnpm_exe());
         split_and_add_args(&mut p, cmd);
         p
     }
@@ -394,7 +352,7 @@ impl TempProject {
     }
 
     /// Verify that the input Node version has been installed.
-    pub fn assert_node_version_is_installed(&self, version: &str) -> () {
+    pub fn assert_node_version_is_installed(&self, version: &str) {
         let default_platform = default_platform_file(self.root());
         let platform_contents = read_file_to_string(default_platform);
         let json_contents: serde_json::Value =
@@ -416,7 +374,7 @@ impl TempProject {
     }
 
     /// Verify that the input Yarn version has been installed.
-    pub fn assert_yarn_version_is_installed(&self, version: &str) -> () {
+    pub fn assert_yarn_version_is_installed(&self, version: &str) {
         let default_platform = default_platform_file(self.root());
         let platform_contents = read_file_to_string(default_platform);
         let json_contents: serde_json::Value =
@@ -437,7 +395,7 @@ impl TempProject {
     }
 
     /// Verify that the input Npm version has been installed.
-    pub fn assert_npm_version_is_installed(&self, version: &str) -> () {
+    pub fn assert_npm_version_is_installed(&self, version: &str) {
         let default_platform = default_platform_file(self.root());
         let platform_contents = read_file_to_string(default_platform);
         let json_contents: serde_json::Value =
@@ -458,7 +416,7 @@ impl TempProject {
     }
 
     /// Verify that the input pnpm version has been installed.
-    pub fn assert_pnpm_version_is_installed(&self, version: &str) -> () {
+    pub fn assert_pnpm_version_is_installed(&self, version: &str) {
         let default_platform = default_platform_file(self.root());
         let platform_contents = read_file_to_string(default_platform);
         let json_contents: serde_json::Value =
@@ -472,7 +430,6 @@ impl TempProject {
         install_dir.exists()
     }
 
-    /// Verify that the input package version has been fetched.
     pub fn shim_exists(&self, name: &str) -> bool {
         shim_file(name, self.root()).exists()
     }
@@ -485,13 +442,13 @@ impl TempProject {
 
 impl Drop for TempProject {
     fn drop(&mut self) {
-        self.root().rm_rf();
+        self.tempdir.path().rm_rf();
     }
 }
 
 // Generates a temporary project environment
 pub fn temp_project() -> TempProjectBuilder {
-    TempProjectBuilder::new(paths::root().join("temp-project"))
+    TempProjectBuilder::new()
 }
 
 // Path to compiled executables

@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 cfg-if.workspace = true
+envoy.workspace = true
 hamcrest2.workspace = true
 headers.workspace = true
 mockito.workspace = true

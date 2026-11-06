@@ -1,7 +1,7 @@
-use crate::support::temp_project::temp_project;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::smoke::temp_project;
 
 const PACKAGE_JSON: &str = r#"
 {
