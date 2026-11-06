@@ -2790,20 +2790,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "test-support"
-version = "0.1.0"
-dependencies = [
- "hamcrest2",
- "remove_dir_all",
- "serde_json",
- "thiserror 2.0.20",
-]
-
-[[package]]
 name = "testkit"
 version = "0.1.0"
 dependencies = [
  "cfg-if",
+ "envoy",
  "hamcrest2",
  "headers",
  "mockito",
@@ -3177,7 +3168,6 @@ dependencies = [
  "sha2",
  "tar",
  "tempfile",
- "test-support",
  "testkit",
  "textwrap",
  "volta-core",

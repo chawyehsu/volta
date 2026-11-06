@@ -17,3 +17,4 @@ pub mod fs;
 pub mod matchers;
 pub mod process;
 pub mod sandbox;
+pub mod smoke;
