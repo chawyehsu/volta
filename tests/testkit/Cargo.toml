@@ -16,3 +16,4 @@ serde_json.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 volta-core.workspace = true
+volta-layout.workspace = true

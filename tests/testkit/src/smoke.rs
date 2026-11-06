@@ -2,7 +2,7 @@ use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use node_semver::Version;
 use tempfile::TempDir;
@@ -13,6 +13,7 @@ use crate::sandbox::{EnvVar, FileBuilder};
 use volta_core::constant;
 use volta_core::fs::symlink_file;
 use volta_core::tool::{Node, Pnpm};
+use volta_layout::v4::VoltaHome;
 
 #[must_use]
 pub struct TempProjectBuilder {
@@ -55,7 +56,7 @@ impl TempProjectBuilder {
 
     /// Create a file in the `volta_home` directory (chainable)
     pub fn volta_home_file(mut self, path: &str, contents: &str) -> Self {
-        let path = volta_home(self.root()).join(path);
+        let path = volta_home(&self.root()).join(path);
         self.files.push(FileBuilder::new(path, contents));
         self
     }
@@ -68,25 +69,27 @@ impl TempProjectBuilder {
 
     /// Create the project
     pub fn build(mut self) -> TempProject {
+        let layout = VoltaHome::new(volta_home(&self.root()));
+
         // make sure these directories exist and are empty
-        node_cache_dir(self.root()).ensure_empty();
-        volta_bin_dir(self.root()).ensure_empty();
-        node_inventory_dir(self.root()).ensure_empty();
-        pnpm_inventory_dir(self.root()).ensure_empty();
-        yarn_inventory_dir(self.root()).ensure_empty();
-        package_inventory_dir(self.root()).ensure_empty();
-        node_image_root_dir(self.root()).ensure_empty();
-        pnpm_image_root_dir(self.root()).ensure_empty();
-        yarn_image_root_dir(self.root()).ensure_empty();
-        package_image_root_dir(self.root()).ensure_empty();
-        default_toolchain_dir(self.root()).ensure_empty();
-        volta_tmp_dir(self.root()).ensure_empty();
+        layout.node_cache_dir().ensure_empty();
+        layout.shim_dir().ensure_empty();
+        layout.node_inventory_dir().ensure_empty();
+        layout.pnpm_inventory_dir().ensure_empty();
+        layout.yarn_inventory_dir().ensure_empty();
+        package_inventory_dir(&self.root()).ensure_empty();
+        layout.node_image_root_dir().ensure_empty();
+        layout.pnpm_image_root_dir().ensure_empty();
+        layout.yarn_image_root_dir().ensure_empty();
+        layout.package_image_root_dir().ensure_empty();
+        layout.default_toolchain_dir().ensure_empty();
+        layout.tmp_dir().ensure_empty();
 
         // and these files do not exist
-        volta_file(self.root()).rm();
-        shim_executable(self.root()).rm();
-        default_hooks_file(self.root()).rm();
-        default_platform_file(self.root()).rm();
+        volta_file(&self.root()).rm();
+        shim_executable(&self.root()).rm();
+        layout.default_hooks_file().rm();
+        layout.default_platform_file().rm();
 
         // create symlinks to shim executable for node, yarn, npm, and packages
         ok_or_panic!(symlink_file(shim_exe(), self.root.node_exe()));
@@ -103,7 +106,7 @@ impl TempProjectBuilder {
         let current_path = envoy::path().expect("Could not get current PATH");
         let new_path = current_path.split();
         self.root.path = new_path
-            .prefix_entry(volta_bin_dir(self.root.root()))
+            .prefix_entry(layout.shim_dir())
             .join()
             .expect("Failed to join paths");
 
@@ -118,109 +121,37 @@ impl Default for TempProjectBuilder {
 }
 
 // files and dirs in the temporary project
+//
+// Directory paths that mirror the current Volta layout are constructed via
+// `volta_layout::v4::VoltaHome`; the helpers below are test-fixture paths
+// that the layout does not (or intentionally does not) model.
 
-fn home_dir(root: PathBuf) -> PathBuf {
+fn home_dir(root: &Path) -> PathBuf {
     root.join("home")
 }
-fn volta_home(root: PathBuf) -> PathBuf {
+fn volta_home(root: &Path) -> PathBuf {
     home_dir(root).join(".volta")
 }
-fn volta_file(root: PathBuf) -> PathBuf {
+fn volta_file(root: &Path) -> PathBuf {
     volta_home(root).join("volta")
 }
-fn shim_executable(root: PathBuf) -> PathBuf {
-    volta_bin_dir(root).join("volta-shim")
+fn shim_executable(root: &Path) -> PathBuf {
+    volta_home(root).join("bin").join("volta-shim")
 }
-fn default_hooks_file(root: PathBuf) -> PathBuf {
-    volta_home(root).join("hooks.json")
-}
-fn volta_tmp_dir(root: PathBuf) -> PathBuf {
-    volta_home(root).join("tmp")
-}
-fn volta_bin_dir(root: PathBuf) -> PathBuf {
-    volta_home(root).join("bin")
-}
-fn volta_tools_dir(root: PathBuf) -> PathBuf {
-    volta_home(root).join("tools")
-}
-fn inventory_dir(root: PathBuf) -> PathBuf {
-    volta_tools_dir(root).join("inventory")
-}
-fn default_toolchain_dir(root: PathBuf) -> PathBuf {
-    volta_tools_dir(root).join("user")
-}
-fn image_dir(root: PathBuf) -> PathBuf {
-    volta_tools_dir(root).join("image")
-}
-fn node_image_root_dir(root: PathBuf) -> PathBuf {
-    image_dir(root).join("node")
-}
-fn node_image_dir(node: &str, root: PathBuf) -> PathBuf {
-    node_image_root_dir(root).join(node)
-}
-fn node_image_bin_dir(node: &str, root: PathBuf) -> PathBuf {
-    node_image_dir(node, root).join("bin")
-}
-fn npm_image_root_dir(root: PathBuf) -> PathBuf {
-    image_dir(root).join("npm")
-}
-fn npm_image_dir(version: &str, root: PathBuf) -> PathBuf {
-    npm_image_root_dir(root).join(version)
-}
-fn npm_image_bin_dir(version: &str, root: PathBuf) -> PathBuf {
-    npm_image_dir(version, root).join("bin")
-}
-fn pnpm_image_root_dir(root: PathBuf) -> PathBuf {
-    image_dir(root).join("pnpm")
-}
-fn pnpm_image_dir(version: &str, root: PathBuf) -> PathBuf {
-    pnpm_image_root_dir(root).join(version)
-}
-fn pnpm_image_bin_dir(version: &str, root: PathBuf) -> PathBuf {
-    pnpm_image_dir(version, root).join("bin")
-}
-fn yarn_image_root_dir(root: PathBuf) -> PathBuf {
-    image_dir(root).join("yarn")
-}
-fn yarn_image_dir(version: &str, root: PathBuf) -> PathBuf {
-    yarn_image_root_dir(root).join(version)
-}
-fn package_image_root_dir(root: PathBuf) -> PathBuf {
-    image_dir(root).join("packages")
-}
-fn node_inventory_dir(root: PathBuf) -> PathBuf {
-    inventory_dir(root).join("node")
-}
-fn npm_inventory_dir(root: PathBuf) -> PathBuf {
-    inventory_dir(root).join("npm")
-}
-fn pnpm_inventory_dir(root: PathBuf) -> PathBuf {
-    inventory_dir(root).join("pnpm")
-}
-fn yarn_inventory_dir(root: PathBuf) -> PathBuf {
-    inventory_dir(root).join("yarn")
-}
-fn package_inventory_dir(root: PathBuf) -> PathBuf {
-    inventory_dir(root).join("packages")
-}
-fn cache_dir(root: PathBuf) -> PathBuf {
-    volta_home(root).join("cache")
-}
-fn node_cache_dir(root: PathBuf) -> PathBuf {
-    cache_dir(root).join("node")
+fn package_inventory_dir(root: &Path) -> PathBuf {
+    volta_home(root)
+        .join("tools")
+        .join("inventory")
+        .join("packages")
 }
 fn package_json_file(mut root: PathBuf) -> PathBuf {
     root.push("package.json");
     root
 }
-fn shim_file(name: &str, root: PathBuf) -> PathBuf {
-    volta_bin_dir(root).join(format!("{}{}", name, env::consts::EXE_SUFFIX))
-}
-fn package_image_dir(name: &str, root: PathBuf) -> PathBuf {
-    image_dir(root).join("packages").join(name)
-}
-fn default_platform_file(root: PathBuf) -> PathBuf {
-    default_toolchain_dir(root).join("platform.json")
+fn shim_file(name: &str, root: &Path) -> PathBuf {
+    volta_home(root)
+        .join("bin")
+        .join(format!("{}{}", name, env::consts::EXE_SUFFIX))
 }
 pub fn node_distro_file_name(version: &str) -> String {
     let version = Version::parse(version).unwrap();
@@ -251,6 +182,18 @@ impl TempProject {
         self.tempdir.path().to_path_buf()
     }
 
+    /// Path of the Volta home directory inside the project home
+    /// (i.e. `<root>/home/.volta`).
+    pub fn volta_home(&self) -> PathBuf {
+        volta_home(&self.root())
+    }
+
+    /// The Volta home layout inside the project home, used to construct
+    /// paths that mirror the current Volta layout.
+    fn layout(&self) -> VoltaHome {
+        VoltaHome::new(self.volta_home())
+    }
+
     /// Create a `ProcessBuilder` to run a program in the project.
     /// Example:
     ///         assert_that(
@@ -262,8 +205,8 @@ impl TempProject {
         p.cwd(self.root())
             // setup the Volta environment
             .env("PATH", &self.path)
-            .env("HOME", home_dir(self.root()))
-            .env(constant::ENVNAME_VOLTA_HOME, volta_home(self.root()))
+            .env("HOME", home_dir(&self.root()))
+            .env(constant::ENVNAME_VOLTA_HOME, self.volta_home())
             .env(constant::ENVNAME_VOLTA_INSTALL_DIR, cargo_dir())
             .env_remove("VOLTA_NODE_VERSION")
             .env_remove("MSYSTEM"); // assume cmd.exe everywhere on windows
@@ -294,7 +237,9 @@ impl TempProject {
     }
 
     pub fn node_exe(&self) -> PathBuf {
-        volta_bin_dir(self.root()).join(format!("node{}", env::consts::EXE_SUFFIX))
+        self.layout()
+            .shim_dir()
+            .join(format!("node{}", env::consts::EXE_SUFFIX))
     }
 
     /// Create a `ProcessBuilder` to run Yarn.
@@ -305,7 +250,9 @@ impl TempProject {
     }
 
     pub fn yarn_exe(&self) -> PathBuf {
-        volta_bin_dir(self.root()).join(format!("yarn{}", env::consts::EXE_SUFFIX))
+        self.layout()
+            .shim_dir()
+            .join(format!("yarn{}", env::consts::EXE_SUFFIX))
     }
 
     /// Create a `ProcessBuilder` to run Npm.
@@ -316,7 +263,9 @@ impl TempProject {
     }
 
     pub fn npm_exe(&self) -> PathBuf {
-        volta_bin_dir(self.root()).join(format!("npm{}", env::consts::EXE_SUFFIX))
+        self.layout()
+            .shim_dir()
+            .join(format!("npm{}", env::consts::EXE_SUFFIX))
     }
 
     /// Create a `ProcessBuilder` to run pnpm.
@@ -327,12 +276,14 @@ impl TempProject {
     }
 
     pub fn pnpm_exe(&self) -> PathBuf {
-        volta_bin_dir(self.root()).join(format!("pnpm{}", env::consts::EXE_SUFFIX))
+        self.layout()
+            .shim_dir()
+            .join(format!("pnpm{}", env::consts::EXE_SUFFIX))
     }
 
     /// Create a `ProcessBuilder` to run a package executable.
     pub fn exec_shim(&self, exe: &str, cmd: &str) -> ProcessBuilder {
-        let shim_file = shim_file(exe, self.root());
+        let shim_file = shim_file(exe, &self.root());
         let mut p = self.process(shim_file);
         split_and_add_args(&mut p, cmd);
         p
@@ -341,20 +292,20 @@ impl TempProject {
     /// Verify that the input Node version has been fetched.
     pub fn node_version_is_fetched(&self, version: &str) -> bool {
         let distro_file_name = node_distro_file_name(version);
-        let inventory_dir = node_inventory_dir(self.root());
-        inventory_dir.join(distro_file_name).exists()
+        self.layout()
+            .node_inventory_dir()
+            .join(distro_file_name)
+            .exists()
     }
 
     /// Verify that the input Node version has been unpacked.
     pub fn node_version_is_unpacked(&self, version: &str) -> bool {
-        let unpack_dir = node_image_bin_dir(version, self.root());
-        unpack_dir.exists()
+        self.layout().node_image_bin_dir(version).exists()
     }
 
     /// Verify that the input Node version has been installed.
     pub fn assert_node_version_is_installed(&self, version: &str) {
-        let default_platform = default_platform_file(self.root());
-        let platform_contents = read_file_to_string(default_platform);
+        let platform_contents = read_file_to_string(self.layout().default_platform_file());
         let json_contents: serde_json::Value =
             serde_json::from_str(&platform_contents).expect("could not parse platform.json");
         assert_eq!(json_contents["node"]["runtime"], version);
@@ -363,20 +314,20 @@ impl TempProject {
     /// Verify that the input Yarn version has been fetched.
     pub fn yarn_version_is_fetched(&self, version: &str) -> bool {
         let distro_file_name = yarn_distro_file_name(version);
-        let inventory_dir = yarn_inventory_dir(self.root());
-        inventory_dir.join(distro_file_name).exists()
+        self.layout()
+            .yarn_inventory_dir()
+            .join(distro_file_name)
+            .exists()
     }
 
     /// Verify that the input Yarn version has been unpacked.
     pub fn yarn_version_is_unpacked(&self, version: &str) -> bool {
-        let unpack_dir = yarn_image_dir(version, self.root());
-        unpack_dir.exists()
+        self.layout().yarn_image_dir(version).exists()
     }
 
     /// Verify that the input Yarn version has been installed.
     pub fn assert_yarn_version_is_installed(&self, version: &str) {
-        let default_platform = default_platform_file(self.root());
-        let platform_contents = read_file_to_string(default_platform);
+        let platform_contents = read_file_to_string(self.layout().default_platform_file());
         let json_contents: serde_json::Value =
             serde_json::from_str(&platform_contents).expect("could not parse platform.json");
         assert_eq!(json_contents["yarn"], version);
@@ -385,19 +336,20 @@ impl TempProject {
     /// Verify that the input Npm version has been fetched.
     pub fn npm_version_is_fetched(&self, version: &str) -> bool {
         let distro_file_name = npm_distro_file_name(version);
-        let inventory_dir = npm_inventory_dir(self.root());
-        inventory_dir.join(distro_file_name).exists()
+        self.layout()
+            .npm_inventory_dir()
+            .join(distro_file_name)
+            .exists()
     }
 
     /// Verify that the input Npm version has been unpacked.
     pub fn npm_version_is_unpacked(&self, version: &str) -> bool {
-        npm_image_bin_dir(version, self.root()).exists()
+        self.layout().npm_image_bin_dir(version).exists()
     }
 
     /// Verify that the input Npm version has been installed.
     pub fn assert_npm_version_is_installed(&self, version: &str) {
-        let default_platform = default_platform_file(self.root());
-        let platform_contents = read_file_to_string(default_platform);
+        let platform_contents = read_file_to_string(self.layout().default_platform_file());
         let json_contents: serde_json::Value =
             serde_json::from_str(&platform_contents).expect("could not parse platform.json");
         assert_eq!(json_contents["node"]["npm"], version);
@@ -406,19 +358,20 @@ impl TempProject {
     /// Verify that the input pnpm version has been fetched.
     pub fn pnpm_version_is_fetched(&self, version: &str) -> bool {
         let distro_file_name = pnpm_distro_file_name(version);
-        let inventory_dir = pnpm_inventory_dir(self.root());
-        inventory_dir.join(distro_file_name).exists()
+        self.layout()
+            .pnpm_inventory_dir()
+            .join(distro_file_name)
+            .exists()
     }
 
     /// Verify that the input pnpm version has been unpacked.
     pub fn pnpm_version_is_unpacked(&self, version: &str) -> bool {
-        pnpm_image_bin_dir(version, self.root()).exists()
+        self.layout().pnpm_image_bin_dir(version).exists()
     }
 
     /// Verify that the input pnpm version has been installed.
     pub fn assert_pnpm_version_is_installed(&self, version: &str) {
-        let default_platform = default_platform_file(self.root());
-        let platform_contents = read_file_to_string(default_platform);
+        let platform_contents = read_file_to_string(self.layout().default_platform_file());
         let json_contents: serde_json::Value =
             serde_json::from_str(&platform_contents).expect("could not parse platform.json");
         assert_eq!(json_contents["pnpm"], version);
@@ -426,12 +379,11 @@ impl TempProject {
 
     /// Verify that the input package has been installed
     pub fn package_is_installed(&self, name: &str) -> bool {
-        let install_dir = package_image_dir(name, self.root());
-        install_dir.exists()
+        self.layout().package_image_dir(name).exists()
     }
 
     pub fn shim_exists(&self, name: &str) -> bool {
-        shim_file(name, self.root()).exists()
+        shim_file(name, &self.root()).exists()
     }
 
     /// Verify that a given path in the project directory exists
@@ -484,7 +436,7 @@ fn split_and_add_args(p: &mut ProcessBuilder, s: &str) {
     }
 }
 
-fn read_file_to_string(file_path: PathBuf) -> String {
+fn read_file_to_string(file_path: &Path) -> String {
     let mut contents = String::new();
     let mut file = ok_or_panic! { File::open(file_path) };
     ok_or_panic! { file.read_to_string(&mut contents) };

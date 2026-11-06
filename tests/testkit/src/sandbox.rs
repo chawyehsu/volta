@@ -17,6 +17,7 @@ use crate::process::ProcessBuilder;
 use volta_core::constant;
 use volta_core::fs::{set_executable, symlink_file};
 use volta_core::tool::{Node, Npm, Pnpm, Yarn};
+use volta_layout::v4::VoltaHome;
 
 // version cache for node and yarn
 #[derive(PartialEq, Clone)]
@@ -323,12 +324,21 @@ impl SandboxBuilder {
         self.tempdir.path().join("home")
     }
 
+    /// The Volta home layout inside the sandbox home, used to construct
+    /// fixture paths.
+    fn layout(&self) -> VoltaHome {
+        VoltaHome::new(volta_home(&self.home()))
+    }
+
     pub fn new() -> SandboxBuilder {
         let tempdir = tempfile::tempdir()
             .unwrap_or_else(|e| panic!("could not create sandbox temp directory: {}", e));
         let home = tempdir.path().join("home");
-        let default_hooks_file =
-            FileBuilder::new(default_hooks_file(&home), sandbox_default_hooks_json());
+        let layout = VoltaHome::new(volta_home(&home));
+        let default_hooks_file = FileBuilder::new(
+            layout.default_hooks_file().to_path_buf(),
+            sandbox_default_hooks_json(),
+        );
 
         SandboxBuilder {
             tempdir,
@@ -336,7 +346,7 @@ impl SandboxBuilder {
             mocks: vec![],
             files: vec![default_hooks_file],
             caches: vec![],
-            path_dirs: vec![volta_bin_dir(&home)],
+            path_dirs: vec![layout.shim_dir().to_path_buf()],
             shims: vec![
                 ShimBuilder::new(shim_file(&home, "npm")),
                 ShimBuilder::new(shim_file(&home, "pnpm")),
@@ -350,10 +360,10 @@ impl SandboxBuilder {
 
     /// Set the Node cache for the sandbox (chainable)
     pub fn node_cache(mut self, cache: &str, expired: bool) -> Self {
-        let home = self.home();
+        let layout = self.layout();
         self.caches.push(CacheBuilder::new(
-            node_index_file(&home),
-            node_index_expiry_file(&home),
+            layout.node_index_file().to_path_buf(),
+            layout.node_index_expiry_file().to_path_buf(),
             cache,
             expired,
         ));
@@ -369,17 +379,15 @@ impl SandboxBuilder {
 
     /// Set the platform.json for the sandbox (chainable)
     pub fn platform(mut self, contents: &str) -> Self {
-        let home = self.home();
-        self.files
-            .push(FileBuilder::new(default_platform_file(&home), contents));
+        let platform_file = self.layout().default_platform_file().to_path_buf();
+        self.files.push(FileBuilder::new(platform_file, contents));
         self
     }
 
     /// Set the hooks.json for the sandbox
     pub fn default_hooks(mut self, contents: &str) -> Self {
-        let home = self.home();
-        self.files
-            .push(FileBuilder::new(default_hooks_file(&home), contents));
+        let hooks_file = self.layout().default_hooks_file().to_path_buf();
+        self.files.push(FileBuilder::new(hooks_file, contents));
         self
     }
 
@@ -593,8 +601,7 @@ impl SandboxBuilder {
 
     /// Set a package config file for the sandbox (chainable)
     pub fn package_config(mut self, name: &str, contents: &str) -> Self {
-        let home = self.home();
-        let package_cfg_file = package_config_file(&home, name);
+        let package_cfg_file = self.layout().default_package_config_file(name);
         self.files
             .push(FileBuilder::new(package_cfg_file, contents));
         self
@@ -602,8 +609,7 @@ impl SandboxBuilder {
 
     /// Set a bin config file for the sandbox (chainable)
     pub fn binary_config(mut self, name: &str, contents: &str) -> Self {
-        let home = self.home();
-        let bin_cfg_file = binary_config_file(&home, name);
+        let bin_cfg_file = self.layout().default_tool_bin_config(name);
         self.files.push(FileBuilder::new(bin_cfg_file, contents));
         self
     }
@@ -622,8 +628,7 @@ impl SandboxBuilder {
         version: &str,
         bins: Option<Vec<PackageBinInfo>>,
     ) -> Self {
-        let home = self.home();
-        let package_img_dir = package_image_dir(&home, name);
+        let package_img_dir = self.layout().package_image_dir(name);
         let package_json = package_img_dir.join("package.json");
         self.files.push(FileBuilder::new(
             package_json,
@@ -674,19 +679,22 @@ impl SandboxBuilder {
     /// Create the sandboxed environment
     pub fn build(mut self) -> Sandbox {
         let home = self.home();
+        let layout = VoltaHome::new(volta_home(&home));
 
         // create the project directory (the working directory for processes)
         ok_or_panic! { fs::create_dir_all(self.root()) };
 
         // make sure these directories exist
-        ok_or_panic! { fs::create_dir_all(volta_bin_dir(&home)) };
-        ok_or_panic! { fs::create_dir_all(node_cache_dir(&home)) };
-        ok_or_panic! { fs::create_dir_all(node_inventory_dir(&home)) };
-        ok_or_panic! { fs::create_dir_all(npm_inventory_dir(&home)) };
+        ok_or_panic! { fs::create_dir_all(layout.shim_dir()) };
+        ok_or_panic! { fs::create_dir_all(layout.node_cache_dir()) };
+        ok_or_panic! { fs::create_dir_all(layout.node_inventory_dir()) };
+        ok_or_panic! { fs::create_dir_all(layout.npm_inventory_dir()) };
+        // `tools/inventory/packages` was removed in layout v4, but the legacy
+        // migration tests rely on it pre-existing
         ok_or_panic! { fs::create_dir_all(package_inventory_dir(&home)) };
-        ok_or_panic! { fs::create_dir_all(pnpm_inventory_dir(&home)) };
-        ok_or_panic! { fs::create_dir_all(yarn_inventory_dir(&home)) };
-        ok_or_panic! { fs::create_dir_all(volta_tmp_dir(&home)) };
+        ok_or_panic! { fs::create_dir_all(layout.pnpm_inventory_dir()) };
+        ok_or_panic! { fs::create_dir_all(layout.yarn_inventory_dir()) };
+        ok_or_panic! { fs::create_dir_all(layout.tmp_dir()) };
 
         // write node and yarn caches
         for cache in self.caches.iter() {
@@ -732,87 +740,34 @@ impl SandboxBuilder {
 }
 
 // paths inside the sandbox home directory
+//
+// Directory paths that mirror the current Volta layout are constructed via
+// `volta_layout::v4::VoltaHome`; the helpers below are test-fixture paths
+// that the layout does not (or intentionally does not) model.
 
 fn volta_home(home: &Path) -> PathBuf {
     home.join(".volta")
 }
-fn volta_tmp_dir(home: &Path) -> PathBuf {
-    volta_home(home).join("tmp")
-}
-fn volta_bin_dir(home: &Path) -> PathBuf {
-    volta_home(home).join("bin")
-}
-fn volta_log_dir(home: &Path) -> PathBuf {
-    volta_home(home).join("log")
-}
 fn volta_postscript(home: &Path) -> PathBuf {
-    volta_tmp_dir(home).join("volta_tmp_1234.sh")
-}
-fn volta_tools_dir(home: &Path) -> PathBuf {
-    volta_home(home).join("tools")
-}
-fn inventory_dir(home: &Path) -> PathBuf {
-    volta_tools_dir(home).join("inventory")
-}
-fn user_dir(home: &Path) -> PathBuf {
-    volta_tools_dir(home).join("user")
-}
-fn image_dir(home: &Path) -> PathBuf {
-    volta_tools_dir(home).join("image")
-}
-fn node_inventory_dir(home: &Path) -> PathBuf {
-    inventory_dir(home).join("node")
-}
-fn npm_inventory_dir(home: &Path) -> PathBuf {
-    inventory_dir(home).join("npm")
-}
-fn pnpm_inventory_dir(home: &Path) -> PathBuf {
-    inventory_dir(home).join("pnpm")
-}
-fn yarn_inventory_dir(home: &Path) -> PathBuf {
-    inventory_dir(home).join("yarn")
+    volta_home(home).join("tmp").join("volta_tmp_1234.sh")
 }
 fn package_inventory_dir(home: &Path) -> PathBuf {
-    inventory_dir(home).join("packages")
-}
-fn cache_dir(home: &Path) -> PathBuf {
-    volta_home(home).join("cache")
-}
-fn node_cache_dir(home: &Path) -> PathBuf {
-    cache_dir(home).join("node")
-}
-fn node_index_file(home: &Path) -> PathBuf {
-    node_cache_dir(home).join("index.json")
-}
-fn node_index_expiry_file(home: &Path) -> PathBuf {
-    node_cache_dir(home).join("index.json.expires")
+    volta_home(home)
+        .join("tools")
+        .join("inventory")
+        .join("packages")
 }
 fn package_json_file(mut root: PathBuf) -> PathBuf {
     root.push("package.json");
     root
 }
-fn package_config_file(home: &Path, name: &str) -> PathBuf {
-    user_dir(home)
-        .join("packages")
-        .join(format!("{}.json", name))
-}
-fn binary_config_file(home: &Path, name: &str) -> PathBuf {
-    user_dir(home).join("bins").join(format!("{}.json", name))
-}
 fn shim_file(home: &Path, name: &str) -> PathBuf {
-    volta_bin_dir(home).join(format!("{}{}", name, env::consts::EXE_SUFFIX))
-}
-fn package_image_dir(home: &Path, name: &str) -> PathBuf {
-    image_dir(home).join("packages").join(name)
+    volta_home(home)
+        .join("bin")
+        .join(format!("{}{}", name, env::consts::EXE_SUFFIX))
 }
 fn sandbox_path(home: &Path, path: &str) -> PathBuf {
     home.join(path)
-}
-fn default_platform_file(home: &Path) -> PathBuf {
-    user_dir(home).join("platform.json")
-}
-fn default_hooks_file(home: &Path) -> PathBuf {
-    volta_home(home).join("hooks.json")
 }
 fn layout_file(home: &Path, version: &str) -> PathBuf {
     volta_home(home).join(format!("layout.{}", version))
@@ -944,10 +899,16 @@ impl Sandbox {
         volta_home(&self.home())
     }
 
+    /// The Volta home layout inside the sandbox, used to construct paths
+    /// that mirror the current Volta layout.
+    fn layout(&self) -> VoltaHome {
+        VoltaHome::new(self.volta_home())
+    }
+
     /// Path of the Volta bin directory inside the sandbox's Volta home
     /// (i.e. `<volta_home>/bin`).
     pub fn volta_bin_dir(&self) -> PathBuf {
-        self.volta_home().join("bin")
+        self.layout().shim_dir().to_path_buf()
     }
 
     /// Path within the sandbox home directory, e.g. `path(".volta/bin")`.
@@ -1046,7 +1007,7 @@ impl Sandbox {
     }
 
     pub fn read_log_dir(&self) -> Option<fs::ReadDir> {
-        fs::read_dir(volta_log_dir(&self.home())).ok()
+        fs::read_dir(self.layout().log_dir()).ok()
     }
 
     pub fn remove_volta_home(&self) {
@@ -1056,10 +1017,10 @@ impl Sandbox {
     // check that files in the sandbox exist
 
     pub fn package_config_exists(&self, name: &str) -> bool {
-        package_config_file(&self.home(), name).exists()
+        self.layout().default_package_config_file(name).exists()
     }
     pub fn bin_config_exists(&self, name: &str) -> bool {
-        binary_config_file(&self.home(), name).exists()
+        self.layout().default_tool_bin_config(name).exists()
     }
 
     /// Check if a shim exists in the sandbox.
@@ -1070,12 +1031,13 @@ impl Sandbox {
         sandbox_path(&self.home(), path).exists()
     }
     pub fn package_image_exists(&self, name: &str) -> bool {
-        package_image_dir(&self.home(), name)
+        self.layout()
+            .package_image_dir(name)
             .join("package.json")
             .exists()
     }
     pub fn read_default_platform(&self) -> String {
-        read_file_to_string(default_platform_file(&self.home()))
+        read_file_to_string(self.layout().default_platform_file().to_path_buf())
     }
 
     /// Returns a mutable reference to the underlying mock server.
@@ -1129,16 +1091,19 @@ pub struct ToolVersion<'a> {
 impl ToolVersion<'_> {
     /// Path of the unpacked image directory for this version.
     pub fn image(&self) -> ImagePath {
-        let home = self.sandbox.home();
+        let layout = self.sandbox.layout();
         let npm_file = if self.tool == Tool::Node {
-            Some(node_inventory_dir(&home).join(format!("node-v{}-npm", self.version)))
+            Some(layout.node_npm_version_file(&self.version))
         } else {
             None
         };
         ImagePath {
-            path: image_dir(&home)
-                .join(self.tool.dir_name())
-                .join(&self.version),
+            path: match self.tool {
+                Tool::Node => layout.node_image_dir(&self.version),
+                Tool::Npm => layout.npm_image_dir(&self.version),
+                Tool::Pnpm => layout.pnpm_image_dir(&self.version),
+                Tool::Yarn => layout.yarn_image_dir(&self.version),
+            },
             npm_file,
         }
     }
@@ -1155,9 +1120,7 @@ impl ToolVersion<'_> {
         if self.tool != Tool::Node {
             panic!("the bundled npm metadata file only exists for node images");
         }
-        InventoryFile(
-            node_inventory_dir(&self.sandbox.home()).join(format!("node-v{}-npm", self.version)),
-        )
+        InventoryFile(self.sandbox.layout().node_npm_version_file(&self.version))
     }
 
     /// Write an executable binary for this tool version into the image's
@@ -1180,9 +1143,14 @@ impl ToolVersion<'_> {
             Tool::Pnpm => Pnpm::archive_filename(&self.version),
             Tool::Yarn => Yarn::archive_filename(&self.version),
         };
-        inventory_dir(&self.sandbox.home())
-            .join(self.tool.dir_name())
-            .join(filename)
+        let layout = self.sandbox.layout();
+        let dir = match self.tool {
+            Tool::Node => layout.node_inventory_dir(),
+            Tool::Npm => layout.npm_inventory_dir(),
+            Tool::Pnpm => layout.pnpm_inventory_dir(),
+            Tool::Yarn => layout.yarn_inventory_dir(),
+        };
+        dir.join(filename)
     }
 }
 
