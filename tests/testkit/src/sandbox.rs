@@ -733,10 +733,6 @@ impl SandboxBuilder {
 
 // paths inside the sandbox home directory
 
-fn home_dir_of(tempdir: &TempDir) -> PathBuf {
-    tempdir.path().join("home")
-}
-
 fn volta_home(home: &Path) -> PathBuf {
     home.join(".volta")
 }
@@ -916,7 +912,9 @@ impl Tool {
     }
 }
 
+/// The isolated sandbox environment for testing Volta.
 pub struct Sandbox {
+    /// The temporary directory that serves as the root of the sandbox.
     tempdir: TempDir,
     server: mockito::ServerGuard,
     // holds the created mocks so they are not dropped before the sandbox
@@ -937,7 +935,7 @@ impl Sandbox {
     /// Path of the sandbox home directory, i.e. the user home as seen by the
     /// processes launched by the sandbox.
     pub fn home(&self) -> PathBuf {
-        home_dir_of(&self.tempdir)
+        self.tempdir.path().join("home")
     }
 
     /// Path of the Volta home directory inside the sandbox home
@@ -946,9 +944,16 @@ impl Sandbox {
         volta_home(&self.home())
     }
 
-    /// Path within the sandbox home directory, e.g. `home_path(".volta/bin")`
-    #[cfg(windows)]
-    pub fn home_path(&self, path: &str) -> PathBuf {
+    /// Path of the Volta bin directory inside the sandbox's Volta home
+    /// (i.e. `<volta_home>/bin`).
+    pub fn volta_bin_dir(&self) -> PathBuf {
+        self.volta_home().join("bin")
+    }
+
+    /// Path within the sandbox home directory, e.g. `path(".volta/bin")`.
+    /// This is useful for constructing paths relative to the sandbox home.
+    #[allow(unused)]
+    pub fn path(&self, path: &str) -> PathBuf {
         sandbox_path(&self.home(), path)
     }
 
@@ -1056,6 +1061,8 @@ impl Sandbox {
     pub fn bin_config_exists(&self, name: &str) -> bool {
         binary_config_file(&self.home(), name).exists()
     }
+
+    /// Check if a shim exists in the sandbox.
     pub fn shim_exists(&self, name: &str) -> bool {
         shim_file(&self.home(), name).exists()
     }

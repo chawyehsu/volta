@@ -39,10 +39,9 @@ fn empty_volta_home_is_created() {
     // NOTE: this doesn't work in Windows, because the default shims are stored separately
     #[cfg(unix)]
     {
-        assert!(s.shim_exists("node"));
-        assert!(s.shim_exists("yarn"));
-        assert!(s.shim_exists("npm"));
-        assert!(s.shim_exists("npx"));
+        ["node", "yarn", "npm", "npx"].iter().for_each(|shim| {
+            assert!(s.shim_exists(shim));
+        });
     }
 }
 
@@ -84,10 +83,9 @@ fn legacy_v0_volta_home_is_upgraded() {
     // NOTE: this doesn't work in Windows, because the default shims are stored separately
     #[cfg(unix)]
     {
-        assert!(s.shim_exists("node"));
-        assert!(s.shim_exists("yarn"));
-        assert!(s.shim_exists("npm"));
-        assert!(s.shim_exists("npx"));
+        ["node", "yarn", "npm", "npx"].iter().for_each(|shim| {
+            assert!(s.shim_exists(shim));
+        });
     }
 }
 
@@ -150,10 +148,9 @@ fn tagged_v1_volta_home_is_upgraded() {
     // NOTE: this doesn't work in Windows, because the default shims are stored separately
     #[cfg(unix)]
     {
-        assert!(s.shim_exists("node"));
-        assert!(s.shim_exists("yarn"));
-        assert!(s.shim_exists("npm"));
-        assert!(s.shim_exists("npx"));
+        ["node", "yarn", "npm", "npx"].iter().for_each(|shim| {
+            assert!(s.shim_exists(shim));
+        });
     }
 }
 
@@ -265,7 +262,7 @@ fn v3_to_v4_migrates_symlink_shims() {
 
     let s = sandbox().layout_file("v3").build();
 
-    let bin_dir = s.home_path(".volta/bin");
+    let bin_dir = s.volta_bin_dir();
     let dummy_target = bin_dir.join("volta-shim.exe");
     let symlink_path = bin_dir.join("node.exe");
     let regular_path = bin_dir.join("yarn.exe");
@@ -305,8 +302,8 @@ fn v3_to_v4_migrates_symlink_shared_dirs() {
 
     let s = sandbox().layout_file("v3").build();
 
-    let shared_root = s.home_path(".volta/tools/shared");
-    let orig_target = s.home_path(".volta/tools/shared-orig/openssl");
+    let shared_root = s.path(".volta/tools/shared");
+    let orig_target = s.path(".volta/tools/shared-orig/openssl");
     let symlink_path = shared_root.join("openssl");
     let regular_dir = shared_root.join("zlib");
 
