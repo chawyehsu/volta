@@ -2800,6 +2800,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "testkit"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+ "hamcrest2",
+ "headers",
+ "mockito",
+ "node-semver",
+ "remove_dir_all",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
+ "volta-core",
+]
+
+[[package]]
 name = "textwrap"
 version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3162,6 +3178,7 @@ dependencies = [
  "tar",
  "tempfile",
  "test-support",
+ "testkit",
  "textwrap",
  "volta-core",
  "volta-migrate",

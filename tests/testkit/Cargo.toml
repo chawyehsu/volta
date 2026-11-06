@@ -1,0 +1,17 @@
+[package]
+name = "testkit"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+cfg-if.workspace = true
+hamcrest2.workspace = true
+headers.workspace = true
+mockito.workspace = true
+node-semver.workspace = true
+remove_dir_all = "1.0"
+serde_json.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+volta-core.workspace = true
