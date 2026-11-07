@@ -13,6 +13,7 @@ cfg_if! {
         mod hooks;
         mod merged_platform;
         mod migrations;
+        mod pnpm_entrypoint;
         mod run_shim_directly;
         #[cfg(not(target_env = "musl"))]
         mod self_update;
