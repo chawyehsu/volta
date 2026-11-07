@@ -3,7 +3,7 @@
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use testkit::matchers::execs;
-use testkit::sandbox::sandbox;
+use testkit::sandbox::{Tool, sandbox};
 use volta_core::error::ExitCode;
 
 const PKG_CONFIG_BASIC: &str = r#"{
@@ -47,6 +47,20 @@ fn bin_config(name: &str) -> String {
   "manager": "Npm"
 }}"#,
         name
+    )
+}
+
+fn platform_with_node(node: &str) -> String {
+    format!(
+        r#"{{
+  "node": {{
+    "runtime": "{}",
+    "npm": null
+  }},
+  "pnpm": null,
+  "yarn": null
+}}"#,
+        node
     )
 }
 
@@ -207,14 +221,187 @@ fn uninstall_package_orphaned_bins() {
 }
 
 #[test]
-fn uninstall_runtime() {
-    let s = sandbox().build();
+fn uninstall_runtime_not_found() {
+    // if there are no cached versions of a runtime, it should just inform the
+    // user but not throw an error
+    let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
+
     assert_that!(
         s.volta("uninstall node"),
         execs()
-            .with_status(1)
-            .with_stderr_contains("[..]error: Uninstalling node is not supported yet.")
-    )
+            .with_status(0)
+            .with_stderr_contains("[..]No cached versions of 'node' found to uninstall")
+    );
+}
+
+#[test]
+fn uninstall_runtime_exact() {
+    // uninstalling an exact version removes the unpacked image, the cached
+    // archive, and the bundled npm metadata file
+    let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
+    let node = s.tool(Tool::Node);
+    node.version("10.0.0").archive().write("node tarball");
+    node.version("10.0.0").npm_file().write("2.1.0");
+    node.version("10.0.0").image().create();
+    node.version("12.0.0").image().create();
+
+    assert!(node.version("10.0.0").archive().exists());
+
+    assert_that!(
+        s.volta("uninstall node@10.0.0"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+    );
+
+    assert!(!node.version("10.0.0").image().exists());
+    assert!(!node.version("10.0.0").archive().exists());
+    assert!(!node.version("10.0.0").npm_file().exists());
+    // other versions are untouched
+    assert!(node.version("12.0.0").image().exists());
+}
+
+#[test]
+fn uninstall_runtime_semver() {
+    // uninstalling a version range removes all cached versions matching it
+    let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
+    let node = s.tool(Tool::Node);
+    node.version("10.0.0").image().create();
+    node.version("10.9.9").image().create();
+    node.version("11.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall node@10"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+            .with_stdout_contains("[..]'node@10.9.9' uninstalled")
+    );
+
+    assert!(!node.version("10.0.0").image().exists());
+    assert!(!node.version("10.9.9").image().exists());
+    // versions outside the range are untouched
+    assert!(node.version("11.0.0").image().exists());
+}
+
+#[test]
+fn uninstall_runtime_broad_skips_default() {
+    // a bare tool name removes all cached versions except the default
+    let s = sandbox()
+        .platform(&platform_with_node("12.0.0"))
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("10.0.0").image().create();
+    node.version("12.0.0").image().create();
+    node.version("14.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall node"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+            .with_stdout_contains("[..]'node@14.0.0' uninstalled")
+            .with_stderr_contains("[..]skipping 'node@12.0.0' (currently your default node; target it with an exact version to remove it)")
+    );
+
+    assert!(!node.version("10.0.0").image().exists());
+    assert!(!node.version("14.0.0").image().exists());
+    assert!(node.version("12.0.0").image().exists());
+    // uninstall does not change the user's default
+    assert_eq!(s.read_default_platform(), platform_with_node("12.0.0"));
+}
+
+#[test]
+fn uninstall_runtime_exact_in_use() {
+    // an in-use version can be removed by targeting it explicitly; its config
+    // is left untouched, since the version will be re-fetched on next use
+    let s = sandbox()
+        .platform(&platform_with_node("12.0.0"))
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    s.tool(Tool::Node).version("12.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall node@12.0.0"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@12.0.0' uninstalled")
+            .with_stderr_contains("[..]'node@12.0.0' is your default node; it will be re-downloaded on next use. To change your default, run `volta install node@<version>`")
+    );
+
+    assert!(!s.tool(Tool::Node).version("12.0.0").image().exists());
+    assert_eq!(s.read_default_platform(), platform_with_node("12.0.0"));
+}
+
+#[test]
+fn uninstall_runtime_broad_skips_package_dependency() {
+    // a version depended on by an installed global package is skipped
+    let s = sandbox()
+        .package_config("cowsay", PKG_CONFIG_BASIC)
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("11.10.1").image().create();
+    node.version("10.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall node"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+            .with_stderr_contains("[..]skipping 'node@11.10.1' (in use by global package 'cowsay'; target it with an exact version to remove it)")
+    );
+
+    assert!(!node.version("10.0.0").image().exists());
+    assert!(node.version("11.10.1").image().exists());
+}
+
+#[test]
+fn uninstall_runtime_tag_unsupported() {
+    // tag-based specs would require resolving against the remote index
+    let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
+
+    assert_that!(
+        s.volta("uninstall node@latest"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains(
+                "[..]error: uninstalling 'node@latest' is not supported; specify an exact version or a version range"
+            )
+    );
+}
+
+#[test]
+fn uninstall_runtime_multiple_tools() {
+    // multiple tools can be uninstalled in a single command
+    let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
+    s.tool(Tool::Node).version("10.0.0").image().create();
+    s.tool(Tool::Yarn).version("1.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall node@10.0.0 yarn@1.0.0"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+            .with_stdout_contains("[..]'yarn@1.0.0' uninstalled")
+    );
+
+    assert!(!s.tool(Tool::Node).version("10.0.0").image().exists());
+    assert!(!s.tool(Tool::Yarn).version("1.0.0").image().exists());
+}
+
+#[test]
+fn uninstall_bare_version_argument() {
+    // `volta uninstall <version>` is not a valid invocation, same as install
+    let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
+
+    assert_that!(
+        s.volta("uninstall 12"),
+        execs()
+            .with_status(ExitCode::InvalidArguments as i32)
+            .with_stderr_contains("[..]`volta uninstall 12` is not supported.")
+    );
 }
 
 #[test]

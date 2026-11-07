@@ -469,6 +469,13 @@ pub enum ErrorKind {
         feature: String,
     },
 
+    /// Thrown when a user tries to `volta uninstall` using a version tag
+    /// (e.g. `latest` or `lts`), which uninstall does not support
+    UninstallTagUnsupported {
+        tool: String,
+        tag: String,
+    },
+
     /// Thrown when unpacking an archive (tarball or zip) fails
     UnpackArchiveError {
         tool: String,
@@ -1352,6 +1359,11 @@ at {}
             ErrorKind::Unimplemented { feature } => {
                 write!(f, "{} is not supported yet.", feature)
             }
+            ErrorKind::UninstallTagUnsupported { tool, tag } => write!(
+                f,
+                "uninstalling '{}@{}' is not supported; specify an exact version or a version range",
+                tool, tag
+            ),
             ErrorKind::UnpackArchiveError { tool, version } => write!(
                 f,
                 "Could not unpack {} v{}
@@ -1593,6 +1605,7 @@ impl ErrorKind {
             ErrorKind::StringifyPackageConfigError => ExitCode::UnknownError,
             ErrorKind::StringifyPlatformError => ExitCode::UnknownError,
             ErrorKind::Unimplemented { .. } => ExitCode::UnknownError,
+            ErrorKind::UninstallTagUnsupported { .. } => ExitCode::InvalidArguments,
             ErrorKind::UnpackArchiveError { .. } => ExitCode::UnknownError,
             ErrorKind::UpgradePackageNotFound { .. } => ExitCode::ConfigurationError,
             ErrorKind::UpgradePackageWrongManager { .. } => ExitCode::ConfigurationError,

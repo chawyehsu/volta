@@ -18,6 +18,7 @@ pub mod package;
 pub mod pnpm;
 mod registry;
 mod serial;
+mod uninstall;
 pub(crate) mod validate_npm_package_name;
 pub mod yarn;
 
@@ -116,34 +117,32 @@ impl Spec {
         }
     }
 
-    /// Uninstall a tool, removing it from the local inventory
+    /// Uninstall a tool, removing its locally cached versions from the inventory
     ///
-    /// This is implemented on Spec, instead of Resolved, because there is currently no need to
-    /// resolve the specific version before uninstalling a tool.
-    pub fn uninstall(self) -> Fallible<()> {
+    /// This is implemented on Spec, instead of Resolved, because uninstalling is a purely
+    /// local operation: the requested version is matched against the versions cached on
+    /// the local machine, without resolving against a remote index.
+    pub fn uninstall(self, session: &mut Session) -> Fallible<()> {
         match self {
-            Spec::Node(_) => Err(ErrorKind::Unimplemented {
-                feature: "Uninstalling node".into(),
+            Spec::Node(version) => {
+                uninstall::uninstall_runtime(uninstall::RuntimeTool::Node, version, session)
             }
-            .into()),
-            Spec::Npm(_) => Err(ErrorKind::Unimplemented {
-                feature: "Uninstalling npm".into(),
+            Spec::Npm(version) => {
+                uninstall::uninstall_runtime(uninstall::RuntimeTool::Npm, version, session)
             }
-            .into()),
-            Spec::Pnpm(_) => {
+            Spec::Pnpm(version) => {
+                // If the pnpm feature flag is set, use the special-cased package manager
+                // logic to handle uninstalling pnpm. If not, then fall back to the global
+                // package behavior, which was the case prior to pnpm support being added
                 if env::var_os(constant::ENVNAME_VOLTA_FEATURE_PNPM).is_some() {
-                    Err(ErrorKind::Unimplemented {
-                        feature: "Uninstalling pnpm".into(),
-                    }
-                    .into())
+                    uninstall::uninstall_runtime(uninstall::RuntimeTool::Pnpm, version, session)
                 } else {
                     package::uninstall("pnpm")
                 }
             }
-            Spec::Yarn(_) => Err(ErrorKind::Unimplemented {
-                feature: "Uninstalling yarn".into(),
+            Spec::Yarn(version) => {
+                uninstall::uninstall_runtime(uninstall::RuntimeTool::Yarn, version, session)
             }
-            .into()),
             Spec::Package(name, _) => package::uninstall(&name),
         }
     }
