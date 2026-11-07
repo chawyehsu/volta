@@ -500,6 +500,12 @@ pub enum ErrorKind {
         manager: PackageManager,
     },
 
+    /// Thrown when a user tries to update a runtime tool through a package manager
+    UpgradeRuntimeUnsupported {
+        tool: String,
+        manager: PackageManager,
+    },
+
     VersionParseError {
         version: String,
     },
@@ -1410,6 +1416,19 @@ To upgrade it, please use the command `{} {0}`"#,
                     package, name, command
                 )
             }
+            ErrorKind::UpgradeRuntimeUnsupported { tool, manager } => {
+                let command = match manager {
+                    PackageManager::Npm => "npm update -g",
+                    PackageManager::Pnpm => "pnpm update -g",
+                    PackageManager::Yarn => "yarn global upgrade",
+                };
+                write!(
+                    f,
+                    r#"Updating runtimes with `{command}` is not supported.
+
+To update {tool}, please use `volta install {tool}@<version>`."#
+                )
+            }
             ErrorKind::VersionParseError { version } => write!(
                 f,
                 r#"Could not parse version "{}"
@@ -1623,6 +1642,7 @@ impl ErrorKind {
             ErrorKind::UnpackArchiveError { .. } => ExitCode::UnknownError,
             ErrorKind::UpgradePackageNotFound { .. } => ExitCode::ConfigurationError,
             ErrorKind::UpgradePackageWrongManager { .. } => ExitCode::ConfigurationError,
+            ErrorKind::UpgradeRuntimeUnsupported { .. } => ExitCode::ConfigurationError,
             ErrorKind::VersionParseError { .. } => ExitCode::NoVersionMatch,
             ErrorKind::WriteBinConfigError { .. } => ExitCode::FileSystemError,
             ErrorKind::WriteDefaultNpmError { .. } => ExitCode::FileSystemError,

@@ -5,7 +5,8 @@
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use testkit::matchers::execs;
-use testkit::sandbox::{DistroMetadata, NodeFixture, Yarn1Fixture, sandbox};
+use testkit::sandbox::{DistroMetadata, NodeFixture, Tool, Yarn1Fixture, sandbox};
+use volta_core::error::ExitCode;
 
 fn platform_with_node(node: &str) -> String {
     format!(
@@ -203,6 +204,31 @@ fn npm_uninstall_without_packages_skips_volta_logic() {
             .with_status(0)
             .with_stdout_does_not_contain("[..]Volta is processing each package separately")
     );
+}
+
+#[test]
+fn npm_update_g_runtime_is_rejected() {
+    // updating a runtime through npm must be rejected, not routed to the
+    // uninstall logic, which would delete the cached versions
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .env("VOLTA_LOGLEVEL", "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("10.99.1040").image().create();
+
+    assert_that!(
+        s.npm("update -g node"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains("[..]Updating runtimes with `npm update -g` is not supported.")
+            .with_stderr_contains(
+                "[..]To update node, please use `volta install node@<version>[..]"
+            )
+    );
+
+    // the cached versions must be untouched
+    assert!(node.version("10.99.1040").image().exists());
 }
 
 #[test]

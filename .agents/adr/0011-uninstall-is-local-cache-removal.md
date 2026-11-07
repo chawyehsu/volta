@@ -23,6 +23,7 @@ We will treat `volta uninstall` as a purely local cache-removal operation with t
 ## Consequences
 
 - A removed version that is still referenced (default, project pin, package platform) is transparently re-downloaded the next time it is needed; removing even the default node does not break the environment, it only costs a download.
+- Package-manager update commands for runtimes (`npm update -g node`, `yarn global upgrade node`, `pnpm update -g node`) are rejected with an error rather than routed to the uninstall logic, which would otherwise delete the cached versions instead of updating anything.
 - A global package's recorded platform is a snapshot from its install time; it keeps that Node version in use until the package is reinstalled or upgraded, which rewrites the config.
 - Versions whose image is missing (for example, an interrupted fetch) are not matched by uninstall, even if their archive is still cached.
 - A new `UninstallTagUnsupported` error kind reports rejected tags with exit code `InvalidArguments`.
