@@ -1,13 +1,12 @@
 use std::fs;
 
-use hamcrest2::assert_that;
-use hamcrest2::prelude::*;
-use test_support::matchers::execs;
-
-use crate::support::sandbox::sandbox;
 use crate::support::self_update::{
     FIXTURE_VERSION, FixtureInstall, FixtureRelease, binary_contents,
 };
+use hamcrest2::assert_that;
+use hamcrest2::prelude::*;
+use testkit::matchers::execs;
+use testkit::sandbox::sandbox;
 use volta_core::constant;
 use volta_core::error::ExitCode;
 

@@ -6,9 +6,8 @@ use mockito::Mock;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
-use test_support::process::ProcessBuilder;
-
-use super::sandbox::{Sandbox, cargo_dir};
+use testkit::process::ProcessBuilder;
+use testkit::sandbox::{Sandbox, cargo_dir};
 use volta_core::constant;
 
 const TRIPLETS: [(&str, &str); 6] = [

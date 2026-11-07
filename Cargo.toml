@@ -8,7 +8,7 @@ license = "BSD-2-Clause"
 categories = ["development-tools"]
 
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "tests/testkit"]
 
 [workspace.dependencies]
 # external deps
@@ -60,7 +60,7 @@ tee = "0.1.0"
 tempfile = "3.27.0"
 terminal_size = "0.4.4"
 # path crates
-test-support = { path = "crates/test-support" }
+testkit = { path = "tests/testkit" }
 textwrap = "0.16.2"
 thiserror = "2.0.18"
 verbatim = "0.1"
@@ -115,7 +115,7 @@ ci_info.workspace = true
 envoy.workspace = true
 hamcrest2.workspace = true
 headers.workspace = true
-test-support.workspace = true
+testkit.workspace = true
 
 [target."cfg(windows)".dependencies]
 winreg.workspace = true

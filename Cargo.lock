@@ -2790,13 +2790,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "test-support"
+name = "testkit"
 version = "0.1.0"
 dependencies = [
+ "cfg-if",
+ "envoy",
  "hamcrest2",
+ "headers",
+ "mockito",
+ "node-semver",
  "remove_dir_all",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.20",
+ "volta-core",
+ "volta-layout",
 ]
 
 [[package]]
@@ -3161,7 +3169,7 @@ dependencies = [
  "sha2",
  "tar",
  "tempfile",
- "test-support",
+ "testkit",
  "textwrap",
  "volta-core",
  "volta-migrate",

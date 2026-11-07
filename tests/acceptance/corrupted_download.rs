@@ -1,8 +1,7 @@
-use crate::support::sandbox::{DistroMetadata, NodeFixture, PnpmFixture, Yarn1Fixture, sandbox};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use node_semver::Version;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{DistroMetadata, NodeFixture, PnpmFixture, Tool, Yarn1Fixture, sandbox};
 
 use volta_core::constant;
 use volta_core::error::ExitCode;
@@ -84,7 +83,7 @@ fn install_corrupted_node_leaves_inventory_unchanged() {
         execs().with_status(ExitCode::UnknownError as i32)
     );
 
-    assert!(!s.node_inventory_archive_exists(&Version::parse("0.0.1").unwrap()));
+    assert!(!s.tool(Tool::Node).version("0.0.1").archive().exists());
 }
 
 #[test]
@@ -99,7 +98,7 @@ fn install_valid_node_saves_to_inventory() {
         execs().with_status(ExitCode::Success as i32)
     );
 
-    assert!(s.node_inventory_archive_exists(&Version::parse("10.99.1040").unwrap()));
+    assert!(s.tool(Tool::Node).version("10.99.1040").archive().exists());
 }
 
 #[test]
@@ -117,7 +116,7 @@ fn install_corrupted_pnpm_leaves_inventory_unchanged() {
         execs().with_status(ExitCode::UnknownError as i32)
     );
 
-    assert!(!s.pnpm_inventory_archive_exists("0.0.1"));
+    assert!(!s.tool(Tool::Pnpm).version("0.0.1").archive().exists());
 }
 
 #[test]
@@ -136,7 +135,7 @@ fn install_valid_pnpm_saves_to_inventory() {
         execs().with_status(ExitCode::Success as i32)
     );
 
-    assert!(s.pnpm_inventory_archive_exists("7.7.1"));
+    assert!(s.tool(Tool::Pnpm).version("7.7.1").archive().exists());
 }
 
 #[test]
@@ -153,7 +152,7 @@ fn install_corrupted_yarn_leaves_inventory_unchanged() {
         execs().with_status(ExitCode::UnknownError as i32)
     );
 
-    assert!(!s.yarn_inventory_archive_exists("0.0.1"));
+    assert!(!s.tool(Tool::Yarn).version("0.0.1").archive().exists());
 }
 
 #[test]
@@ -171,5 +170,5 @@ fn install_valid_yarn_saves_to_inventory() {
         execs().with_status(ExitCode::Success as i32)
     );
 
-    assert!(s.yarn_inventory_archive_exists("1.2.42"));
+    assert!(s.tool(Tool::Yarn).version("1.2.42").archive().exists());
 }

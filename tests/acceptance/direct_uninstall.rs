@@ -2,10 +2,10 @@
 //! `yarn global remove`, which we support as alternatives to `volta uninstall`
 //! and which should use its logic.
 
-use crate::support::sandbox::{DistroMetadata, NodeFixture, Sandbox, Yarn1Fixture, sandbox};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{DistroMetadata, NodeFixture, Yarn1Fixture, sandbox};
 
 fn platform_with_node(node: &str) -> String {
     format!(
@@ -132,12 +132,12 @@ fn npm_uninstall_uses_volta_logic() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::package_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
-    assert!(!Sandbox::package_image_exists("cowsay"));
+    assert!(!s.package_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
+    assert!(!s.package_image_exists("cowsay"));
 }
 
 #[test]
@@ -174,19 +174,19 @@ fn npm_uninstall_supports_multiples() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::package_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
-    assert!(!Sandbox::package_image_exists("cowsay"));
+    assert!(!s.package_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
+    assert!(!s.package_image_exists("cowsay"));
 
-    assert!(!Sandbox::package_config_exists("typescript"));
-    assert!(!Sandbox::bin_config_exists("tsc"));
-    assert!(!Sandbox::bin_config_exists("tsserver"));
-    assert!(!Sandbox::shim_exists("tsc"));
-    assert!(!Sandbox::shim_exists("tsserver"));
-    assert!(!Sandbox::package_image_exists("typescript"));
+    assert!(!s.package_config_exists("typescript"));
+    assert!(!s.bin_config_exists("tsc"));
+    assert!(!s.bin_config_exists("tsserver"));
+    assert!(!s.shim_exists("tsc"));
+    assert!(!s.shim_exists("tsserver"));
+    assert!(!s.package_image_exists("typescript"));
 }
 
 #[test]
@@ -229,12 +229,12 @@ fn yarn_remove_uses_volta_logic() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::package_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
-    assert!(!Sandbox::package_image_exists("cowsay"));
+    assert!(!s.package_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
+    assert!(!s.package_image_exists("cowsay"));
 }
 
 #[test]
@@ -271,19 +271,19 @@ fn yarn_remove_supports_multiples() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::package_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
-    assert!(!Sandbox::package_image_exists("cowsay"));
+    assert!(!s.package_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
+    assert!(!s.package_image_exists("cowsay"));
 
-    assert!(!Sandbox::package_config_exists("typescript"));
-    assert!(!Sandbox::bin_config_exists("tsc"));
-    assert!(!Sandbox::bin_config_exists("tsserver"));
-    assert!(!Sandbox::shim_exists("tsc"));
-    assert!(!Sandbox::shim_exists("tsserver"));
-    assert!(!Sandbox::package_image_exists("typescript"));
+    assert!(!s.package_config_exists("typescript"));
+    assert!(!s.bin_config_exists("tsc"));
+    assert!(!s.bin_config_exists("tsserver"));
+    assert!(!s.shim_exists("tsc"));
+    assert!(!s.shim_exists("tsserver"));
+    assert!(!s.package_image_exists("typescript"));
 }
 
 #[test]

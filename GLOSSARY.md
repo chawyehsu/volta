@@ -24,6 +24,16 @@ _Avoid_: platform
 A Rust target identifier such as `aarch64-apple-darwin`, used in release asset names.
 _Avoid_: platform
 
+## Toolchain vocabulary
+
+**Image**:
+The unpacked, on-disk copy of one version of a runtime tool in the Volta home directory.
+_Avoid_: installed tool, unpacked runtime
+
+**Inventory**:
+The cache of downloaded tool-version archives in the Volta home directory.
+_Avoid_: download cache, archive store
+
 ## Release vocabulary
 
 **Release**:
@@ -63,3 +73,9 @@ _Avoid_: Test archive, fake archive
 **Fixture install directory**:
 A temporary directory containing copies of the Volta binaries that a self-update test is allowed to replace.
 _Avoid_: Sandbox install directory
+
+## Test vocabulary
+
+**Sandbox**:
+The isolated per-test environment, comprising temporary home and project directories, a private `PATH` of Volta shims, and a mock download server, in which tests run the compiled Volta binaries.
+_Avoid_: TestWorkspace, TempProject

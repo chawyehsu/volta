@@ -19,7 +19,6 @@ cfg_if::cfg_if! {
         mod npm_link;
         mod pnpm_link;
         mod package_migration;
-        pub mod support;
         mod volta_fetch;
         mod volta_install;
         mod volta_run;
