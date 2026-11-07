@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/chawyehsu/volta/compare/v2.0.3...v2.1.0) (2026-11-07)
+
+
+### Features
+
+* add self-update command ([#108](https://github.com/chawyehsu/volta/issues/108)) ([c4e7d4b](https://github.com/chawyehsu/volta/commit/c4e7d4b45267e7525502ff0b5c9cceae8f787d12))
+
 ## [2.0.3](https://github.com/chawyehsu/volta/compare/v2.0.2...v2.0.3) (2026-06-03)
 
 
