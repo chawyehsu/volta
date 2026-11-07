@@ -33,7 +33,6 @@ _Avoid_: installed tool, unpacked runtime
 **Inventory**:
 The cache of downloaded tool-version archives in the Volta home directory.
 _Avoid_: download cache, archive store
-## Toolchain vocabulary
 
 **Cached version**:
 A fetched version of a runtime tool kept in the Volta home directory, consisting of an unpacked image and its archive in the inventory.
