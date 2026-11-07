@@ -4,6 +4,7 @@ use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use testkit::matchers::execs;
 use testkit::sandbox::{Tool, sandbox};
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 const PKG_CONFIG_BASIC: &str = r#"{
@@ -61,6 +62,63 @@ fn platform_with_node(node: &str) -> String {
   "yarn": null
 }}"#,
         node
+    )
+}
+
+fn platform_with_node_npm(node: &str, npm: &str) -> String {
+    format!(
+        r#"{{
+  "node": {{
+    "runtime": "{}",
+    "npm": "{}"
+  }},
+  "pnpm": null,
+  "yarn": null
+}}"#,
+        node, npm
+    )
+}
+
+fn platform_with_pnpm(node: &str, pnpm: &str) -> String {
+    format!(
+        r#"{{
+  "node": {{
+    "runtime": "{}",
+    "npm": null
+  }},
+  "pnpm": "{}",
+  "yarn": null
+}}"#,
+        node, pnpm
+    )
+}
+
+fn package_json_with_pinned_node(node: &str) -> String {
+    format!(
+        r#"{{
+  "name": "test-project",
+  "volta": {{
+    "node": "{}"
+  }}
+}}"#,
+        node
+    )
+}
+
+fn node_package_config(name: &str) -> String {
+    format!(
+        r#"{{
+  "name": "{}",
+  "version": "1.4.0",
+  "platform": {{
+    "node": "11.10.1",
+    "npm": "6.7.0",
+    "yarn": null
+  }},
+  "bins": [],
+  "manager": "Npm"
+}}"#,
+        name
     )
 }
 
@@ -389,6 +447,223 @@ fn uninstall_runtime_multiple_tools() {
 
     assert!(!s.tool(Tool::Node).version("10.0.0").image().exists());
     assert!(!s.tool(Tool::Yarn).version("1.0.0").image().exists());
+}
+
+#[test]
+fn uninstall_npm_exact() {
+    // uninstalling an exact npm version removes the unpacked image and the
+    // cached archive
+    let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
+    let npm = s.tool(Tool::Npm);
+    npm.version("6.14.13").image().create();
+    npm.version("6.14.13").archive().write("npm tarball");
+    npm.version("6.2.26").image().create();
+
+    assert!(npm.version("6.14.13").archive().exists());
+
+    assert_that!(
+        s.volta("uninstall npm@6.14.13"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'npm@6.14.13' uninstalled")
+    );
+
+    assert!(!npm.version("6.14.13").image().exists());
+    assert!(!npm.version("6.14.13").archive().exists());
+    // other versions are untouched
+    assert!(npm.version("6.2.26").image().exists());
+}
+
+#[test]
+fn uninstall_npm_broad_skips_default() {
+    // a bare `npm` removes all cached versions except the default
+    let s = sandbox()
+        .platform(&platform_with_node_npm("10.99.1040", "6.2.26"))
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let npm = s.tool(Tool::Npm);
+    npm.version("6.2.26").image().create();
+    npm.version("6.14.13").image().create();
+
+    assert_that!(
+        s.volta("uninstall npm"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'npm@6.14.13' uninstalled")
+            .with_stderr_contains("[..]skipping 'npm@6.2.26' (currently your default npm; target it with an exact version to remove it)")
+    );
+
+    assert!(!npm.version("6.14.13").image().exists());
+    assert!(npm.version("6.2.26").image().exists());
+    assert_eq!(
+        s.read_default_platform(),
+        platform_with_node_npm("10.99.1040", "6.2.26")
+    );
+}
+
+#[test]
+fn uninstall_npm_broad_skips_package_dependency() {
+    // an npm version depended on by an installed global package is skipped
+    let s = sandbox()
+        .package_config("cowsay", PKG_CONFIG_BASIC)
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let npm = s.tool(Tool::Npm);
+    npm.version("6.7.0").image().create();
+    npm.version("6.14.13").image().create();
+
+    assert_that!(
+        s.volta("uninstall npm"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'npm@6.14.13' uninstalled")
+            .with_stderr_contains("[..]skipping 'npm@6.7.0' (in use by global package 'cowsay'; target it with an exact version to remove it)")
+    );
+
+    assert!(!npm.version("6.14.13").image().exists());
+    assert!(npm.version("6.7.0").image().exists());
+}
+
+#[test]
+fn uninstall_pnpm_exact() {
+    // with the pnpm feature flag enabled, an exact pnpm version can be
+    // uninstalled like the other package managers
+    let s = sandbox()
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let pnpm = s.tool(Tool::Pnpm);
+    pnpm.version("7.1.0").image().create();
+    pnpm.version("7.1.0").archive().write("pnpm tarball");
+    pnpm.version("6.32.0").image().create();
+
+    assert!(pnpm.version("7.1.0").archive().exists());
+
+    assert_that!(
+        s.volta("uninstall pnpm@7.1.0"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'pnpm@7.1.0' uninstalled")
+    );
+
+    assert!(!pnpm.version("7.1.0").image().exists());
+    assert!(!pnpm.version("7.1.0").archive().exists());
+    assert!(pnpm.version("6.32.0").image().exists());
+}
+
+#[test]
+fn uninstall_pnpm_broad_skips_default() {
+    // a bare `pnpm` removes all cached versions except the default
+    let s = sandbox()
+        .platform(&platform_with_pnpm("10.99.1040", "7.7.1"))
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let pnpm = s.tool(Tool::Pnpm);
+    pnpm.version("7.7.1").image().create();
+    pnpm.version("8.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall pnpm"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'pnpm@8.0.0' uninstalled")
+            .with_stderr_contains("[..]skipping 'pnpm@7.7.1' (currently your default pnpm; target it with an exact version to remove it)")
+    );
+
+    assert!(!pnpm.version("8.0.0").image().exists());
+    assert!(pnpm.version("7.7.1").image().exists());
+    assert_eq!(
+        s.read_default_platform(),
+        platform_with_pnpm("10.99.1040", "7.7.1")
+    );
+}
+
+#[test]
+fn uninstall_pnpm_without_feature_flag_falls_back_to_package() {
+    // without the pnpm feature flag, pnpm is treated as a global package
+    let s = sandbox()
+        .env_remove(constant::ENVNAME_VOLTA_FEATURE_PNPM)
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+
+    assert_that!(
+        s.volta("uninstall pnpm@7.1.0"),
+        execs()
+            .with_status(0)
+            .with_stderr_contains("[..]No package 'pnpm' found to uninstall")
+    );
+}
+
+#[test]
+fn uninstall_runtime_exact_warns_package_dependency() {
+    // removing a package-dependent version by exact targeting warns that it
+    // will be re-downloaded the next time the package runs
+    let s = sandbox()
+        .package_config("cowsay", PKG_CONFIG_BASIC)
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("11.10.1").image().create();
+
+    assert_that!(
+        s.volta("uninstall node@11.10.1"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@11.10.1' uninstalled")
+            .with_stderr_contains("[..]'node@11.10.1' is used by global package 'cowsay'; it will be re-downloaded the next time 'cowsay' runs")
+    );
+
+    assert!(!node.version("11.10.1").image().exists());
+}
+
+#[test]
+fn uninstall_runtime_broad_skips_project_pin() {
+    // a version pinned in the current project is skipped by a bare tool name
+    let s = sandbox()
+        .package_json(&package_json_with_pinned_node("12.0.0"))
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("12.0.0").image().create();
+    node.version("10.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall node"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+            .with_stderr_contains("[..]skipping 'node@12.0.0' (pinned in the current project; target it with an exact version to remove it)")
+    );
+
+    assert!(!node.version("10.0.0").image().exists());
+    assert!(node.version("12.0.0").image().exists());
+    // uninstall does not rewrite the project pin
+    assert_eq!(
+        s.read_package_json(),
+        package_json_with_pinned_node("12.0.0")
+    );
+}
+
+#[test]
+fn uninstall_runtime_broad_skips_multiple_package_dependencies() {
+    // when several packages depend on the same version, all are named
+    let s = sandbox()
+        .package_config("cowsay", &node_package_config("cowsay"))
+        .package_config("eslint", &node_package_config("eslint"))
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("11.10.1").image().create();
+
+    assert_that!(
+        s.volta("uninstall node"),
+        execs()
+            .with_status(0)
+            .with_stderr_contains("[..]skipping 'node@11.10.1' (in use by global packages 'cowsay', 'eslint'; target it with an exact version to remove it)")
+    );
+
+    assert!(node.version("11.10.1").image().exists());
 }
 
 #[test]
