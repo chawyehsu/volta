@@ -34,6 +34,14 @@ _Avoid_: installed tool, unpacked runtime
 The cache of downloaded tool-version archives in the Volta home directory.
 _Avoid_: download cache, archive store
 
+**Launcher**:
+The script Volta writes into a tool image's bin directory, invoking the tool's JavaScript entrypoint with `node` from the execution environment.
+_Avoid_: wrapper script, bootstrap
+
+**Shim**:
+The executable stub in the Volta bin directory that dispatches a command to the tool version selected by the active platform.
+_Avoid_: proxy, wrapper
+
 ## Release vocabulary
 
 **Release**:

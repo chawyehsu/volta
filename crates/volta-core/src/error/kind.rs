@@ -184,6 +184,12 @@ pub enum ErrorKind {
     /// Thrown when unable to acquire a lock on the Volta directory
     LockAcquireError,
 
+    /// Thrown when a fetched tool distribution includes no supported JS entrypoint
+    MissingEntrypointError {
+        tool: String,
+        version: String,
+    },
+
     /// Thrown when pinning or installing npm@bundled and couldn't detect the bundled version
     NoBundledNpm {
         command: String,
@@ -875,6 +881,13 @@ format
                 f,
                 "Unable to acquire lock on Volta directory"
             ),
+            ErrorKind::MissingEntrypointError { tool, version } => write!(
+                f,
+                "Could not set up {} {} because the distribution includes no supported entrypoint (`{}.cjs` or `{}.mjs`).
+
+The distribution may be corrupted or unsupported by Volta, please try again or report it to the Volta issue tracker.",
+                tool, version, tool, tool
+            ),
             ErrorKind::NoBundledNpm { command } => write!(
                 f,
                 "Could not detect bundled npm version.
@@ -1524,6 +1537,7 @@ impl ErrorKind {
             ErrorKind::InvalidRegistryFormat { .. } => ExitCode::ConfigurationError,
             ErrorKind::InvalidToolName { .. } => ExitCode::InvalidArguments,
             ErrorKind::LockAcquireError => ExitCode::FileSystemError,
+            ErrorKind::MissingEntrypointError { .. } => ExitCode::UnknownError,
             ErrorKind::NoBundledNpm { .. } => ExitCode::ConfigurationError,
             ErrorKind::NoCommandLinePnpm => ExitCode::ConfigurationError,
             ErrorKind::NoCommandLineYarn => ExitCode::ConfigurationError,
