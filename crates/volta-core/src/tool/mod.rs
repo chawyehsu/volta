@@ -137,6 +137,14 @@ impl Spec {
                 if env::var_os(constant::ENVNAME_VOLTA_FEATURE_PNPM).is_some() {
                     uninstall::uninstall_runtime(uninstall::RuntimeTool::Pnpm, version, session)
                 } else {
+                    // Without the feature flag, pnpm is managed as a global package,
+                    // which does not support versioned uninstalls
+                    let VersionSpec::None = version else {
+                        return Err(ErrorKind::Unimplemented {
+                            feature: "uninstalling specific versions of tools".into(),
+                        }
+                        .into());
+                    };
                     package::uninstall("pnpm")
                 }
             }

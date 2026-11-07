@@ -6,6 +6,7 @@ use testkit::matchers::execs;
 use testkit::sandbox::{Tool, sandbox};
 use volta_core::constant;
 use volta_core::error::ExitCode;
+use volta_core::tool::node::HostPlatform;
 
 const PKG_CONFIG_BASIC: &str = r#"{
   "name": "cowsay",
@@ -320,6 +321,37 @@ fn uninstall_runtime_exact() {
 }
 
 #[test]
+fn uninstall_runtime_exact_removes_stale_archives() {
+    // node distro archives are host-platform-specific; removing a version
+    // should also remove archives fetched by a Volta binary for a different
+    // platform, e.g. from before an Intel to Apple Silicon upgrade
+    let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
+    let node = s.tool(Tool::Node);
+    node.version("10.0.0").image().create();
+
+    let other = HostPlatform::ALL
+        .into_iter()
+        .find(|platform| *platform != HostPlatform::current())
+        .unwrap();
+    let stale = s.volta_home().join("tools/inventory/node").join(
+        other
+            .node_distro()
+            .archive_filename(&"10.0.0".parse().unwrap()),
+    );
+    std::fs::create_dir_all(stale.parent().unwrap()).unwrap();
+    std::fs::write(&stale, "stale archive").unwrap();
+
+    assert_that!(
+        s.volta("uninstall node@10.0.0"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+    );
+
+    assert!(!stale.exists());
+}
+
+#[test]
 fn uninstall_runtime_semver() {
     // uninstalling a version range removes all cached versions matching it
     let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
@@ -581,7 +613,8 @@ fn uninstall_pnpm_broad_skips_default() {
 
 #[test]
 fn uninstall_pnpm_without_feature_flag_falls_back_to_package() {
-    // without the pnpm feature flag, pnpm is treated as a global package
+    // without the pnpm feature flag, pnpm is treated as a global package,
+    // which does not support versioned uninstalls
     let s = sandbox()
         .env_remove(constant::ENVNAME_VOLTA_FEATURE_PNPM)
         .env(VOLTA_LOGLEVEL, "info")
@@ -589,6 +622,14 @@ fn uninstall_pnpm_without_feature_flag_falls_back_to_package() {
 
     assert_that!(
         s.volta("uninstall pnpm@7.1.0"),
+        execs().with_status(1).with_stderr_contains(
+            "[..]error: uninstalling specific versions of tools is not supported yet."
+        )
+    );
+
+    // the bare package fallback is unchanged
+    assert_that!(
+        s.volta("uninstall pnpm"),
         execs()
             .with_status(0)
             .with_stderr_contains("[..]No package 'pnpm' found to uninstall")
@@ -715,6 +756,38 @@ fn uninstall_runtime_broad_skips_multiple_package_dependencies() {
     );
 
     assert!(node.version("11.10.1").image().exists());
+}
+
+#[test]
+fn uninstall_runtime_exact_tolerates_broken_package_config() {
+    // a malformed global-package config should not block a version the user
+    // named exactly, but a broad removal fails loudly instead of guessing
+    let s = sandbox()
+        .package_config("broken", "this is not json{{{")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("10.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall node@10.0.0"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+            .with_stderr_contains("[..]Unable to determine in-use versions (Could not parse package configuration file.[..]")
+            .with_stderr_contains("[..]removing 'node@10.0.0' anyway")
+    );
+    assert!(!node.version("10.0.0").image().exists());
+
+    // broad removals stay strict
+    node.version("12.0.0").image().create();
+    assert_that!(
+        s.volta("uninstall node"),
+        execs()
+            .with_status(1)
+            .with_stderr_contains("[..]Could not parse package configuration file.")
+    );
+    assert!(node.version("12.0.0").image().exists());
 }
 
 #[test]

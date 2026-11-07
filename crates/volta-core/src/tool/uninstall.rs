@@ -16,6 +16,7 @@ use crate::platform::PlatformSpec;
 use crate::session::Session;
 use crate::style::success_prefix;
 use crate::sync::VoltaLock;
+use crate::tool::node::HostPlatform;
 use crate::tool::package::PackageConfig;
 use crate::tool::{Node, Npm, Pnpm, Yarn};
 use crate::version::VersionSpec;
@@ -109,8 +110,23 @@ pub(super) fn uninstall_runtime(
         return Ok(());
     }
 
-    let in_use = InUseVersions::collect(session)?;
     let exact = matches!(spec, VersionSpec::Exact(_));
+    let in_use = match InUseVersions::collect(session) {
+        Ok(in_use) => in_use,
+        // In-use detection is best-effort for explicit removals: a malformed
+        // project manifest or package config should not block a version the
+        // user named exactly. Broad removals stay strict, since the discovered
+        // references are what protect those versions from removal.
+        Err(err) if exact => {
+            warn!(
+                "Unable to determine in-use versions ({}); removing '{}' anyway",
+                err,
+                spec_label(tool, &spec)
+            );
+            InUseVersions::default()
+        }
+        Err(err) => return Err(err),
+    };
 
     for version in matching {
         let versioned = format!("{}@{}", tool.name(), version);
@@ -138,10 +154,30 @@ pub(super) fn uninstall_runtime(
 }
 
 /// Removes all locally cached copies of a version of a tool:
-/// the unpacked image, the cached archive, and any associated metadata files
+/// the cached archive(s), any associated metadata files, and the unpacked image
 fn remove_version(tool: RuntimeTool, version: &Version) -> Fallible<()> {
     let home = volta_home()?;
     let version_str = version.to_string();
+
+    // Remove the cached archive(s) before the image: matching is image-based,
+    // so keeping the image until the archive removal succeeds keeps a failed
+    // removal retryable
+    if tool == RuntimeTool::Node {
+        // Node distro archives are host-platform-specific; remove every
+        // variant of the version, e.g. one fetched by a Volta binary built
+        // for a different architecture
+        for platform in HostPlatform::ALL {
+            remove_file_if_exists(
+                home.node_inventory_dir()
+                    .join(platform.node_distro().archive_filename(version)),
+            )?;
+        }
+        // Remove the bundled npm metadata file for the removed node version, if any
+        remove_file_if_exists(home.node_npm_version_file(&version_str))?;
+    } else {
+        let archive = tool.archive_path(version)?;
+        remove_file_if_exists(archive)?;
+    }
 
     let image_dir = match tool {
         RuntimeTool::Node => home.node_image_dir(&version_str),
@@ -149,17 +185,7 @@ fn remove_version(tool: RuntimeTool, version: &Version) -> Fallible<()> {
         RuntimeTool::Pnpm => home.pnpm_image_dir(&version_str),
         RuntimeTool::Yarn => home.yarn_image_dir(&version_str),
     };
-    remove_dir_if_exists(image_dir)?;
-
-    let archive = tool.archive_path(version)?;
-    remove_file_if_exists(archive)?;
-
-    // Remove the bundled npm metadata file for the removed node version, if any
-    if tool == RuntimeTool::Node {
-        remove_file_if_exists(home.node_npm_version_file(&version_str))?;
-    }
-
-    Ok(())
+    remove_dir_if_exists(image_dir)
 }
 
 /// Determines whether a cached version matches the requested spec
@@ -185,6 +211,7 @@ fn spec_label(tool: RuntimeTool, spec: &VersionSpec) -> String {
 /// The versions of each tool that are currently in use, either as the user's
 /// default, pinned in the current project, or depended on by an installed
 /// global package
+#[derive(Default)]
 struct InUseVersions {
     default: Option<PlatformSpec>,
     project: Option<PlatformSpec>,
