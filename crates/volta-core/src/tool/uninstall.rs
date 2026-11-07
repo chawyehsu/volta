@@ -91,8 +91,9 @@ pub(super) fn uninstall_runtime(
         .into());
     }
 
-    // Acquire a lock on the Volta directory, if possible, to prevent concurrent changes
-    let _lock = VoltaLock::acquire();
+    // Acquire a lock on the Volta directory to prevent concurrent changes.
+    // Removal is destructive, so do not proceed if the lock cannot be acquired
+    let _lock = VoltaLock::acquire()?;
 
     let matching: Vec<Version> = tool
         .cached_versions()?
