@@ -596,6 +596,31 @@ fn uninstall_pnpm_without_feature_flag_falls_back_to_package() {
 }
 
 #[test]
+fn uninstall_yarn_exact() {
+    // uninstalling an exact yarn version removes the unpacked image and the
+    // cached archive
+    let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
+    let yarn = s.tool(Tool::Yarn);
+    yarn.version("1.22.19").image().create();
+    yarn.version("1.22.19").archive().write("yarn tarball");
+    yarn.version("1.22.5").image().create();
+
+    assert!(yarn.version("1.22.19").archive().exists());
+
+    assert_that!(
+        s.volta("uninstall yarn@1.22.19"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'yarn@1.22.19' uninstalled")
+    );
+
+    assert!(!yarn.version("1.22.19").image().exists());
+    assert!(!yarn.version("1.22.19").archive().exists());
+    // other versions are untouched
+    assert!(yarn.version("1.22.5").image().exists());
+}
+
+#[test]
 fn uninstall_runtime_exact_warns_package_dependency() {
     // removing a package-dependent version by exact targeting warns that it
     // will be re-downloaded the next time the package runs
@@ -639,6 +664,32 @@ fn uninstall_runtime_broad_skips_project_pin() {
     assert!(!node.version("10.0.0").image().exists());
     assert!(node.version("12.0.0").image().exists());
     // uninstall does not rewrite the project pin
+    assert_eq!(
+        s.read_package_json(),
+        package_json_with_pinned_node("12.0.0")
+    );
+}
+
+#[test]
+fn uninstall_runtime_exact_warns_project_pin() {
+    // removing a project-pinned version by exact targeting warns that it
+    // will be re-downloaded on next use; the pin itself is untouched
+    let s = sandbox()
+        .package_json(&package_json_with_pinned_node("12.0.0"))
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("12.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall node@12.0.0"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@12.0.0' uninstalled")
+            .with_stderr_contains("[..]'node@12.0.0' is pinned in the current project; it will be re-downloaded on next use")
+    );
+
+    assert!(!node.version("12.0.0").image().exists());
     assert_eq!(
         s.read_package_json(),
         package_json_with_pinned_node("12.0.0")
