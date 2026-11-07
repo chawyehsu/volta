@@ -69,7 +69,7 @@ pub(crate) enum Subcommand {
     /// Installs a tool in your toolchain
     Install(command::Install),
 
-    /// Uninstalls cached versions of a tool from your toolchain
+    /// Uninstalls a tool from your toolchain
     Uninstall(command::Uninstall),
 
     /// Pins your project's runtime or package manager
