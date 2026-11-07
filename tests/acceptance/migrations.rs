@@ -47,7 +47,7 @@ fn empty_volta_home_is_created() {
 
 #[test]
 fn legacy_v0_volta_home_is_upgraded() {
-    let s = sandbox().build();
+    let s = sandbox().without_layout_marker().build();
 
     // directories that are already created by the test framework
     assert!(s.path_exists(".volta"));
@@ -92,6 +92,7 @@ fn legacy_v0_volta_home_is_upgraded() {
 #[test]
 fn tagged_v1_volta_home_is_upgraded() {
     let s = sandbox()
+        .without_layout_marker()
         .layout_file("v1")
         .file(
             ".volta/tools/image/node/10.6.0/6.1.0/README.md",
@@ -157,6 +158,7 @@ fn tagged_v1_volta_home_is_upgraded() {
 #[test]
 fn tagged_v1_to_v2_keeps_custom_npm() {
     let s = sandbox()
+        .without_layout_marker()
         .layout_file("v1")
         .platform(
             r#"{
@@ -186,6 +188,7 @@ fn tagged_v1_to_v2_keeps_custom_npm() {
 #[test]
 fn tagged_v1_to_v2_keeps_migrated_node_images() {
     let s = sandbox()
+        .without_layout_marker()
         .layout_file("v1")
         .file(
             ".volta/tools/image/node/10.6.0/README.md",
@@ -260,7 +263,7 @@ fn missing_migrate_executable_errors() {
 fn v3_to_v4_migrates_symlink_shims() {
     use std::fs;
 
-    let s = sandbox().layout_file("v3").build();
+    let s = sandbox().without_layout_marker().layout_file("v3").build();
 
     let bin_dir = s.volta_bin_dir();
     let dummy_target = bin_dir.join("volta-shim.exe");
@@ -281,18 +284,18 @@ fn v3_to_v4_migrates_symlink_shims() {
         return;
     }
 
-    assert!(s.shim_exists("node"));
-    assert!(s.shim_exists("yarn"));
+    assert!(s.path_exists(".volta/bin/node.exe"));
+    assert!(s.path_exists(".volta/bin/yarn.exe"));
 
     // Run migration
     assert_that!(s.volta("--version"), execs().with_status(0));
 
     // Symlink shim should be replaced: old .exe removed, .cmd script created
-    assert!(!s.shim_exists("node"));
+    assert!(!s.path_exists(".volta/bin/node.exe"));
     assert!(s.path_exists(".volta/bin/node.cmd"));
 
     // Regular file shim should be untouched
-    assert!(s.shim_exists("yarn"));
+    assert!(s.path_exists(".volta/bin/yarn.exe"));
 }
 
 #[test]
@@ -300,7 +303,7 @@ fn v3_to_v4_migrates_symlink_shims() {
 fn v3_to_v4_migrates_symlink_shared_dirs() {
     use std::fs;
 
-    let s = sandbox().layout_file("v3").build();
+    let s = sandbox().without_layout_marker().layout_file("v3").build();
 
     let shared_root = s.path(".volta/tools/shared");
     let orig_target = s.path(".volta/tools/shared-orig/openssl");

@@ -461,11 +461,10 @@ fn shim_remove_error() {
         } else if #[cfg(windows)] {
             // Replace the .cmd shim with a directory so that fs::remove_file
             // fails with PermissionDenied (not NotFound), triggering ShimRemoveError.
-            let shim_path = volta_home.join("bin/cowsay.exe");
-            std::fs::remove_file(&shim_path).unwrap();
-            // `.exe` shim created in sandbox migrated to `.cmd` shim in layout v4,
-            // so we need to create a directory with the `.cmd` extension.
+            // The sandbox builder creates the `.cmd` shim (mirroring real Volta),
+            // so remove it before creating the directory in its place.
             let shim_path = volta_home.join("bin/cowsay.cmd");
+            std::fs::remove_file(&shim_path).unwrap();
             std::fs::create_dir(&shim_path).unwrap();
         }
     }

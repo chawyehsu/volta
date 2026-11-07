@@ -505,8 +505,10 @@ fn completions_without_output_writes_to_stdout() {
 fn malformed_platform_json() {
     let s = sandbox().platform("this is not valid json{{{").build();
 
+    // `volta list` loads the default toolchain eagerly, so it surfaces the
+    // platform parse error before doing anything else
     assert_that!(
-        s.volta("install node@10.99.1040"),
+        s.volta("list"),
         execs()
             .with_status(ExitCode::ConfigurationError as i32)
             .with_stderr_contains("[..]Could not parse platform settings file.[..]")

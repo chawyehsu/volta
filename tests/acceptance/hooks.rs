@@ -312,7 +312,10 @@ fn tool_hook_with_missing_relative_bin_path_errors() {
 #[test]
 #[cfg(unix)]
 fn tool_hook_with_failing_bin_command_errors() {
+    // A real install has a `node` shim in the Volta bin dir, which the hook
+    // command below resolves; without it the command is not found at all
     let s = sandbox()
+        .shim("node")
         .default_hooks(
             r#"{
     "node": {

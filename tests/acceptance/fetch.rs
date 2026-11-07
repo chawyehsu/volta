@@ -229,7 +229,6 @@ fn create_temp_file_error() {
     use std::os::unix::fs::PermissionsExt;
 
     let s = sandbox()
-        .layout_file("v4")
         .npm_available_versions(NPM_VERSION_INFO)
         .distro_mocks::<NpmFixture>(&NPM_VERSION_FIXTURES)
         .build();

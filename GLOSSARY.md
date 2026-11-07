@@ -46,6 +46,14 @@ _Avoid_: active version, live version
 The Volta command that removes cached versions of a runtime tool from the local machine without changing any configuration; removed versions are re-downloaded automatically when next needed.
 _Avoid_: clean, prune, remove
 
+**Launcher**:
+The script Volta writes into a tool image's bin directory, invoking the tool's JavaScript entrypoint with `node` from the execution environment.
+_Avoid_: wrapper script, bootstrap
+
+**Shim**:
+The executable stub in the Volta bin directory that dispatches a command to the tool version selected by the active platform.
+_Avoid_: proxy, wrapper
+
 ## Release vocabulary
 
 **Release**:

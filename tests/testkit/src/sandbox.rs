@@ -141,6 +141,30 @@ impl ShimBuilder {
 
     fn build(&self) {
         ok_or_panic! { symlink_file(shim_exe(), &self.path) };
+
+        // On Windows, real Volta shims are not symlinks but a `.cmd` script
+        // plus an extensionless Git Bash script (see `volta_core::shim`'s
+        // Windows platform module). Tests that assert shim management (e.g.
+        // uninstall removing the shim) observe those native artifacts, so
+        // create them alongside the executable symlink that `exec_shim` uses.
+        #[cfg(windows)]
+        {
+            let name = self
+                .path
+                .file_stem()
+                .unwrap_or_else(|| panic!("shim path has no file stem: {}", self.path.display()));
+            let cmd_script = self
+                .path
+                .with_file_name(format!("{}.cmd", name.to_string_lossy()));
+            let bash_script = self.path.with_file_name(name);
+
+            FileBuilder::new(cmd_script, "@echo off\nvolta run %~n0 %*\n").build();
+            FileBuilder::new(
+                bash_script,
+                "#!/bin/bash\nvolta run \"$(basename $0)\" \"$@\"\n",
+            )
+            .build();
+        }
     }
 }
 
@@ -162,6 +186,7 @@ pub struct SandboxBuilder {
     has_exec_path: bool,
     env_vars: Vec<EnvVar>,
     env_vars_remove: Vec<String>,
+    write_layout_marker: bool,
 }
 
 impl Default for SandboxBuilder {
@@ -355,6 +380,7 @@ impl SandboxBuilder {
             has_exec_path: false,
             env_vars: vec![],
             env_vars_remove: vec![],
+            write_layout_marker: true,
         }
     }
 
@@ -396,6 +422,23 @@ impl SandboxBuilder {
         let home = self.home();
         self.files
             .push(FileBuilder::new(layout_file(&home, version), ""));
+        self
+    }
+
+    /// Suppress writing the current layout marker file (`layout.v4`) when
+    /// building the sandbox (chainable)
+    ///
+    /// By default, `build()` writes an empty `layout.v4` marker into the
+    /// sandbox's Volta home, marking it as a current-layout install. This
+    /// makes it safe to pre-create layout directories (e.g. tool images) —
+    /// without the marker, the first volta invocation treats the home as a
+    /// legacy V0 install and runs a migration, rebuilding shims and wiping
+    /// pre-created image contents.
+    ///
+    /// Tests that construct a legacy layout (e.g. via `layout_file("v1")`)
+    /// and expect a migration to actually run should call this method.
+    pub fn without_layout_marker(mut self) -> Self {
+        self.write_layout_marker = false;
         self
     }
 
@@ -695,10 +738,25 @@ impl SandboxBuilder {
         ok_or_panic! { fs::create_dir_all(layout.pnpm_inventory_dir()) };
         ok_or_panic! { fs::create_dir_all(layout.yarn_inventory_dir()) };
         ok_or_panic! { fs::create_dir_all(layout.tmp_dir()) };
+        // tool image roots, as a real current-layout install would have
+        // (created by the installer or a migration); `volta list` reads them
+        ok_or_panic! { fs::create_dir_all(layout.node_image_root_dir()) };
+        ok_or_panic! { fs::create_dir_all(layout.npm_image_root_dir()) };
+        ok_or_panic! { fs::create_dir_all(layout.pnpm_image_root_dir()) };
+        ok_or_panic! { fs::create_dir_all(layout.yarn_image_root_dir()) };
+        ok_or_panic! { fs::create_dir_all(layout.package_image_root_dir()) };
 
         // write node and yarn caches
         for cache in self.caches.iter() {
             cache.build();
+        }
+
+        // mark the home as a current-layout install so that pre-created
+        // layout directories don't trigger a legacy V0 -> V4 migration on
+        // the first volta invocation (written before the test files so that
+        // an explicit layout file wins)
+        if self.write_layout_marker {
+            FileBuilder::new(layout.layout_file().to_path_buf(), "").build();
         }
 
         // write files
@@ -1024,8 +1082,14 @@ impl Sandbox {
     }
 
     /// Check if a shim exists in the sandbox.
+    ///
+    /// Checks the platform's native shim artifact: the symlink itself on
+    /// Unix, the `.cmd` script on Windows.
     pub fn shim_exists(&self, name: &str) -> bool {
-        shim_file(&self.home(), name).exists()
+        let path = shim_file(&self.home(), name);
+        #[cfg(windows)]
+        let path = path.with_extension("cmd");
+        path.exists()
     }
     pub fn path_exists(&self, path: &str) -> bool {
         sandbox_path(&self.home(), path).exists()
@@ -1125,8 +1189,18 @@ impl ToolVersion<'_> {
 
     /// Write an executable binary for this tool version into the image's
     /// bin directory.
+    ///
+    /// The bin directory follows the per-tool image layout: on Windows, the
+    /// official Node distribution unpacks its executable at the root of the
+    /// image directory, so the node image's bin directory is the image root
+    /// itself; on Unix (and for all other tools on every platform) it is
+    /// `<image>/bin`.
     pub fn binary(&self, contents: &str) {
-        let bin_file = self.image().join("bin").join(format!(
+        let bin_dir = match self.tool {
+            Tool::Node => self.sandbox.layout().node_image_bin_dir(&self.version),
+            _ => self.image().join("bin"),
+        };
+        let bin_file = bin_dir.join(format!(
             "{}{}",
             self.tool.dir_name(),
             if cfg!(windows) { ".cmd" } else { "" }
