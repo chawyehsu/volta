@@ -236,6 +236,7 @@ fn yarn_update_g_runtime_is_rejected() {
     // updating a runtime through npm must be rejected, not routed to the
     // uninstall logic, which would delete the cached versions
     let s = sandbox()
+        .shim("yarn")
         .platform(&platform_with_node("10.99.1040"))
         .env("VOLTA_LOGLEVEL", "info")
         .build();
@@ -263,6 +264,7 @@ fn pnpm_update_g_runtime_is_rejected() {
     // updating a runtime through npm must be rejected, not routed to the
     // uninstall logic, which would delete the cached versions
     let s = sandbox()
+        .shim("pnpm")
         .platform(&platform_with_node("10.99.1040"))
         .env("VOLTA_LOGLEVEL", "info")
         .build();
