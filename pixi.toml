@@ -72,7 +72,6 @@ features = ["build"]
 
 [environments.build.tasks]
 build = { cmd = "pixi build", description = "Build Volta" }
-tar = { cmd = "bsdtar", description = "Bsdtar" }
 
 # ----------------- #
 # Package definition #
