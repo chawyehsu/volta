@@ -31,9 +31,11 @@ jobs:
 
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          environment: ci-test
 
       - name: Run check
-        run: pixi run check
+        run: pixi run -e ci-test check
 
   tests:
     needs: style_check
@@ -50,15 +52,17 @@ jobs:
 
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          environment: ci-test
 
       - name: Run tests
-        run: pixi run test
+        run: pixi run -e ci-test test
 
       - name: Lint with clippy
-        run: pixi run lint
+        run: pixi run -e ci-test lint
 
       - name: Lint tests with clippy
-        run: pixi run lint-test
+        run: pixi run -e ci-test lint-test
 
   smoke_tests:
     needs: tests
@@ -72,9 +76,11 @@ jobs:
 
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          environment: ci-test
 
       - name: Run tests
-        run: pixi run smoke-test
+        run: pixi run -e ci-test smoke-test
 
   ci_nightly_build:
     needs: tests

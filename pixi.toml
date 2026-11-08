@@ -20,6 +20,36 @@ c_stdlib_version = ["2.17"]
 c_stdlib = ["macosx_deployment_target"]
 c_stdlib_version = ["11.0"]
 
+[workspace.dependencies]
+libarchive = ">=3.8.7,<4"
+rust = "~=1.95.0"
+rust-src = "~=1.95.0"
+sccache = ">=0.19.0,<0.20"
+pixi-build-rust = ">=0.5.7,<0.6"
+sigtool = ">=0.1.3,<0.2"
+
+# ----------- #
+# Environment #
+# ----------- #
+
+[feature.cache.dependencies]
+sccache = { workspace = true }
+
+[feature.rust.dependencies]
+rust = { workspace = true }
+rust-src = { workspace = true }
+
+[environments.ci-test]
+features = ["rust", "cache"]
+
+[tasks]
+build = { cmd = "pixi build", description = "Build Volta" }
+check = { cmd = "cargo fmt --all --quiet -- --check", description = "Check code formatting" }
+lint = { cmd = "cargo clippy", description = "Lint the code" }
+lint-test = { cmd = "cargo clippy --tests --features mock-network", description = "Lint the test code" }
+test = { cmd = "cargo test --all --features mock-network", description = "Acceptance tests" }
+smoke-test = { cmd = "cargo test --test smoke --features smoke-tests -- --test-threads 1", description = "Smoke tests" }
+
 # ----------------- #
 # Package definition #
 # ----------------- #
@@ -34,17 +64,15 @@ authors = [
 
 [package.build-dependencies]
 # bsdtar to extract conda artifacts
-libarchive = ">=3.8.7,<4"
-rust = "~=1.95.0"
-rust-src = "~=1.95.0"
-sccache = ">=0.19.0,<0.20"
+libarchive = { workspace = true }
+sccache = { workspace = true }
 
 [package.build-dependencies."if(osx)"]
 # Provides the `codesign` command used by rattler-build when cross-compiling.
-sigtool = "*"
+sigtool = { workspace = true }
 
 [package.build]
-backend = { name = "pixi-build-rust", version = "*" }
+backend = { name = "pixi-build-rust", workspace = true }
 # sccache secrets for GitHub Actions
 secrets = ["ACTIONS_RESULTS_URL", "ACTIONS_RUNTIME_TOKEN"]
 
@@ -65,11 +93,3 @@ CONDA_BUILD_SYSROOT = "__MACOS_SDK_ROOT__"
 # Use CMake to build aws-lc-sys, because conda's CFLAGS inject -O2 which
 # overrides the -O0 required by jitterentropy-base.c.
 AWS_LC_SYS_CMAKE_BUILDER = "1"
-
-[tasks]
-build = { cmd = "pixi build", description = "Build Volta" }
-check = { cmd = "cargo fmt --all --quiet -- --check", description = "Check code formatting" }
-lint = { cmd = "cargo clippy", description = "Lint the code" }
-lint-test = { cmd = "cargo clippy --tests --features mock-network", description = "Lint the test code" }
-test = { cmd = "cargo test --all --features mock-network", description = "Acceptance tests" }
-smoke-test = { cmd = "cargo test --test smoke --features smoke-tests -- --test-threads 1", description = "Smoke tests" }
