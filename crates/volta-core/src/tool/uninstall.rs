@@ -255,13 +255,11 @@ impl InUseVersions {
             }
         };
 
-        let packages = match inventory::package_configs() {
-            Ok(configs) => configs.into_iter().collect(),
-            Err(err) => {
-                error.get_or_insert(err);
-                Vec::new()
-            }
-        };
+        let (configs, packages_error) = inventory::package_configs_partial();
+        if let Some(err) = packages_error {
+            error.get_or_insert(err);
+        }
+        let packages: Vec<PackageConfig> = configs.into_iter().collect();
 
         (
             InUseVersions {
