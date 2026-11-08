@@ -106,10 +106,10 @@ fn clear_default_npm(platform_file: &Path) -> Fallible<()> {
     };
     let mut existing_platform = Platform::try_from(platform_json)?;
 
-    if let Some(node_version) = &mut existing_platform.node {
-        if let Some(npm) = &node_version.npm {
-            if let Ok(default_npm) = load_default_npm_version(&node_version.runtime) {
-                if *npm == default_npm {
+    if let Some(node_version) = &mut existing_platform.node
+        && let Some(npm) = &node_version.npm
+            && let Ok(default_npm) = load_default_npm_version(&node_version.runtime)
+                && *npm == default_npm {
                     node_version.npm = None;
                     write(platform_file, existing_platform.into_json()?).with_context(|| {
                         ErrorKind::WritePlatformError {
@@ -117,9 +117,6 @@ fn clear_default_npm(platform_file: &Path) -> Fallible<()> {
                         }
                     })?;
                 }
-            }
-        }
-    }
 
     Ok(())
 }
