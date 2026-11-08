@@ -475,6 +475,13 @@ pub enum ErrorKind {
         feature: String,
     },
 
+    /// Thrown when a user tries to `volta uninstall` using a version tag
+    /// (e.g. `latest` or `lts`), which uninstall does not support
+    UninstallTagUnsupported {
+        tool: String,
+        tag: String,
+    },
+
     /// Thrown when unpacking an archive (tarball or zip) fails
     UnpackArchiveError {
         tool: String,
@@ -490,6 +497,12 @@ pub enum ErrorKind {
     /// Thrown when a package to upgrade was installed with a different package manager
     UpgradePackageWrongManager {
         package: String,
+        manager: PackageManager,
+    },
+
+    /// Thrown when a user tries to update a runtime tool through a package manager
+    UpgradeRuntimeUnsupported {
+        tool: String,
         manager: PackageManager,
     },
 
@@ -1365,6 +1378,11 @@ at {}
             ErrorKind::Unimplemented { feature } => {
                 write!(f, "{} is not supported yet.", feature)
             }
+            ErrorKind::UninstallTagUnsupported { tool, tag } => write!(
+                f,
+                "uninstalling '{}@{}' is not supported; specify an exact version or a version range",
+                tool, tag
+            ),
             ErrorKind::UnpackArchiveError { tool, version } => write!(
                 f,
                 "Could not unpack {} v{}
@@ -1396,6 +1414,19 @@ Please ensure it is installed with `{} {0}`"#,
 
 To upgrade it, please use the command `{} {0}`"#,
                     package, name, command
+                )
+            }
+            ErrorKind::UpgradeRuntimeUnsupported { tool, manager } => {
+                let command = match manager {
+                    PackageManager::Npm => "npm update -g",
+                    PackageManager::Pnpm => "pnpm update -g",
+                    PackageManager::Yarn => "yarn global upgrade",
+                };
+                write!(
+                    f,
+                    r#"Updating runtimes with `{command}` is not supported.
+
+To update {tool}, please use `volta install {tool}@<version>`."#
                 )
             }
             ErrorKind::VersionParseError { version } => write!(
@@ -1607,9 +1638,11 @@ impl ErrorKind {
             ErrorKind::StringifyPackageConfigError => ExitCode::UnknownError,
             ErrorKind::StringifyPlatformError => ExitCode::UnknownError,
             ErrorKind::Unimplemented { .. } => ExitCode::UnknownError,
+            ErrorKind::UninstallTagUnsupported { .. } => ExitCode::InvalidArguments,
             ErrorKind::UnpackArchiveError { .. } => ExitCode::UnknownError,
             ErrorKind::UpgradePackageNotFound { .. } => ExitCode::ConfigurationError,
             ErrorKind::UpgradePackageWrongManager { .. } => ExitCode::ConfigurationError,
+            ErrorKind::UpgradeRuntimeUnsupported { .. } => ExitCode::ConfigurationError,
             ErrorKind::VersionParseError { .. } => ExitCode::NoVersionMatch,
             ErrorKind::WriteBinConfigError { .. } => ExitCode::FileSystemError,
             ErrorKind::WriteDefaultNpmError { .. } => ExitCode::FileSystemError,

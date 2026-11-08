@@ -34,6 +34,18 @@ _Avoid_: installed tool, unpacked runtime
 The cache of downloaded tool-version archives in the Volta home directory.
 _Avoid_: download cache, archive store
 
+**Cached version**:
+A fetched version of a runtime tool kept in the Volta home directory, consisting of an unpacked image and its archive in the inventory.
+_Avoid_: installed version, downloaded version
+
+**In-use version**:
+A cached version that is the user's default, pinned in the current project, or recorded as the install-time platform of an installed global package.
+_Avoid_: active version, live version
+
+**Uninstall**:
+The Volta command that removes cached versions of a runtime tool from the local machine without changing any configuration; removed versions are re-downloaded automatically when next needed.
+_Avoid_: clean, prune, remove
+
 **Launcher**:
 The script Volta writes into a tool image's bin directory, invoking the tool's JavaScript entrypoint with `node` from the execution environment.
 _Avoid_: wrapper script, bootstrap
