@@ -8,7 +8,7 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use crate::error::{ErrorKind, Fallible};
+use crate::error::{ErrorKind, Fallible, VoltaError};
 use crate::fs::{remove_dir_if_exists, remove_file_if_exists};
 use crate::inventory;
 use crate::layout::volta_home;
@@ -111,22 +111,23 @@ pub(super) fn uninstall_runtime(
     }
 
     let exact = matches!(spec, VersionSpec::Exact(_));
-    let in_use = match InUseVersions::collect(session) {
-        Ok(in_use) => in_use,
-        // In-use detection is best-effort for explicit removals: a malformed
-        // project manifest or package config should not block a version the
-        // user named exactly. Broad removals stay strict, since the discovered
-        // references are what protect those versions from removal.
-        Err(err) if exact => {
-            warn!(
-                "Unable to determine in-use versions ({}); removing '{}' anyway",
-                err,
-                spec_label(tool, &spec)
-            );
-            InUseVersions::default()
+    let (in_use, error) = InUseVersions::collect(session);
+
+    // In-use detection is best-effort for explicit removals: a malformed
+    // project manifest or package config should not block a version the
+    // user named exactly, though the references that could still be read
+    // are preserved for the warnings. Broad removals stay strict, since
+    // the discovered references are what protect those versions.
+    if let Some(err) = error {
+        if !exact {
+            return Err(err);
         }
-        Err(err) => return Err(err),
-    };
+        warn!(
+            "Unable to fully determine in-use versions ({}); removing '{}' anyway",
+            err,
+            spec_label(tool, &spec)
+        );
+    }
 
     for version in matching {
         let versioned = format!("{}@{}", tool.name(), version);
@@ -154,14 +155,20 @@ pub(super) fn uninstall_runtime(
 }
 
 /// Removes all locally cached copies of a version of a tool:
-/// the cached archive(s), any associated metadata files, and the unpacked image
+/// the cached archive(s), the unpacked image, and any associated metadata files
+///
+/// The removal is ordered so that any failure leaves a state that is either
+/// consistent or retryable:
+///
+/// - The archive is removed first; if a later step fails, the image still
+///   matches on retry
+/// - The image is removed before the bundled npm metadata file: an image
+///   without its metadata is treated as cached but fails to load, while a
+///   leftover metadata file is harmlessly overwritten by a re-fetch
 fn remove_version(tool: RuntimeTool, version: &Version) -> Fallible<()> {
     let home = volta_home()?;
     let version_str = version.to_string();
 
-    // Remove the cached archive(s) before the image: matching is image-based,
-    // so keeping the image until the archive removal succeeds keeps a failed
-    // removal retryable
     if tool == RuntimeTool::Node {
         // Node distro archives are host-platform-specific; remove every
         // variant of the version, e.g. one fetched by a Volta binary built
@@ -172,8 +179,6 @@ fn remove_version(tool: RuntimeTool, version: &Version) -> Fallible<()> {
                     .join(platform.node_distro().archive_filename(version)),
             )?;
         }
-        // Remove the bundled npm metadata file for the removed node version, if any
-        remove_file_if_exists(home.node_npm_version_file(&version_str))?;
     } else {
         let archive = tool.archive_path(version)?;
         remove_file_if_exists(archive)?;
@@ -185,7 +190,15 @@ fn remove_version(tool: RuntimeTool, version: &Version) -> Fallible<()> {
         RuntimeTool::Pnpm => home.pnpm_image_dir(&version_str),
         RuntimeTool::Yarn => home.yarn_image_dir(&version_str),
     };
-    remove_dir_if_exists(image_dir)
+    remove_dir_if_exists(image_dir)?;
+
+    // Remove the bundled npm metadata file for the removed node version, if
+    // any; last, since a remaining image is only usable with its metadata
+    if tool == RuntimeTool::Node {
+        remove_file_if_exists(home.node_npm_version_file(&version_str))?;
+    }
+
+    Ok(())
 }
 
 /// Determines whether a cached version matches the requested spec
@@ -211,7 +224,6 @@ fn spec_label(tool: RuntimeTool, spec: &VersionSpec) -> String {
 /// The versions of each tool that are currently in use, either as the user's
 /// default, pinned in the current project, or depended on by an installed
 /// global package
-#[derive(Default)]
 struct InUseVersions {
     default: Option<PlatformSpec>,
     project: Option<PlatformSpec>,
@@ -219,12 +231,46 @@ struct InUseVersions {
 }
 
 impl InUseVersions {
-    fn collect(session: &mut Session) -> Fallible<Self> {
-        Ok(InUseVersions {
-            default: session.default_platform()?.cloned(),
-            project: session.project_platform()?.cloned(),
-            packages: inventory::package_configs()?.into_iter().collect(),
-        })
+    /// Collects the versions of each tool that are currently in use.
+    ///
+    /// Returns the references that could be read alongside the first error
+    /// encountered, so that callers can decide whether partial information
+    /// is acceptable.
+    fn collect(session: &mut Session) -> (Self, Option<VoltaError>) {
+        let mut error = None;
+
+        let default = match session.default_platform() {
+            Ok(platform) => platform.cloned(),
+            Err(err) => {
+                error.get_or_insert(err);
+                None
+            }
+        };
+
+        let project = match session.project_platform() {
+            Ok(platform) => platform.cloned(),
+            Err(err) => {
+                error.get_or_insert(err);
+                None
+            }
+        };
+
+        let packages = match inventory::package_configs() {
+            Ok(configs) => configs.into_iter().collect(),
+            Err(err) => {
+                error.get_or_insert(err);
+                Vec::new()
+            }
+        };
+
+        (
+            InUseVersions {
+                default,
+                project,
+                packages,
+            },
+            error,
+        )
     }
 
     fn reasons_for(&self, tool: RuntimeTool, version: &Version) -> InUseReasons {

@@ -352,6 +352,47 @@ fn uninstall_runtime_exact_removes_stale_archives() {
 }
 
 #[test]
+#[cfg(unix)]
+fn uninstall_runtime_failure_keeps_metadata() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // if the image cannot be deleted (e.g. a running binary on Windows), the
+    // bundled npm metadata must remain: an image without its metadata would
+    // be treated as cached but fail to load on the next run
+    let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
+    let node = s.tool(Tool::Node);
+    node.version("10.0.0").npm_file().write("2.1.0");
+    node.version("10.0.0").image().create();
+
+    let image_dir = node.version("10.0.0").image();
+    std::fs::set_permissions(&*image_dir, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let output = match s.volta("uninstall node@10.0.0").exec_with_output() {
+        Ok(output) => output,
+        Err(err) => err.output.expect("ProcessError should contain output"),
+    };
+
+    // Restore permissions so sandbox cleanup can remove the directory
+    std::fs::set_permissions(&*image_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert_ne!(
+        output.status.code(),
+        Some(ExitCode::Success as i32),
+        "Expected failure, got success"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Could not remove directory"),
+        "Expected DeleteDirectoryError in stderr, got: {}",
+        stderr
+    );
+
+    // the image and its metadata are untouched, keeping the version usable
+    assert!(node.version("10.0.0").image().exists());
+    assert!(node.version("10.0.0").npm_file().exists());
+}
+
+#[test]
 fn uninstall_runtime_semver() {
     // uninstalling a version range removes all cached versions matching it
     let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
@@ -761,8 +802,11 @@ fn uninstall_runtime_broad_skips_multiple_package_dependencies() {
 #[test]
 fn uninstall_runtime_exact_tolerates_broken_package_config() {
     // a malformed global-package config should not block a version the user
-    // named exactly, but a broad removal fails loudly instead of guessing
+    // named exactly: references that can still be read (the default) are
+    // preserved for the re-download warning, while a broad removal fails
+    // loudly instead of guessing
     let s = sandbox()
+        .platform(&platform_with_node("10.0.0"))
         .package_config("broken", "this is not json{{{")
         .env(VOLTA_LOGLEVEL, "info")
         .build();
@@ -774,8 +818,11 @@ fn uninstall_runtime_exact_tolerates_broken_package_config() {
         execs()
             .with_status(0)
             .with_stdout_contains("[..]'node@10.0.0' uninstalled")
-            .with_stderr_contains("[..]Unable to determine in-use versions (Could not parse package configuration file.[..]")
+            .with_stderr_contains(
+                "[..]Unable to fully determine in-use versions (Could not parse package configuration file.[..]"
+            )
             .with_stderr_contains("[..]removing 'node@10.0.0' anyway")
+            .with_stderr_contains("[..]'node@10.0.0' is your default node; it will be re-downloaded on next use. To change your default, run `volta install node@<version>`")
     );
     assert!(!node.version("10.0.0").image().exists());
 
