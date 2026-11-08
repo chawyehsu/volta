@@ -39,8 +39,8 @@ sccache = { workspace = true }
 rust = { workspace = true }
 rust-src = { workspace = true }
 
-[environments.ci-test]
-features = ["rust", "cache"]
+[environments]
+ci-test = { features = ["rust", "cache"], no-default-feature = true }
 
 [tasks]
 build = { cmd = "pixi build", description = "Build Volta" }
