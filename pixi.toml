@@ -21,6 +21,7 @@ c_stdlib = ["macosx_deployment_target"]
 c_stdlib_version = ["11.0"]
 
 [workspace.dependencies]
+cargo-llvm-cov = ">=0.9.1,<0.10"
 c-compiler = ">=2.0.0,<3"
 libarchive = ">=3.8.7,<4"
 rust = "~=1.95.0"
@@ -36,18 +37,24 @@ sigtool = ">=0.1.3,<0.2"
 [feature.cache.dependencies]
 sccache = { workspace = true }
 
+[feature.coverage.dependencies]
+cargo-llvm-cov = { workspace = true }
+
 [feature.compilers.dependencies]
 c-compiler = { workspace = true }
 rust = { workspace = true }
 rust-src = { workspace = true }
 
-# Environment for CI
+# Environments for CI
 [environments.ci-test]
 features = ["compilers", "cache"]
 
+[environments.ci-coverage]
+features = ["compilers", "cache", "coverage"]
+
 [tasks]
 build = { cmd = "pixi build", description = "Build Volta" }
-check = { cmd = "cargo fmt --all --quiet -- --check", description = "Check code formatting" }
+fmt = { cmd = "cargo fmt --all --quiet -- --check", description = "Check code formatting" }
 lint = { cmd = "cargo clippy", description = "Lint the code" }
 lint-test = { cmd = "cargo clippy --tests --features mock-network", description = "Lint the test code" }
 test = { cmd = "cargo test --all --features mock-network", description = "Acceptance tests" }
