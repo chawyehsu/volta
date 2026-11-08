@@ -232,6 +232,58 @@ fn npm_update_g_runtime_is_rejected() {
 }
 
 #[test]
+fn yarn_update_g_runtime_is_rejected() {
+    // updating a runtime through npm must be rejected, not routed to the
+    // uninstall logic, which would delete the cached versions
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .env("VOLTA_LOGLEVEL", "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("10.99.1040").image().create();
+
+    assert_that!(
+        s.yarn("global update node"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains(
+                "[..]Updating runtimes with `yarn global update` is not supported."
+            )
+            .with_stderr_contains(
+                "[..]To update node, please use `volta install node@<version>[..]"
+            )
+    );
+
+    // the cached versions must be untouched
+    assert!(node.version("10.99.1040").image().exists());
+}
+
+#[test]
+fn pnpm_update_g_runtime_is_rejected() {
+    // updating a runtime through npm must be rejected, not routed to the
+    // uninstall logic, which would delete the cached versions
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .env("VOLTA_LOGLEVEL", "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("10.99.1040").image().create();
+
+    assert_that!(
+        s.pnpm("update -g node"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains("[..]Updating runtimes with `pnpm update -g` is not supported.")
+            .with_stderr_contains(
+                "[..]To update node, please use `volta install node@<version>[..]"
+            )
+    );
+
+    // the cached versions must be untouched
+    assert!(node.version("10.99.1040").image().exists());
+}
+
+#[test]
 fn yarn_remove_uses_volta_logic() {
     let s = sandbox()
         .platform(&platform_with_node("10.99.1040"))
