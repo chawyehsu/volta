@@ -29,11 +29,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup SCCache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
 
       - name: Run check
-        run: cargo fmt --all --quiet -- --check
+        run: pixi run check
 
   tests:
     needs: style_check
@@ -44,25 +44,21 @@ jobs:
           - { os: "windows-latest" }
     name: Acceptance Tests
     runs-on: ${{ matrix.os }}
-    env:
-      RUST_BACKTRACE: full
-      SCCACHE_GHA_ENABLED: true
-      RUSTC_WRAPPER: sccache
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup SCCache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
 
       - name: Run tests
-        run: cargo test --all --features mock-network
+        run: pixi run test
 
       - name: Lint with clippy
-        run: cargo clippy
+        run: pixi run lint
 
       - name: Lint tests with clippy
-        run: cargo clippy --tests --features mock-network
+        run: pixi run lint-test
 
   smoke_tests:
     needs: tests
@@ -70,19 +66,15 @@ jobs:
     if: "!(github.event_name == 'pull_request' && contains(github.event.head_commit.message, 'build(deps)'))"
     name: Smoke Tests
     runs-on: ubuntu-latest
-    env:
-      RUST_BACKTRACE: full
-      SCCACHE_GHA_ENABLED: true
-      RUSTC_WRAPPER: sccache
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup SCCache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
 
       - name: Run tests
-        run: cargo test --test smoke --features smoke-tests -- --test-threads 1
+        run: pixi run smoke-test
 
   ci_nightly_build:
     needs: tests

@@ -31,9 +31,6 @@ jobs:
           - { os: windows-2022, platform: windows }
     name: Build (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
-    env:
-      SCCACHE_GHA_ENABLED: true
-      RUSTC_WRAPPER: sccache
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,9 +39,6 @@ jobs:
         uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
         with:
           run-install: false
-
-      - name: Setup SCCache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Override Cargo Profile
         if: inputs.build_type != 'release'
