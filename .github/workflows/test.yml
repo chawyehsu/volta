@@ -32,7 +32,7 @@ jobs:
           run-install: false
 
       - name: Run check
-        run: pixi run fmt
+        run: pixi run fmt -- --check
 
   tests:
     needs: style_check

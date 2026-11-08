@@ -108,15 +108,16 @@ fn clear_default_npm(platform_file: &Path) -> Fallible<()> {
 
     if let Some(node_version) = &mut existing_platform.node
         && let Some(npm) = &node_version.npm
-            && let Ok(default_npm) = load_default_npm_version(&node_version.runtime)
-                && *npm == default_npm {
-                    node_version.npm = None;
-                    write(platform_file, existing_platform.into_json()?).with_context(|| {
-                        ErrorKind::WritePlatformError {
-                            file: platform_file.to_owned(),
-                        }
-                    })?;
-                }
+        && let Ok(default_npm) = load_default_npm_version(&node_version.runtime)
+        && *npm == default_npm
+    {
+        node_version.npm = None;
+        write(platform_file, existing_platform.into_json()?).with_context(|| {
+            ErrorKind::WritePlatformError {
+                file: platform_file.to_owned(),
+            }
+        })?;
+    }
 
     Ok(())
 }

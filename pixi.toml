@@ -54,7 +54,7 @@ rust-src = { workspace = true }
 features = ["compilers", "cache"]
 
 [environments.test.tasks]
-fmt = { cmd = "cargo fmt --all --quiet -- --check", description = "Check code formatting" }
+fmt = { cmd = "cargo fmt --all", description = "Check code formatting" }
 lint = { cmd = "cargo clippy", description = "Lint the code" }
 lint-test = { cmd = "cargo clippy --tests --features mock-network", description = "Lint the test code" }
 test = { cmd = "cargo test --all --features mock-network", description = "Acceptance tests" }
