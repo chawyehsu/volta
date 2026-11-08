@@ -23,6 +23,9 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     # skip if the commit message contains 'build(deps)', typically for dependabot
     if: "!contains(github.event.head_commit.message, 'build(deps)')"
+    env:
+      SCCACHE_GHA_ENABLED: true
+      RUSTC_WRAPPER: sccache
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
