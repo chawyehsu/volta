@@ -31,6 +31,9 @@ jobs:
           - { os: windows-2022, platform: windows }
     name: Build (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
+    env:
+      SCCACHE_GHA_ENABLED: true
+      RUSTC_WRAPPER: sccache
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -101,9 +104,9 @@ jobs:
         run: |
           cd out
           mv volta*.conda volta.conda
-          pixi run bsdtar -xf volta.conda
+          pixi run tar -xf volta.conda
           mv pkg*.tar.zst pkg.tar.zst
-          pixi run bsdtar -xf pkg.tar.zst
+          pixi run tar -xf pkg.tar.zst
           cd bin
           ls
           ldd -v volta
@@ -117,18 +120,18 @@ jobs:
         if: matrix.platform == 'macos-cross'
         run: |
           cd out
-          pixi run bsdtar -xf volta-macos-arm.conda
+          pixi run tar -xf volta-macos-arm.conda
           mv pkg*.tar.zst pkg.tar.zst
-          pixi run bsdtar -xf pkg.tar.zst
+          pixi run tar -xf pkg.tar.zst
           rm *.tar.zst
           cd bin
           filename="volta-aarch64-apple-darwin.tar.gz"
           tar -zcvf "$filename" volta*
           mv "$filename" ../
           cd ..
-          pixi run bsdtar -xf volta-macos-x64.conda
+          pixi run tar -xf volta-macos-x64.conda
           mv pkg*.tar.zst pkg.tar.zst
-          pixi run bsdtar -xf pkg.tar.zst
+          pixi run tar -xf pkg.tar.zst
           rm *.tar.zst
           cd bin
           filename="volta-x86_64-apple-darwin.tar.gz"
@@ -143,9 +146,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $version = (Get-Content Cargo.toml | Select-String '^version\s*=\s*"(.*)"').Matches.Groups[1].Value
           cd out
-          pixi run bsdtar -xf volta-windows.conda
+          pixi run tar -xf volta-windows.conda
           mv pkg*.tar.zst pkg.tar.zst
-          pixi run bsdtar -xf pkg.tar.zst
+          pixi run tar -xf pkg.tar.zst
           rm *.tar.zst
           $filenameZip = "volta-x86_64-pc-windows-msvc.zip"
           $filenameMsi = "volta-x86_64-pc-windows-msvc.msi"
@@ -154,9 +157,9 @@ jobs:
           candle wix/main.wxs -dVersion="$version" -dCargoTargetBinDir="out/bin" -o out/wix/volta-windows.wixobj
           light out/wix/volta-windows.wixobj -spdb -ext WixUIExtension -ext WixUtilExtension -o "out/$filenameMsi"
           cd out
-          pixi run bsdtar -xf volta-windows-arm.conda
+          pixi run tar -xf volta-windows-arm.conda
           mv pkg*.tar.zst pkg.tar.zst
-          pixi run bsdtar -xf pkg.tar.zst
+          pixi run tar -xf pkg.tar.zst
           rm *.tar.zst
           $filenameZip = "volta-aarch64-pc-windows-msvc.zip"
           $filenameMsi = "volta-aarch64-pc-windows-msvc.msi"

@@ -63,13 +63,13 @@ jobs:
           run-install: false
 
       - name: Run tests
-        run: pixi run -e ci-test test
+        run: pixi run test
 
       - name: Lint with clippy
-        run: pixi run -e ci-test lint
+        run: pixi run lint
 
       - name: Lint tests with clippy
-        run: pixi run -e ci-test lint-test
+        run: pixi run lint-test
 
   smoke_tests:
     needs: tests
@@ -97,7 +97,7 @@ jobs:
           run-install: false
 
       - name: Run tests
-        run: pixi run -e ci-test smoke-test
+        run: pixi run smoke-test
 
   ci_nightly_build:
     needs: tests

@@ -45,21 +45,21 @@ jobs:
           run-install: false
 
       - name: Run Coverage (tests)
-        run: pixi run -e ci-coverage cargo llvm-cov --workspace --features mock-network --no-report
+        run: pixi run cargo-llvm-cov --workspace --features mock-network --no-report
 
       - name: Run Coverage (smoke)
         if: matrix.os == 'ubuntu-latest'
-        run: pixi run -e ci-coverage cargo llvm-cov --workspace --test smoke --features smoke-tests --no-report -- --test-threads 1
+        run: pixi run cargo-llvm-cov --workspace --test smoke --features smoke-tests --no-report -- --test-threads 1
 
       - name: Generate Report
         shell: bash
         run: |
           # collect all package names
-          pixi run -e ci-coverage cargo metadata --format-version 1 --no-deps | jq -r '.packages[].name' | grep -v '^testkit$' > packages.txt
+          pixi run cargo-metadata --format-version 1 --no-deps | jq -r '.packages[].name' | grep -v '^testkit$' > packages.txt
           # add --package for each package to the command
           PACKAGES=$(awk '{printf "-p %s ", $0}' packages.txt)
           # run the report command with all packages
-          pixi run -e ci-coverage cargo llvm-cov report $PACKAGES --lcov --output-path lcov-${{ matrix.os }}.info
+          pixi run cargo-llvm-cov report $PACKAGES --lcov --output-path lcov-${{ matrix.os }}.info
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1

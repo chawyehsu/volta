@@ -23,7 +23,6 @@ c_stdlib_version = ["11.0"]
 [workspace.dependencies]
 cargo-llvm-cov = ">=0.9.1,<0.10"
 c-compiler = ">=2.0.0,<3"
-libarchive = ">=3.8.7,<4"
 rust = "~=1.95.0"
 rust-src = "~=1.95.0"
 sccache = ">=0.19.0,<0.20"
@@ -33,6 +32,11 @@ sigtool = ">=0.1.3,<0.2"
 # ----------- #
 # Environment #
 # ----------- #
+
+## Features
+[feature.build.dependencies]
+# bsdtar to extract conda artifacts, except macos
+libarchive = { version = ">=3.8.7,<4", when = { any = ["__win", "__linux"] } }
 
 [feature.cache.dependencies]
 sccache = { workspace = true }
@@ -45,20 +49,30 @@ c-compiler = { workspace = true }
 rust = { workspace = true }
 rust-src = { workspace = true }
 
-# Environments for CI
-[environments.ci-test]
+## Environments and tasks
+[environments.test]
 features = ["compilers", "cache"]
 
-[environments.ci-coverage]
-features = ["compilers", "cache", "coverage"]
-
-[tasks]
-build = { cmd = "pixi build", description = "Build Volta" }
+[environments.test.tasks]
 fmt = { cmd = "cargo fmt --all --quiet -- --check", description = "Check code formatting" }
 lint = { cmd = "cargo clippy", description = "Lint the code" }
 lint-test = { cmd = "cargo clippy --tests --features mock-network", description = "Lint the test code" }
 test = { cmd = "cargo test --all --features mock-network", description = "Acceptance tests" }
 smoke-test = { cmd = "cargo test --test smoke --features smoke-tests -- --test-threads 1", description = "Smoke tests" }
+
+[environments.coverage]
+features = ["compilers", "cache", "coverage"]
+
+[environments.coverage.tasks]
+cargo-metadata = { cmd = "cargo metadata", description = "Run cargo metadata" }
+cargo-llvm-cov = { cmd = "cargo llvm-cov", description = "Run coverage with llvm-cov" }
+
+[environments.build]
+features = ["build"]
+
+[environments.build.tasks]
+build = { cmd = "pixi build", description = "Build Volta" }
+tar = { cmd = "bsdtar", description = "Bsdtar" }
 
 # ----------------- #
 # Package definition #
@@ -73,8 +87,6 @@ authors = [
 ]
 
 [package.build-dependencies]
-# bsdtar to extract conda artifacts
-libarchive = { workspace = true }
 sccache = { workspace = true }
 
 [package.build-dependencies."if(osx)"]
@@ -87,7 +99,6 @@ backend = { name = "pixi-build-rust", workspace = true }
 secrets = ["ACTIONS_RESULTS_URL", "ACTIONS_RUNTIME_TOKEN"]
 
 [package.build.config]
-env = { RUSTC_WRAPPER = "sccache", SCCACHE_GHA_ENABLED = "true" }
 # The default profile is "release" and it doesn't need to be specified explicitly
 # but we explicitly set it here to provide a way to override it if needed, via
 # regex/sed replacement
