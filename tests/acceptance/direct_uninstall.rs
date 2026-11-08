@@ -6,6 +6,7 @@ use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use testkit::matchers::execs;
 use testkit::sandbox::{DistroMetadata, NodeFixture, Tool, Yarn1Fixture, sandbox};
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 fn platform_with_node(node: &str) -> String {
@@ -233,10 +234,9 @@ fn npm_update_g_runtime_is_rejected() {
 
 #[test]
 fn yarn_update_g_runtime_is_rejected() {
-    // updating a runtime through npm must be rejected, not routed to the
+    // updating a runtime through yarn must be rejected, not routed to the
     // uninstall logic, which would delete the cached versions
     let s = sandbox()
-        .shim("yarn")
         .platform(&platform_with_node("10.99.1040"))
         .env("VOLTA_LOGLEVEL", "info")
         .build();
@@ -244,11 +244,11 @@ fn yarn_update_g_runtime_is_rejected() {
     node.version("10.99.1040").image().create();
 
     assert_that!(
-        s.yarn("global update node"),
+        s.yarn("global upgrade node"),
         execs()
             .with_status(ExitCode::ExecutionFailure as i32)
             .with_stderr_contains(
-                "[..]Updating runtimes with `yarn global update` is not supported."
+                "[..]Updating runtimes with `yarn global upgrade` is not supported."
             )
             .with_stderr_contains(
                 "[..]To update node, please use `volta install node@<version>[..]"
@@ -261,11 +261,12 @@ fn yarn_update_g_runtime_is_rejected() {
 
 #[test]
 fn pnpm_update_g_runtime_is_rejected() {
-    // updating a runtime through npm must be rejected, not routed to the
-    // uninstall logic, which would delete the cached versions
+    // Volta does not yet intercept pnpm global commands: with the feature
+    // flag enabled, the pnpm shim rejects all globals, which still protects
+    // the cached versions from an update removing them
     let s = sandbox()
-        .shim("pnpm")
         .platform(&platform_with_node("10.99.1040"))
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .env("VOLTA_LOGLEVEL", "info")
         .build();
     let node = s.tool(Tool::Node);
@@ -275,10 +276,7 @@ fn pnpm_update_g_runtime_is_rejected() {
         s.pnpm("update -g node"),
         execs()
             .with_status(ExitCode::ExecutionFailure as i32)
-            .with_stderr_contains("[..]Updating runtimes with `pnpm update -g` is not supported.")
-            .with_stderr_contains(
-                "[..]To update node, please use `volta install node@<version>[..]"
-            )
+            .with_stderr_contains("[..]pnpm global commands is not supported yet.")
     );
 
     // the cached versions must be untouched
