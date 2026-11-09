@@ -46,6 +46,7 @@ jobs:
     env:
       SCCACHE_GHA_ENABLED: true
       RUSTC_WRAPPER: sccache
+      ACTIONS_CACHE_SERVICE_V2: on
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -71,6 +72,9 @@ jobs:
       - name: Lint tests with clippy
         run: pixi run lint-test
 
+      - name: Check Sccache
+        run: pixi run -e test cache-stat
+
   smoke_tests:
     needs: tests
     # skip if it's a pull request and the commit message contains 'build(deps)', typically for dependabot
@@ -80,6 +84,7 @@ jobs:
     env:
       SCCACHE_GHA_ENABLED: true
       RUSTC_WRAPPER: sccache
+      ACTIONS_CACHE_SERVICE_V2: on
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -98,6 +103,9 @@ jobs:
 
       - name: Run tests
         run: pixi run smoke-test
+
+      - name: Check Sccache
+        run: pixi run -e test cache-stat
 
   ci_nightly_build:
     needs: tests

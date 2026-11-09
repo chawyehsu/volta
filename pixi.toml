@@ -41,6 +41,9 @@ libarchive = { version = ">=3.8.7,<4", when = { any = ["__win", "__linux"] } }
 [feature.cache.dependencies]
 sccache = { workspace = true }
 
+[feature.cache.tasks]
+cache-stat = { cmd = "sccache --show-stats", description = "Show sccache statistics" }
+
 [feature.coverage.dependencies]
 cargo-llvm-cov = { workspace = true }
 
@@ -94,8 +97,18 @@ sigtool = { workspace = true }
 
 [package.build]
 backend = { name = "pixi-build-rust", workspace = true }
-# sccache secrets for GitHub Actions
-secrets = ["ACTIONS_RESULTS_URL", "ACTIONS_RUNTIME_TOKEN"]
+# sccache configuration for GitHub Actions. The values are pulled from the
+# parent environment at build time and baked into the build script, so they
+# only exist in CI. Local builds stay a plain cargo build.
+# sccache must use the GitHub Actions cache service v2; the legacy v1
+# service is deprecated/blocked and rejects all cache writes
+secrets = [
+  "RUSTC_WRAPPER",
+  "SCCACHE_GHA_ENABLED",
+  "ACTIONS_CACHE_SERVICE_V2",
+  "ACTIONS_RESULTS_URL",
+  "ACTIONS_RUNTIME_TOKEN",
+]
 
 [package.build.config]
 # The default profile is "release" and it doesn't need to be specified explicitly

@@ -34,6 +34,7 @@ jobs:
     env:
       SCCACHE_GHA_ENABLED: true
       RUSTC_WRAPPER: sccache
+      ACTIONS_CACHE_SERVICE_V2: on
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -204,3 +205,6 @@ jobs:
             out/volta-*.zip.sha256
             out/volta-*.msi
             out/volta-*.msi.sha256
+
+      - name: Check Sccache
+        run: pixi run -e test cache-stat
