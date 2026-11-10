@@ -108,7 +108,7 @@ backend = { name = "pixi-build-rust", workspace = true }
 # running local builds.
 secrets = [
   "RUSTC_WRAPPER",
-  "SCCACHE_DIR",
+  # "SCCACHE_DIR",
   "SCCACHE_GHA_ENABLED",
   "ACTIONS_CACHE_SERVICE_V2",
   "ACTIONS_RESULTS_URL",
