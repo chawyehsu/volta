@@ -109,7 +109,7 @@ backend = { name = "pixi-build-rust", workspace = true }
 secrets = [
   "RUSTC_WRAPPER",
   # "SCCACHE_DIR",
-  "SCCACHE_GHA_ENABLED",
+  # "SCCACHE_GHA_ENABLED",
   # "ACTIONS_CACHE_SERVICE_V2",
   "ACTIONS_RESULTS_URL",
   "ACTIONS_RUNTIME_TOKEN",
