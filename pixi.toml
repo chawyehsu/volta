@@ -107,7 +107,7 @@ backend = { name = "pixi-build-rust", workspace = true }
 # rattler-build's env-isolation and sccache, by setting SCCACHE_DIR when
 # running local builds.
 secrets = [
-  "RUSTC_WRAPPER",
+  # "RUSTC_WRAPPER",
   # "SCCACHE_DIR",
   # "SCCACHE_GHA_ENABLED",
   # "ACTIONS_CACHE_SERVICE_V2",
