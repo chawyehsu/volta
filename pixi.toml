@@ -120,12 +120,7 @@ secrets = [
 # but we explicitly set it here to provide a way to override it if needed, via
 # regex/sed replacement
 extra-args = ["--profile", "release"]
-
-[package.build.target.unix.config.env]
-ACTIONS_CACHE_SERVICE_V2 = "on"
-
-[package.build.target.win.config.env]
-ACTIONS_CACHE_SERVICE_V2 = "on"
+env = { ACTIONS_CACHE_SERVICE_V2 = "on" }
 
 [package.build.target.osx.config.env]
 # conda-forge cannot ship the macOS SDK; CI replaces this placeholder with the
