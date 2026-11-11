@@ -94,10 +94,17 @@ jobs:
           # Windows long-path issue workaround:
           New-Item -ItemType Junction -Path C:\w -Target "${{ github.workspace }}"
           cd C:\w
+          pixi run -e test cargo --help
           mkdir out
           pixi run build --target-platform win-64
+          if (0 -ne $LASTEXITCODE) {
+            exit $LASTEXITCODE
+          }
           mv volta-*.conda out/volta-windows.conda
           pixi run build --target-platform win-arm64
+          if (0 -ne $LASTEXITCODE) {
+            exit $LASTEXITCODE
+          }
           mv volta-*.conda out/volta-windows-arm.conda
 
       - name: Package (Linux)
