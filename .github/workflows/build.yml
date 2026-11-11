@@ -91,7 +91,7 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          mkdir "$env:APPDATA/Mozilla"
+          $env:SCCACHE_CONF = "$env:APPDATA\Mozilla\sccache\config\config"
           # Windows long-path issue workaround:
           New-Item -ItemType Junction -Path C:\w -Target "${{ github.workspace }}"
           cd C:\w
