@@ -70,9 +70,6 @@ features = ["compilers", "cache", "coverage"]
 cargo-metadata = { cmd = "cargo metadata", description = "Run cargo metadata" }
 cargo-llvm-cov = { cmd = "cargo llvm-cov", description = "Run coverage with llvm-cov" }
 
-[environments.cache]
-features = ["cache"]
-
 [environments.build]
 features = ["build"]
 
