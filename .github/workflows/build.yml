@@ -94,8 +94,8 @@ jobs:
           # Windows long-path issue workaround:
           New-Item -ItemType Junction -Path C:\w -Target "${{ github.workspace }}" | Out-Null
           cd C:\w
-          pixi install -e test
-          mkdir out
+          pixi run -e cache sccache -s
+          mkdir out | Out-Null
           pixi run build --target-platform win-64
           if (0 -ne $LASTEXITCODE) {
             exit $LASTEXITCODE
