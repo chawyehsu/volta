@@ -80,6 +80,7 @@ jobs:
       - name: Build (macOS cross)
         if: matrix.platform == 'macos-cross'
         run: |
+          export CARGO_HOME="$HOME/.cargo"
           mkdir out
           pixi run build --build-platform linux-64 --target-platform osx-arm64
           mv volta-*.conda out/volta-macos-arm.conda
@@ -91,6 +92,7 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
+          $env:CARGO_HOME = "$env:USERPROFILE/.cargo"
           # Windows long-path issue workaround:
           New-Item -ItemType Junction -Path C:\w -Target "${{ github.workspace }}" | Out-Null
           cd C:\w
@@ -110,6 +112,7 @@ jobs:
       - name: Package (Linux)
         if: matrix.platform == 'linux' || matrix.platform == 'linux-aarch64'
         run: |
+          export CARGO_HOME="$HOME/.cargo"
           cd out
           mv volta*.conda volta.conda
           pixi run -e build bsdtar -xf volta.conda
