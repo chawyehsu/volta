@@ -1,0 +1,17 @@
+name: Purge Caches
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  purge:
+    name: Purge Caches
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete GHA Caches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh cache delete --all
