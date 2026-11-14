@@ -60,7 +60,9 @@ jobs:
       # Linux: build
       - name: Build (Linux)
         if: matrix.platform == 'linux' || matrix.platform == 'linux-aarch64'
-        run: pixi run build --target-platform ${{ matrix.platform == 'linux' && 'linux-64' || 'linux-aarch64' }} --output-dir out
+        run: |
+          export CARGO_HOME="$HOME/.cargo"
+          pixi run build --target-platform ${{ matrix.platform == 'linux' && 'linux-64' || 'linux-aarch64' }} --output-dir out
 
       # macOS: cross-build from Linux
       - name: Download macOS SDK
@@ -112,7 +114,6 @@ jobs:
       - name: Package (Linux)
         if: matrix.platform == 'linux' || matrix.platform == 'linux-aarch64'
         run: |
-          export CARGO_HOME="$HOME/.cargo"
           cd out
           mv volta*.conda volta.conda
           pixi run -e build bsdtar -xf volta.conda
