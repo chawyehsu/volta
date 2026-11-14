@@ -57,9 +57,9 @@ $OutputDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPS
 # under .pixi so that $OutputDir contains only uploadable release artifacts.
 $PackageDir = Join-Path $PSScriptRoot '.pixi/output'
 
-# Point kache's store and runtime directory at the repo root and keep
-# CARGO_HOME on the host. The pixi-build sandbox receives these through
-# `[package.build] secrets`.
+# Point kache's store and runtime directory at its per-user cache directory
+# and keep CARGO_HOME on the host. The pixi-build sandbox receives these
+# through `[package.build] secrets`.
 . (Join-Path $PSScriptRoot 'scripts/env.ps1')
 
 function Invoke-Checked {

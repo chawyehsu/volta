@@ -2,16 +2,16 @@ Please see https://docs.volta.sh/contributing/
 
 # Build cache
 
-Local and CI builds share compiler outputs through [kache](https://github.com/kunobi-ninja/kache), configured in `pixi.toml` as the `RUSTC_WRAPPER` for `pixi build` and for the `test` and `coverage` environments.
+Local and CI builds share compiler outputs through [kache](https://github.com/kunobi-ninja/kache). `pixi.toml` sets it as the `RUSTC_WRAPPER` for `pixi build`, and the `test` and `coverage` environments include the kache binary; CI sets `RUSTC_WRAPPER=kache` for those jobs.
 
-The cache only works when `scripts/env.ps1` has been sourced. It points the kache store and runtime directory at kache's per-user cache directory, so projects on the machine reuse compiled dependencies, keeps `CARGO_HOME` on the host, and removes any `SCCACHE*` variables so the pixi-build backend does not switch the wrapper back to sccache:
+`pixi build` runs in an isolated build prefix whose `HOME` points at the throwaway build directory, so the cache only works when `scripts/env.ps1` has been sourced. It exports kache's per-user store and runtime directory, keeps `CARGO_HOME` on the host, and removes any `SCCACHE*` variables so the pixi-build backend does not switch the wrapper back to sccache:
 
 ```pwsh
 . ./scripts/env.ps1
 pixi run build
 ```
 
-`build.ps1` sources the same script, so `./build.ps1 -Platform linux` needs no manual setup. Preset `KACHE_CACHE_DIR` and `KACHE_RUNTIME_DIR` values win, which is how CI keeps its workspace-scoped store. Show cache activity with `pixi run -e test cache-stats`.
+`build.ps1` sources the same script, so `./build.ps1 -Platform linux` needs no manual setup. Preset `KACHE_CACHE_DIR` and `KACHE_RUNTIME_DIR` values win, which is how CI keeps its workspace-scoped store. Other local tasks such as `pixi run test` are not sandboxed and do not need this script; they use kache only when you configure `RUSTC_WRAPPER` yourself, for example in `~/.cargo/config.toml`. Show cache activity with `pixi run -e test cache-stats`.
 
 ## macOS build noise
 

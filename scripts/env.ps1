@@ -3,24 +3,26 @@
 
 <#
 .SYNOPSIS
-    Configure the kache build cache for local builds.
+    Configure kache for `pixi build`.
 
 .DESCRIPTION
-    Dot-source this script before running tasks that should use kache:
+    Dot-source this script before `pixi build`, or run `build.ps1`, which
+    sources it:
 
         . ./scripts/env.ps1
+        pixi run build
 
-    It points kache's store and runtime directory at kache's per-user cache
-    directory, so every project on the machine reuses the same compiled
-    dependencies, keeps CARGO_HOME on the host so the local registry is
-    reused, and removes any SCCACHE* variables. The pixi-build backend
-    force-exports RUSTC_WRAPPER="sccache" when any of those are visible,
-    which would silently disable kache inside `pixi build`.
+    `pixi build` runs in an isolated build prefix whose HOME points at the
+    throwaway build directory, so kache's default store would be discarded
+    with the build. This script exports kache's per-user store and runtime
+    directory so the build can pass them into the sandbox through
+    `[package.build] secrets`. It also keeps CARGO_HOME on the host and
+    removes any SCCACHE* variables, which would make the pixi-build backend
+    switch the wrapper back to sccache.
 
-    The values still have to be exported: `pixi build` always runs isolated,
-    and an unset KACHE_CACHE_DIR would put the store inside the throwaway
-    build directory. Preset values win, so CI keeps its workspace-scoped
-    store.
+    Cargo-backed tasks such as `pixi run test` are not sandboxed and do not
+    need this script. They use kache only when RUSTC_WRAPPER is configured,
+    for example in `~/.cargo/config.toml`.
 #>
 
 & {
@@ -41,8 +43,6 @@
     if (-not $env:KACHE_RUNTIME_DIR) {
         $env:KACHE_RUNTIME_DIR = $env:KACHE_CACHE_DIR
     }
-
-    $env:KACHE_LOCAL_ONLY = '1'
 
     # Reuse the host Cargo cache; the pixi-build sandbox cannot see it unless
     # it is passed through `[package.build] secrets`.
