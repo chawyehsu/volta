@@ -137,6 +137,10 @@ SCCACHE_ENABLED = "true"
 SDKROOT = "__MACOS_SDK_ROOT__"
 CONDA_BUILD_SYSROOT = "__MACOS_SDK_ROOT__"
 
+# workaround for https://github.com/prefix-dev/pixi/issues/7510
+[package.build.target.win-64.config.env]
+SCCACHE_ENABLED = "true"
+
 [package.build.target.win-arm64.config.env]
 # Use CMake to build aws-lc-sys, because conda's CFLAGS inject -O2 which
 # overrides the -O0 required by jitterentropy-base.c.
