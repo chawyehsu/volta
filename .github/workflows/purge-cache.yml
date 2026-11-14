@@ -14,4 +14,4 @@ jobs:
       - name: Delete GHA Caches
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh cache delete --all
+        run: gh cache delete --all --repo ${{ github.repository }}
