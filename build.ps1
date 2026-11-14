@@ -30,7 +30,9 @@
     cargo profile. Defaults to "release".
 
 .PARAMETER OutputDir
-    Directory the packaged artifacts are written to. Defaults to "out".
+    Directory the final packaged artifacts are written to. Defaults to "out".
+    Intermediate files (conda packages, staging trees, WiX objects) are written
+    to ".pixi/output" instead.
 #>
 [CmdletBinding()]
 param(
@@ -51,6 +53,9 @@ $ErrorActionPreference = 'Stop'
 # anchor to the script directory and resolve the output dir once.
 Set-Location -LiteralPath $PSScriptRoot
 $OutputDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDir)
+# Intermediate build outputs (conda packages, staging trees, WiX objects) live
+# under .pixi so that $OutputDir contains only uploadable release artifacts.
+$PackageDir = Join-Path $PSScriptRoot '.pixi/output'
 
 function Invoke-Checked {
     param(
@@ -180,7 +185,7 @@ function Build-CondaPackage {
     }
 
     # Normalize the package name so callers get a predictable path.
-    $dest = Join-Path $OutputDir "volta-$TargetPlatform.conda"
+    $dest = Join-Path $PackageDir "volta-$TargetPlatform.conda"
     Move-Item -Path $package.FullName -Destination $dest -Force
     return $dest
 }
@@ -203,7 +208,7 @@ function New-UnixArchive {
         [Parameter(Mandatory)][string] $ArtifactName
     )
 
-    $staging = Join-Path $OutputDir "staging-$ArtifactName"
+    $staging = Join-Path $PackageDir "staging-$ArtifactName"
     Expand-CondaPackage -PackageFile $PackageFile -Destination $staging
 
     $binDir = Join-Path $staging 'bin'
@@ -248,14 +253,14 @@ function New-WindowsArtifacts {
     $zipName = "volta-$Arch-pc-windows-msvc.zip"
     $msiName = "volta-$Arch-pc-windows-msvc.msi"
 
-    $staging = Join-Path $OutputDir "staging-$Arch"
+    $staging = Join-Path $PackageDir "staging-$Arch"
     Expand-CondaPackage -PackageFile $PackageFile -Destination $staging
 
     $binDir = Join-Path $staging 'bin'
     Get-ChildItem -Path $binDir -Filter 'volta*.exe' -File |
         Compress-Archive -DestinationPath (Join-Path $OutputDir $zipName) -Force
 
-    $wixObject = Join-Path $OutputDir "volta-$Arch.wixobj"
+    $wixObject = Join-Path $PackageDir "volta-$Arch.wixobj"
     Invoke-Checked -Command 'candle' -Arguments @(
         'wix/main.wxs', "-dVersion=$Version", "-dCargoTargetBinDir=$binDir", '-o', $wixObject
     )
@@ -284,6 +289,7 @@ function New-Checksums {
 $Platform = if ($Platform) { $Platform } else { Get-DefaultPlatform }
 
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
+New-Item -ItemType Directory -Path $PackageDir -Force | Out-Null
 $version = Get-VoltaVersion
 
 # The build mutates pixi.toml (cargo profile override, macOS SDK path); always

@@ -55,25 +55,11 @@ jobs:
         shell: pwsh
         run: ./build.ps1 -Platform ${{ matrix.platform }} -BuildType ${{ inputs.build_type }}
 
-      - name: Upload (Unix)
-        if: matrix.platform != 'windows'
+      - name: Upload artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ matrix.platform }}
-          path: |
-            out/volta-*.tar.gz
-            out/volta-*.tar.gz.sha256
-
-      - name: Upload (Windows)
-        if: matrix.platform == 'windows'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ${{ matrix.platform }}
-          path: |
-            out/volta-*.zip
-            out/volta-*.zip.sha256
-            out/volta-*.msi
-            out/volta-*.msi.sha256
+          path: out/*
 
       - name: Check Sccache
         run: pixi run -e test cache-stat
