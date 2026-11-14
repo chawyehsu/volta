@@ -13,6 +13,15 @@ pixi run build
 
 `build.ps1` sources the same script, so `./build.ps1 -Platform linux` needs no manual setup. Show cache activity with `pixi run -e test cache-stats`.
 
+## macOS build noise
+
+Native Apple Silicon builds print two warnings that do not affect the artifact:
+
+- `--sign is required` comes from kache's macOS loadability check. kache runs `codesign --verify`, but the build sandbox's `codesign` is the `sigtool` shim, which only implements `--sign`. kache then re-signs with `codesign --sign - --force`, which succeeds, and the binaries are validly ad-hoc signed.
+- `warning: no debug symbols in executable` comes from kache's `dsymutil` run, which caches a `.dSYM` for executables. `[profile.release]` sets `strip = "debuginfo"`, so there is nothing to bundle; kache skips the bundle and caches the binary.
+
+Both steps are best-effort. CI's Linux cross-build does not produce them.
+
 # Release smoke checklist
 
 macOS (x86-64 and Apple Silicon) release artifacts are cross-compiled from Linux, and macOS-specific logic is covered by platform-parameterized tests that run on Linux. Because CI no longer executes binaries on macOS, a manual macOS smoke test is required before each release.
