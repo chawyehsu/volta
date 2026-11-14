@@ -127,6 +127,10 @@ extra-args = ["--profile", "release"]
 # the pixi-build backend, as it has bug with detecting sccache correctly.
 env = { ACTIONS_CACHE_SERVICE_V2 = "on", SCCACHE_ENABLED = "true" }
 
+# workaround for https://github.com/prefix-dev/pixi/issues/7510
+[package.build.target.linux.config.env]
+SCCACHE_ENABLED = "true"
+
 [package.build.target.osx.config.env]
 # conda-forge cannot ship the macOS SDK; CI replaces this placeholder with the
 # absolute SDK path before cross-building.
