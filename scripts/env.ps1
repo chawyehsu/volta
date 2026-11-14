@@ -10,20 +10,38 @@
 
         . ./scripts/env.ps1
 
-    It points kache's store and runtime directory at the repository root,
-    keeps CARGO_HOME on the host so the local registry is reused, and removes
-    any SCCACHE* variables. The pixi-build backend force-exports
-    RUSTC_WRAPPER="sccache" when any of those are visible, which would
-    silently disable kache inside `pixi build`.
+    It points kache's store and runtime directory at kache's per-user cache
+    directory, so every project on the machine reuses the same compiled
+    dependencies, keeps CARGO_HOME on the host so the local registry is
+    reused, and removes any SCCACHE* variables. The pixi-build backend
+    force-exports RUSTC_WRAPPER="sccache" when any of those are visible,
+    which would silently disable kache inside `pixi build`.
 
-    The store lives outside `.pixi` so `pixi build --clean` cannot wipe it.
+    The values still have to be exported: `pixi build` always runs isolated,
+    and an unset KACHE_CACHE_DIR would put the store inside the throwaway
+    build directory. Preset values win, so CI keeps its workspace-scoped
+    store.
 #>
 
 & {
-    $repoRoot = Split-Path -Parent $PSScriptRoot
+    # Same locations kache uses by default.
+    $defaultStore = if ($IsWindows) {
+        Join-Path $env:LOCALAPPDATA 'kache'
+    }
+    elseif ($IsMacOS) {
+        Join-Path $HOME 'Library/Caches/kache'
+    }
+    else {
+        Join-Path ($env:XDG_CACHE_HOME ? $env:XDG_CACHE_HOME : (Join-Path $HOME '.cache')) 'kache'
+    }
 
-    $env:KACHE_CACHE_DIR = Join-Path $repoRoot '.kache'
-    $env:KACHE_RUNTIME_DIR = Join-Path $repoRoot '.kache-runtime'
+    if (-not $env:KACHE_CACHE_DIR) {
+        $env:KACHE_CACHE_DIR = $defaultStore
+    }
+    if (-not $env:KACHE_RUNTIME_DIR) {
+        $env:KACHE_RUNTIME_DIR = $env:KACHE_CACHE_DIR
+    }
+
     $env:KACHE_LOCAL_ONLY = '1'
 
     # Reuse the host Cargo cache; the pixi-build sandbox cannot see it unless

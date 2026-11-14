@@ -2,7 +2,7 @@
 
 Volta's builds cached rustc output with sccache, using its GitHub Actions cache service v2 backend in CI. We replace it with [kache](https://github.com/kunobi-ninja/kache) 1.2.2 from conda-forge, pinned in `pixi.toml`. kache is content-addressed, works as a plain `RUSTC_WRAPPER`, and keeps its cache in a directory, so the same integration serves both the isolated `pixi build` sandbox and the direct `cargo test`/`cargo llvm-cov` jobs.
 
-kache 1.x has no GitHub Actions cache-service backend, so CI persists the store with `actions/cache` instead of kache talking to the cache service. The store lives at `./.kache`, outside `.pixi`, so `pixi build --clean` cannot wipe it. `KACHE_CACHE_DIR`, `KACHE_RUNTIME_DIR`, and `CARGO_HOME` reach the build sandbox through `[package.build] secrets`.
+kache 1.x has no GitHub Actions cache-service backend, so CI persists the store with `actions/cache` instead of kache talking to the cache service. CI keeps the store at `./.kache` in the workspace so the action has a stable path; local builds use kache's per-user cache directory, which also lets projects share compiled dependencies. `KACHE_CACHE_DIR`, `KACHE_RUNTIME_DIR`, and `CARGO_HOME` reach the build sandbox through `[package.build] secrets`, because the sandbox's `HOME` is a throwaway build path.
 
 One constraint drives the setup: `pixi-build-rust` force-exports `RUSTC_WRAPPER="sccache"` whenever any `SCCACHE*` variable is visible, which would silently disable kache. `scripts/env.ps1` and the workflows remove them. Local builds source `scripts/env.ps1`; `build.ps1` sources it too.
 
