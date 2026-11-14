@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.0](https://github.com/chawyehsu/volta/compare/v2.0.3...v2.1.0) (2026-11-14)
+
+
+### Features
+
+* add self-update command ([#108](https://github.com/chawyehsu/volta/issues/108)) ([c4e7d4b](https://github.com/chawyehsu/volta/commit/c4e7d4b45267e7525502ff0b5c9cceae8f787d12))
+* support uninstalling tools ([#114](https://github.com/chawyehsu/volta/issues/114)) ([05fe410](https://github.com/chawyehsu/volta/commit/05fe4101c21fab1eb2b6d3a678bf87d1856e5002))
+
+
+### Bug Fixes
+
+* **pnpm:** fall back to .mjs launcher entrypoint when .cjs is absent ([#116](https://github.com/chawyehsu/volta/issues/116)) ([4c2f4e8](https://github.com/chawyehsu/volta/commit/4c2f4e843ec914d34e6622fa32e419736ace1743))
+
 ## [2.0.3](https://github.com/chawyehsu/volta/compare/v2.0.2...v2.0.3) (2026-06-03)
 
 
