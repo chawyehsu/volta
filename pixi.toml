@@ -94,7 +94,7 @@ sccache = { workspace = true }
 
 [package.build-dependencies."if(osx)"]
 # Provides the `codesign` command used by rattler-build when cross-compiling.
-sigtool = { workspace = true }
+sigtool = { workspace = true, when = { any = ["__linux", "__win"] } }
 
 [package.build]
 backend = { name = "pixi-build-rust", workspace = true }
