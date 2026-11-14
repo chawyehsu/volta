@@ -271,6 +271,38 @@ function New-WindowsArtifacts {
     Remove-Item -Path $staging -Recurse -Force
 }
 
+function Get-WindowsBuildDirectory {
+    param([Parameter(Mandatory)][string] $RepoRoot)
+
+    # The short-path junction works around MAX_PATH limits on GitHub Actions
+    # Windows runners. Only use it in CI: local checkouts build in place, so a
+    # stale C:\w from another checkout can never be picked up.
+    if ($env:GITHUB_ACTIONS -ne 'true') {
+        return $RepoRoot
+    }
+
+    $junction = 'C:\w'
+    $repoRoot = (Get-Item -LiteralPath $RepoRoot).FullName.TrimEnd('\', '/')
+
+    if (Test-Path -LiteralPath $junction) {
+        $item = Get-Item -LiteralPath $junction -Force
+        $targetProp = $item.PSObject.Properties['Target']
+        $target = if ($targetProp) { @($targetProp.Value) | Select-Object -First 1 } else { $item.LinkTarget }
+        if (-not $target) {
+            throw "The path '$junction' already exists but is not a junction to '$repoRoot'. Remove it and retry."
+        }
+        $target = [System.IO.Path]::GetFullPath($target).TrimEnd('\', '/')
+        if ($target -ine $repoRoot) {
+            throw "The existing junction '$junction' points to '$target', not '$repoRoot'. Remove it and retry."
+        }
+    }
+    else {
+        New-Item -ItemType Junction -Path $junction -Target $repoRoot | Out-Null
+    }
+
+    return $junction
+}
+
 function New-Checksums {
     $patterns = if ($Platform -eq 'windows') { @('volta-*.zip', 'volta-*.msi') } else { @('volta-*.tar.gz') }
 
@@ -329,11 +361,8 @@ try {
             # Reuse the host Cargo cache across builds.
             $env:CARGO_HOME = Join-Path $env:USERPROFILE '.cargo'
 
-            # Windows long-path issue workaround: build from a short-path junction.
-            if (-not (Test-Path -Path 'C:\w')) {
-                New-Item -ItemType Junction -Path 'C:\w' -Target (Get-Location) | Out-Null
-            }
-            Push-Location 'C:\w'
+            $workingDir = Get-WindowsBuildDirectory -RepoRoot $PWD.Path
+            Push-Location -LiteralPath $workingDir
             try {
                 # Prime the test environment before the first pixi build; the
                 # Windows build fails otherwise.
