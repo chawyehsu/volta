@@ -23,9 +23,9 @@ c_stdlib_version = ["11.0"]
 [workspace.dependencies]
 cargo-llvm-cov = ">=0.9.1,<0.10"
 c-compiler = ">=2.0.0,<3"
+kache = "==1.2.2"
 rust = "~=1.95.0"
 rust-src = "~=1.95.0"
-sccache = ">=0.19.0,<0.20"
 pixi-build-rust = ">=0.5.7,<0.6"
 sigtool = ">=0.1.3,<0.2"
 rattler-build = ">=0.80.1,<0.81"
@@ -40,10 +40,10 @@ rattler-build = ">=0.80.1,<0.81"
 rattler-build = { workspace = true }
 
 [feature.cache.dependencies]
-sccache = { workspace = true }
+kache = { workspace = true }
 
 [feature.cache.tasks]
-cache-stat = { cmd = "sccache --show-stats", description = "Show sccache statistics" }
+cache-stats = { cmd = "kache stats --since 24h --full", description = "Show kache build cache statistics" }
 
 [feature.coverage.dependencies]
 cargo-llvm-cov = { workspace = true }
@@ -90,7 +90,7 @@ authors = [
 ]
 
 [package.build-dependencies]
-sccache = { workspace = true }
+kache = { workspace = true }
 
 [package.build-dependencies."if(osx)"]
 # Provides the `codesign` command used by rattler-build when cross-compiling.
@@ -98,9 +98,10 @@ sigtool = { workspace = true, when = { any = ["__linux", "__win"] } }
 
 [package.build]
 backend = { name = "pixi-build-rust", workspace = true }
-# sccache configuration for GitHub Actions. The values are pulled from the
+# kache configuration for GitHub Actions. The values are pulled from the
 # parent environment at build time and baked into the build script, so they
-# only exist in CI. Local builds stay a plain cargo build.
+# only exist when the cache environment is set up. Local builds get the same
+# values from `scripts/env.ps1`, which `build.ps1` sources.
 #
 # Due to a flaw in the pixi-build backends, the underlying `rattler-build`
 # enforces build-environment isolation. This prevents the Rust toolchain
@@ -108,11 +109,12 @@ backend = { name = "pixi-build-rust", workspace = true }
 # resulting in a performance degradation where all crates must be
 # re-downloaded during every build. Including CARGO_HOME in the secrets,
 # which is not ideal, allows developers to work around this issue for
-# local builds. Setting SCCACHE_DIR will also help when running local builds
-# with sccache enabled.
+# local builds. The same isolation moves `HOME` and the working directory
+# into the throwaway build prefix, so kache's store and runtime directory
+# must be passed in explicitly as well.
 secrets = [
-  "ACTIONS_RESULTS_URL",
-  "ACTIONS_RUNTIME_TOKEN",
+  "KACHE_CACHE_DIR",
+  "KACHE_RUNTIME_DIR",
   "CARGO_HOME",
 ]
 
@@ -121,26 +123,19 @@ secrets = [
 # but we explicitly set it here to provide a way to override it if needed, via
 # regex/sed replacement
 extra-args = ["--profile", "release"]
-# sccache must use the GitHub Actions cache service v2; the legacy v1
-# service is deprecated/blocked and rejects all cache writes.
+# `pixi-build-rust` force-exports `RUSTC_WRAPPER="sccache"` whenever any
+# `SCCACHE*` variable is visible, so the kache wrapper below only survives
+# when the environment is free of them. `scripts/env.ps1` strips them.
 #
-# `SCCACHE_ENABLED` is a fake env var used to trigger sccache engagement in
-# the pixi-build backend, as it has bug with detecting sccache correctly.
-env = { ACTIONS_CACHE_SERVICE_V2 = "on", SCCACHE_ENABLED = "true" }
-
-# workaround for https://github.com/prefix-dev/pixi/issues/7510
-[package.build.target.linux.config.env]
-SCCACHE_ENABLED = "true"
+# `KACHE_LOCAL_ONLY` keeps kache off any remote or planner configuration;
+# the CI store is persisted with `actions/cache` instead.
+env = { RUSTC_WRAPPER = "kache", KACHE_LOCAL_ONLY = "1" }
 
 [package.build.target.osx.config.env]
 # conda-forge cannot ship the macOS SDK; CI replaces this placeholder with the
 # absolute SDK path before cross-building.
 SDKROOT = "__MACOS_SDK_ROOT__"
 CONDA_BUILD_SYSROOT = "__MACOS_SDK_ROOT__"
-
-# workaround for https://github.com/prefix-dev/pixi/issues/7510
-[package.build.target.win-64.config.env]
-SCCACHE_ENABLED = "true"
 
 [package.build.target.win-arm64.config.env]
 # Use CMake to build aws-lc-sys, because conda's CFLAGS inject -O2 which

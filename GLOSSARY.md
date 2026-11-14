@@ -54,6 +54,20 @@ _Avoid_: wrapper script, bootstrap
 The executable stub in the Volta bin directory that dispatches a command to the tool version selected by the active platform.
 _Avoid_: proxy, wrapper
 
+## Build cache vocabulary
+
+**Build cache**:
+The content-addressed store of compiler outputs that lets a rebuild skip recompiling unchanged crates.
+_Avoid_: compilation cache, sccache
+
+**kache store**:
+The persistent on-disk portion of the build cache, holding cached compiler outputs and their index.
+_Avoid_: cache directory, cache folder
+
+**kache runtime directory**:
+The ephemeral directory holding kache's sockets, locks, logs, and session state; it is not persisted between CI jobs.
+_Avoid_: cache directory, temp cache
+
 ## Release vocabulary
 
 **Release**:
