@@ -1,5 +1,18 @@
 Please see https://docs.volta.sh/contributing/
 
+# Build cache
+
+Local and CI builds share compiler outputs through [kache](https://github.com/kunobi-ninja/kache), configured in `pixi.toml` as the `RUSTC_WRAPPER` for `pixi build` and for the `test` and `coverage` environments.
+
+The cache only works when `scripts/env.ps1` has been sourced. It points the kache store and runtime directory at the repository root, keeps `CARGO_HOME` on the host, and removes any `SCCACHE*` variables so the pixi-build backend does not switch the wrapper back to sccache:
+
+```pwsh
+. ./scripts/env.ps1
+pixi run build
+```
+
+`build.ps1` sources the same script, so `./build.ps1 -Platform linux` needs no manual setup. Show cache activity with `pixi run -e test cache-stats`.
+
 # Release smoke checklist
 
 macOS (x86-64 and Apple Silicon) release artifacts are cross-compiled from Linux, and macOS-specific logic is covered by platform-parameterized tests that run on Linux. Because CI no longer executes binaries on macOS, a manual macOS smoke test is required before each release.
