@@ -57,6 +57,11 @@ $OutputDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPS
 # under .pixi so that $OutputDir contains only uploadable release artifacts.
 $PackageDir = Join-Path $PSScriptRoot '.pixi/output'
 
+# Point kache's store and runtime directory at the repo root and keep
+# CARGO_HOME on the host. The pixi-build sandbox receives these through
+# `[package.build] secrets`.
+. (Join-Path $PSScriptRoot 'scripts/env.ps1')
+
 function Invoke-Checked {
     param(
         [Parameter(Mandatory)][string] $Command,
@@ -166,11 +171,6 @@ function Install-NativeMacOSSDK {
 
 function Build-CondaPackage {
     param([Parameter(Mandatory)][string] $TargetPlatform)
-
-    # Reuse the host Cargo cache across builds. The pixi-build backend otherwise
-    # sets CARGO_HOME to a path inside the isolated build prefix, which breaks
-    # sccache (it cannot resolve its config directory). Override it unconditionally.
-    $env:CARGO_HOME = if ($IsWindows) { Join-Path $env:USERPROFILE '.cargo' } else { Join-Path $HOME '.cargo' }
 
     if ($Platform -eq 'macos-cross') {
         Invoke-Pixi -Arguments @('run', 'build', '--build-platform', 'linux-64', '--target-platform', $TargetPlatform)
@@ -358,9 +358,6 @@ try {
             New-UnixArchive -PackageFile $x64 -ArtifactName 'volta-x86_64-apple-darwin.tar.gz'
         }
         'windows' {
-            # Reuse the host Cargo cache across builds.
-            $env:CARGO_HOME = Join-Path $env:USERPROFILE '.cargo'
-
             $workingDir = Get-WindowsBuildDirectory -RepoRoot $PWD.Path
             Push-Location -LiteralPath $workingDir
             try {
