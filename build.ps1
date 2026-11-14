@@ -18,8 +18,12 @@
     SDK path); the original manifest is always restored afterwards.
 
 .PARAMETER Platform
-    The build target to produce. One of: linux, linux-aarch64, macos-cross,
+    The build target to produce. One of: linux, linux-aarch64, macos, macos-cross,
     windows. Defaults to the platform matching the current host.
+
+    `macos` builds both macOS architectures natively on a macOS host (for local
+    use); `macos-cross` cross-builds them from a Linux host (used by CI, which
+    is faster than spinning up macOS runners).
 
 .PARAMETER BuildType
     The artifact type: "release" or "nightly". Nightly builds use the "ci"
@@ -30,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('linux', 'linux-aarch64', 'macos-cross', 'windows')]
+    [ValidateSet('linux', 'linux-aarch64', 'macos', 'macos-cross', 'windows')]
     [string] $Platform,
 
     [ValidateSet('release', 'nightly')]
@@ -41,6 +45,12 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# The script reads/mutates pixi.toml and Cargo.toml relative to the repo root,
+# and [System.IO.Path]::GetFullPath does not track PowerShell's location, so
+# anchor to the script directory and resolve the output dir once.
+Set-Location -LiteralPath $PSScriptRoot
+$OutputDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDir)
 
 function Invoke-Checked {
     param(
@@ -68,7 +78,7 @@ function Invoke-RattlerBuild {
 
 function Get-DefaultPlatform {
     if ($IsWindows) { return 'windows' }
-    if ($IsMacOS) { return 'macos-cross' }
+    if ($IsMacOS) { return 'macos' }
     if ($IsLinux -and [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') {
         return 'linux-aarch64'
     }
@@ -103,8 +113,15 @@ function Set-CargoProfile {
     Update-PixiManifest { param($content) $content -replace '"--profile", "release"', '"--profile", "ci"' }
 }
 
+function Set-MacOSSDKPath {
+    param([Parameter(Mandatory)][string] $SdkRoot)
+
+    Update-PixiManifest { param($content) $content.Replace('__MACOS_SDK_ROOT__', $SdkRoot) }
+}
+
 function Install-MacOSSDK {
-    # Keep in sync with c_stdlib_version in pixi.toml
+    # Cross-compiling from Linux: conda-forge cannot ship the macOS SDK, so fetch
+    # it explicitly. Keep in sync with c_stdlib_version in pixi.toml.
     $sdkVersion = '11.0'
     $sdkDir = Join-Path (Get-Location) '.pixi/macos-sdk'
     $archive = Join-Path $sdkDir "MacOSX${sdkVersion}.sdk.tar.xz"
@@ -125,7 +142,21 @@ function Install-MacOSSDK {
     Remove-Item -Path $archive -Force
 
     $sdkRoot = Join-Path $sdkDir "MacOSX${sdkVersion}.sdk"
-    Update-PixiManifest { param($content) $content.Replace('__MACOS_SDK_ROOT__', $sdkRoot) }
+    Set-MacOSSDKPath -SdkRoot $sdkRoot
+}
+
+function Install-NativeMacOSSDK {
+    # Native builds use the SDK bundled with the host Xcode toolchain.
+    if (-not $IsMacOS) {
+        throw "The 'macos' platform requires a macOS host; use 'macos-cross' to cross-build from Linux."
+    }
+
+    $sdkRoot = @(& xcrun --show-sdk-path 2>$null) | Select-Object -First 1
+    if ($LASTEXITCODE -ne 0 -or -not $sdkRoot) {
+        throw 'Unable to determine the macOS SDK path via xcrun.'
+    }
+
+    Set-MacOSSDKPath -SdkRoot $sdkRoot.Trim()
 }
 
 function Build-CondaPackage {
@@ -176,7 +207,7 @@ function New-UnixArchive {
     Expand-CondaPackage -PackageFile $PackageFile -Destination $staging
 
     $binDir = Join-Path $staging 'bin'
-    $archive = [System.IO.Path]::GetFullPath((Join-Path $OutputDir $ArtifactName))
+    $archive = Join-Path $OutputDir $ArtifactName
     Push-Location $binDir
     try {
         $files = Get-ChildItem -Filter 'volta*' -File | ForEach-Object { $_.Name }
@@ -269,6 +300,15 @@ try {
         'linux-aarch64' {
             $package = Build-CondaPackage -TargetPlatform 'linux-aarch64'
             New-UnixArchive -PackageFile $package -ArtifactName 'volta-aarch64-unknown-linux-gnu.tar.gz'
+        }
+        'macos' {
+            Install-NativeMacOSSDK
+
+            $arm = Build-CondaPackage -TargetPlatform 'osx-arm64'
+            New-UnixArchive -PackageFile $arm -ArtifactName 'volta-aarch64-apple-darwin.tar.gz'
+
+            $x64 = Build-CondaPackage -TargetPlatform 'osx-64'
+            New-UnixArchive -PackageFile $x64 -ArtifactName 'volta-x86_64-apple-darwin.tar.gz'
         }
         'macos-cross' {
             Install-MacOSSDK
