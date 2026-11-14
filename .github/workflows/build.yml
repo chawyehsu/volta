@@ -34,6 +34,7 @@ jobs:
     env:
       SCCACHE_GHA_ENABLED: true
       RUSTC_WRAPPER: sccache
+      ACTIONS_CACHE_SERVICE_V2: on
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -59,7 +60,9 @@ jobs:
       # Linux: build
       - name: Build (Linux)
         if: matrix.platform == 'linux' || matrix.platform == 'linux-aarch64'
-        run: pixi run build --target-platform ${{ matrix.platform == 'linux' && 'linux-64' || 'linux-aarch64' }} --output-dir out
+        run: |
+          export CARGO_HOME="$HOME/.cargo"
+          pixi run build --target-platform ${{ matrix.platform == 'linux' && 'linux-64' || 'linux-aarch64' }} --output-dir out
 
       # macOS: cross-build from Linux
       - name: Download macOS SDK
@@ -79,6 +82,7 @@ jobs:
       - name: Build (macOS cross)
         if: matrix.platform == 'macos-cross'
         run: |
+          export CARGO_HOME="$HOME/.cargo"
           mkdir out
           pixi run build --build-platform linux-64 --target-platform osx-arm64
           mv volta-*.conda out/volta-macos-arm.conda
@@ -90,13 +94,21 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
+          $env:CARGO_HOME = "$env:USERPROFILE/.cargo"
           # Windows long-path issue workaround:
-          New-Item -ItemType Junction -Path C:\w -Target "${{ github.workspace }}"
+          New-Item -ItemType Junction -Path C:\w -Target "${{ github.workspace }}" | Out-Null
           cd C:\w
-          mkdir out
+          pixi run -e test cargo --version
+          mkdir out | Out-Null
           pixi run build --target-platform win-64
+          if (0 -ne $LASTEXITCODE) {
+            exit $LASTEXITCODE
+          }
           mv volta-*.conda out/volta-windows.conda
           pixi run build --target-platform win-arm64
+          if (0 -ne $LASTEXITCODE) {
+            exit $LASTEXITCODE
+          }
           mv volta-*.conda out/volta-windows-arm.conda
 
       - name: Package (Linux)
@@ -204,3 +216,6 @@ jobs:
             out/volta-*.zip.sha256
             out/volta-*.msi
             out/volta-*.msi.sha256
+
+      - name: Check Sccache
+        run: pixi run -e test cache-stat

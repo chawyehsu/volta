@@ -26,6 +26,7 @@ jobs:
     env:
       SCCACHE_GHA_ENABLED: true
       RUSTC_WRAPPER: sccache
+      ACTIONS_CACHE_SERVICE_V2: on
     permissions:
       id-token: write
     steps:
@@ -67,3 +68,6 @@ jobs:
           files: lcov*.info
           fail_ci_if_error: true
           use_oidc: true
+
+      - name: Check Sccache
+        run: pixi run -e test cache-stat
