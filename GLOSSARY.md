@@ -43,8 +43,12 @@ A cached version that is the user's default, pinned in the current project, or r
 _Avoid_: active version, live version
 
 **Uninstall**:
-The Volta command that removes cached versions of a runtime tool from the local machine without changing any configuration; removed versions are re-downloaded automatically when next needed.
+The Volta command that removes cached versions of a runtime tool from the local machine, clearing the global default when the removed version was it and removing tool shims that no remaining tool needs; project pins and global-package platforms are left unchanged, and removed versions are re-downloaded when next needed.
 _Avoid_: clean, prune, remove
+
+**Unpin**:
+To clear a runtime tool's version from the global default, leaving the tool without a default until one is installed again.
+_Avoid_: unset default, clear default
 
 **Launcher**:
 The script Volta writes into a tool image's bin directory, invoking the tool's JavaScript entrypoint with `node` from the execution environment.
@@ -55,7 +59,7 @@ The executable stub in the Volta bin directory that dispatches a command to the 
 _Avoid_: proxy, wrapper
 
 **Tool shim**:
-A shim created when a runtime tool is installed or pinned, so that the tool's commands are available through Volta.
+A shim created when a runtime tool is installed or pinned, so that the tool's commands are available through Volta; it is removed when the tool's last cached version is uninstalled and no other tool still provides it.
 _Avoid_: on-demand shim, install shim
 
 **Default shim**:

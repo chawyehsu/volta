@@ -424,8 +424,9 @@ fn uninstall_runtime_semver() {
 }
 
 #[test]
-fn uninstall_runtime_broad_skips_default() {
-    // a bare tool name removes all cached versions except the default
+fn uninstall_runtime_broad_removes_default_and_unpins() {
+    // a bare tool name removes all cached versions, including the default,
+    // and clears the default that was removed
     let s = sandbox()
         .platform(&platform_with_node("12.0.0"))
         .env(VOLTA_LOGLEVEL, "info")
@@ -440,21 +441,20 @@ fn uninstall_runtime_broad_skips_default() {
         execs()
             .with_status(0)
             .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+            .with_stdout_contains("[..]'node@12.0.0' uninstalled")
             .with_stdout_contains("[..]'node@14.0.0' uninstalled")
-            .with_stderr_contains("[..]skipping 'node@12.0.0' (currently your default node; target it with an exact version to remove it)")
+            .with_stdout_contains("[..]unpinned 'node' from your default")
     );
 
     assert!(!node.version("10.0.0").image().exists());
+    assert!(!node.version("12.0.0").image().exists());
     assert!(!node.version("14.0.0").image().exists());
-    assert!(node.version("12.0.0").image().exists());
-    // uninstall does not change the user's default
-    assert_eq!(s.read_default_platform(), platform_with_node("12.0.0"));
+    assert_eq!(s.read_default_platform(), "{}");
 }
 
 #[test]
-fn uninstall_runtime_exact_in_use() {
-    // an in-use version can be removed by targeting it explicitly; its config
-    // is left untouched, since the version will be re-fetched on next use
+fn uninstall_runtime_exact_default_unpins() {
+    // removing the default version by exact targeting clears the default
     let s = sandbox()
         .platform(&platform_with_node("12.0.0"))
         .env(VOLTA_LOGLEVEL, "info")
@@ -466,11 +466,83 @@ fn uninstall_runtime_exact_in_use() {
         execs()
             .with_status(0)
             .with_stdout_contains("[..]'node@12.0.0' uninstalled")
-            .with_stderr_contains("[..]'node@12.0.0' is your default node; it will be re-downloaded on next use. To change your default, run `volta install node@<version>`")
+            .with_stdout_contains("[..]unpinned 'node' from your default")
     );
 
     assert!(!s.tool(Tool::Node).version("12.0.0").image().exists());
+    assert_eq!(s.read_default_platform(), "{}");
+}
+
+#[test]
+fn uninstall_runtime_exact_other_version_keeps_default() {
+    // removing a non-default version leaves the default untouched
+    let s = sandbox()
+        .platform(&platform_with_node("12.0.0"))
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("10.0.0").image().create();
+    node.version("12.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall node@10.0.0"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+            .with_stdout_does_not_contain("unpinned 'node' from your default")
+    );
+
     assert_eq!(s.read_default_platform(), platform_with_node("12.0.0"));
+}
+
+#[test]
+fn uninstall_runtime_semver_removes_default_and_unpins() {
+    // a range removes the default when it falls inside it, even though other
+    // versions outside the range remain
+    let s = sandbox()
+        .platform(&platform_with_node("12.0.0"))
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("12.0.0").image().create();
+    node.version("14.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall node@12"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@12.0.0' uninstalled")
+            .with_stdout_contains("[..]unpinned 'node' from your default")
+    );
+
+    assert!(!node.version("12.0.0").image().exists());
+    assert!(node.version("14.0.0").image().exists());
+    assert_eq!(s.read_default_platform(), "{}");
+}
+
+#[test]
+fn uninstall_runtime_keeps_default_when_manager_defaulted() {
+    // node's default is left in place while pnpm or yarn is also defaulted,
+    // since a platform without node cannot carry them
+    let s = sandbox()
+        .platform(&platform_with_pnpm("10.99.1040", "7.7.1"))
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    s.tool(Tool::Node).version("10.99.1040").image().create();
+
+    assert_that!(
+        s.volta("uninstall node@10.99.1040"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.99.1040' uninstalled")
+            .with_stdout_does_not_contain("unpinned 'node' from your default")
+    );
+
+    assert_eq!(
+        s.read_default_platform(),
+        platform_with_pnpm("10.99.1040", "7.7.1")
+    );
 }
 
 #[test]
@@ -531,6 +603,99 @@ fn uninstall_runtime_multiple_tools() {
 }
 
 #[test]
+fn uninstall_last_version_removes_orphaned_shims() {
+    // once a tool has no cached versions left, its shims are removed
+    let s = sandbox()
+        .without_default_shims()
+        .shim("node")
+        .shim("npm")
+        .shim("npx")
+        .shim("yarn")
+        .shim("yarnpkg")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    s.tool(Tool::Node).version("10.0.0").image().create();
+    s.tool(Tool::Yarn).version("1.0.0").image().create();
+
+    assert!(s.shim_exists("node"));
+    assert!(s.shim_exists("npm"));
+    assert!(s.shim_exists("yarn"));
+
+    assert_that!(
+        s.volta("uninstall node yarn"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+            .with_stdout_contains("[..]'yarn@1.0.0' uninstalled")
+    );
+
+    assert!(!s.shim_exists("node"));
+    assert!(!s.shim_exists("npm"));
+    assert!(!s.shim_exists("npx"));
+    assert!(!s.shim_exists("yarn"));
+    assert!(!s.shim_exists("yarnpkg"));
+}
+
+#[test]
+fn uninstall_keeps_shims_for_remaining_versions() {
+    // a shim stays as long as another version of any tool still provides it
+    let s = sandbox()
+        .without_default_shims()
+        .shim("node")
+        .shim("npm")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("10.0.0").image().create();
+    node.version("14.0.0").image().create();
+
+    assert_that!(s.volta("uninstall node@10.0.0"), execs().with_status(0));
+
+    assert!(s.shim_exists("node"));
+    assert!(s.shim_exists("npm"));
+}
+
+#[test]
+fn uninstall_node_keeps_npm_shims_when_npm_cached() {
+    // node provides npm and npx too, so those shims survive node's removal
+    // while a standalone npm is still cached
+    let s = sandbox()
+        .without_default_shims()
+        .shim("node")
+        .shim("npm")
+        .shim("npx")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    s.tool(Tool::Node).version("10.0.0").image().create();
+    s.tool(Tool::Npm).version("6.14.13").image().create();
+
+    assert_that!(s.volta("uninstall node"), execs().with_status(0));
+
+    assert!(!s.shim_exists("node"));
+    assert!(s.shim_exists("npm"));
+    assert!(s.shim_exists("npx"));
+}
+
+#[test]
+fn uninstall_npm_keeps_shims_when_node_cached() {
+    // npm shares npm and npx with node, so its shims survive while node is
+    // still cached
+    let s = sandbox()
+        .without_default_shims()
+        .shim("npm")
+        .shim("npx")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    s.tool(Tool::Node).version("10.0.0").image().create();
+    s.tool(Tool::Npm).version("6.14.13").image().create();
+
+    assert_that!(s.volta("uninstall npm"), execs().with_status(0));
+
+    assert!(s.shim_exists("npm"));
+    assert!(s.shim_exists("npx"));
+}
+
+#[test]
 fn uninstall_npm_exact() {
     // uninstalling an exact npm version removes the unpacked image and the
     // cached archive
@@ -556,8 +721,9 @@ fn uninstall_npm_exact() {
 }
 
 #[test]
-fn uninstall_npm_broad_skips_default() {
-    // a bare `npm` removes all cached versions except the default
+fn uninstall_npm_broad_removes_default_and_unpins() {
+    // a bare `npm` removes all cached versions, including the default, and
+    // clears npm from the default platform (falling back to bundled npm)
     let s = sandbox()
         .platform(&platform_with_node_npm("10.99.1040", "6.2.26"))
         .env(VOLTA_LOGLEVEL, "info")
@@ -571,15 +737,13 @@ fn uninstall_npm_broad_skips_default() {
         execs()
             .with_status(0)
             .with_stdout_contains("[..]'npm@6.14.13' uninstalled")
-            .with_stderr_contains("[..]skipping 'npm@6.2.26' (currently your default npm; target it with an exact version to remove it)")
+            .with_stdout_contains("[..]'npm@6.2.26' uninstalled")
+            .with_stdout_contains("[..]unpinned 'npm' from your default")
     );
 
     assert!(!npm.version("6.14.13").image().exists());
-    assert!(npm.version("6.2.26").image().exists());
-    assert_eq!(
-        s.read_default_platform(),
-        platform_with_node_npm("10.99.1040", "6.2.26")
-    );
+    assert!(!npm.version("6.2.26").image().exists());
+    assert_eq!(s.read_default_platform(), platform_with_node("10.99.1040"));
 }
 
 #[test]
@@ -633,8 +797,9 @@ fn uninstall_pnpm_exact() {
 }
 
 #[test]
-fn uninstall_pnpm_broad_skips_default() {
-    // a bare `pnpm` removes all cached versions except the default
+fn uninstall_pnpm_broad_removes_default_and_unpins() {
+    // a bare `pnpm` removes all cached versions, including the default, and
+    // clears pnpm from the default platform
     let s = sandbox()
         .platform(&platform_with_pnpm("10.99.1040", "7.7.1"))
         .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
@@ -649,15 +814,13 @@ fn uninstall_pnpm_broad_skips_default() {
         execs()
             .with_status(0)
             .with_stdout_contains("[..]'pnpm@8.0.0' uninstalled")
-            .with_stderr_contains("[..]skipping 'pnpm@7.7.1' (currently your default pnpm; target it with an exact version to remove it)")
+            .with_stdout_contains("[..]'pnpm@7.7.1' uninstalled")
+            .with_stdout_contains("[..]unpinned 'pnpm' from your default")
     );
 
     assert!(!pnpm.version("8.0.0").image().exists());
-    assert!(pnpm.version("7.7.1").image().exists());
-    assert_eq!(
-        s.read_default_platform(),
-        platform_with_pnpm("10.99.1040", "7.7.1")
-    );
+    assert!(!pnpm.version("7.7.1").image().exists());
+    assert_eq!(s.read_default_platform(), platform_with_node("10.99.1040"));
 }
 
 #[test]
@@ -836,15 +999,16 @@ fn uninstall_runtime_exact_tolerates_broken_package_config() {
     );
     assert!(!node.version("11.10.1").image().exists());
 
-    // the default reference is preserved as well
+    // the readable default is still unpinned even though a package config broke
     assert_that!(
         s.volta("uninstall node@10.0.0"),
         execs()
             .with_status(0)
             .with_stdout_contains("[..]'node@10.0.0' uninstalled")
-            .with_stderr_contains("[..]'node@10.0.0' is your default node; it will be re-downloaded on next use. To change your default, run `volta install node@<version>`")
+            .with_stdout_contains("[..]unpinned 'node' from your default")
     );
     assert!(!node.version("10.0.0").image().exists());
+    assert_eq!(s.read_default_platform(), "{}");
 
     // broad removals stay strict
     node.version("12.0.0").image().create();

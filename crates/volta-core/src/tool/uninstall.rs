@@ -14,6 +14,7 @@ use crate::inventory;
 use crate::layout::volta_home;
 use crate::platform::PlatformSpec;
 use crate::session::Session;
+use crate::shim;
 use crate::style::success_prefix;
 use crate::sync::VoltaLock;
 use crate::tool::node::HostPlatform;
@@ -129,29 +130,118 @@ pub(super) fn uninstall_runtime(
         );
     }
 
+    let mut removed_any = false;
+    let mut default_removed = false;
+
     for version in matching {
         let versioned = format!("{}@{}", tool.name(), version);
         let reasons = in_use.reasons_for(tool, &version);
 
-        // In-use versions are only removed when explicitly targeted by exact version
-        if !reasons.is_empty() && !exact {
+        // The global default is not protected: removing it also unpins it, so
+        // there is nothing left to re-download. Project pins and global-package
+        // platforms still guard their versions unless targeted exactly.
+        if reasons.is_protected() && !exact {
             warn!(
                 "skipping '{}' ({}; target it with an exact version to remove it)",
                 versioned,
-                reasons.skip_phrases(tool).join("; ")
+                reasons.skip_phrases().join("; ")
             );
             continue;
         }
 
         remove_version(tool, &version)?;
+        removed_any = true;
         info!("{} '{}' uninstalled", success_prefix(), versioned);
 
-        for message in reasons.removal_warnings(tool, &versioned) {
+        if reasons.default {
+            default_removed = true;
+        }
+
+        for message in reasons.removal_warnings(&versioned) {
             warn!("{}", message);
         }
     }
 
+    if default_removed
+        && let Some(default) = &in_use.default
+        && unpin_default(tool, session, default)?
+    {
+        info!(
+            "{} unpinned '{}' from your default",
+            success_prefix(),
+            tool.name()
+        );
+    }
+
+    // Once a tool has no cached versions left, drop the shims no remaining
+    // tool still needs. Shims are shared between tools (node provides npm and
+    // npx, for example), so the decision is made per shim, not per tool.
+    if removed_any && tool.cached_versions()?.is_empty() {
+        for name in orphaned_shims(tool, session)? {
+            if let Err(err) = shim::delete_tool_shim(name) {
+                warn!("Unable to remove shim `{}`: {}", name, err);
+            }
+        }
+    }
+
     Ok(())
+}
+
+/// Clears the removed tool's version from the global default platform.
+///
+/// Returns whether the default was actually cleared. Node's default is left in
+/// place while pnpm or Yarn is also defaulted: a platform without Node cannot
+/// carry those managers, so unpinning Node would strand them.
+fn unpin_default(
+    tool: RuntimeTool,
+    session: &mut Session,
+    default: &PlatformSpec,
+) -> Fallible<bool> {
+    match tool {
+        RuntimeTool::Node => {
+            if default.pnpm.is_some() || default.yarn.is_some() {
+                return Ok(false);
+            }
+            session.toolchain_mut()?.clear_active_node()?;
+        }
+        RuntimeTool::Npm => session.toolchain_mut()?.set_active_npm(None)?,
+        RuntimeTool::Pnpm => session.toolchain_mut()?.set_active_pnpm(None)?,
+        RuntimeTool::Yarn => session.toolchain_mut()?.set_active_yarn(None)?,
+    }
+
+    Ok(true)
+}
+
+/// The shims left orphaned once a tool has no cached versions.
+///
+/// A shim is only orphaned when no other tool that is still cached or still
+/// defaulted provides it. Node shares `npm` and `npx` with the npm tool, so
+/// those shims survive when npm is still cached or defaulted.
+fn orphaned_shims(tool: RuntimeTool, session: &mut Session) -> Fallible<Vec<&'static str>> {
+    let all = shim::shim_names_for_tool(tool.name());
+
+    match tool {
+        RuntimeTool::Node => {
+            let npm_cached = !inventory::npm_versions()?.is_empty();
+            let npm_default = session
+                .default_platform()?
+                .is_some_and(|platform| platform.npm.is_some());
+
+            if npm_cached || npm_default {
+                Ok(vec!["node"])
+            } else {
+                Ok(all.to_vec())
+            }
+        }
+        RuntimeTool::Npm => {
+            if inventory::node_versions()?.is_empty() {
+                Ok(all.to_vec())
+            } else {
+                Ok(Vec::new())
+            }
+        }
+        RuntimeTool::Pnpm | RuntimeTool::Yarn => Ok(all.to_vec()),
+    }
 }
 
 /// Removes all locally cached copies of a version of a tool:
@@ -313,16 +403,17 @@ struct InUseReasons {
 }
 
 impl InUseReasons {
-    fn is_empty(&self) -> bool {
-        !self.default && !self.project && self.packages.is_empty()
+    /// Whether a non-exact removal must skip this version.
+    ///
+    /// The default is deliberately excluded: removing it unpins it, so it is
+    /// safe to remove without leaving a reference that forces a re-download.
+    fn is_protected(&self) -> bool {
+        self.project || !self.packages.is_empty()
     }
 
-    /// Phrases describing each reason, for use in the skip warning
-    fn skip_phrases(&self, tool: RuntimeTool) -> Vec<String> {
+    /// Phrases describing each protecting reason, for use in the skip warning
+    fn skip_phrases(&self) -> Vec<String> {
         let mut phrases = Vec::new();
-        if self.default {
-            phrases.push(format!("currently your default {}", tool.name()));
-        }
         if self.project {
             phrases.push("pinned in the current project".to_owned());
         }
@@ -333,16 +424,8 @@ impl InUseReasons {
     }
 
     /// Warnings to emit after removing an in-use version via exact targeting
-    fn removal_warnings(&self, tool: RuntimeTool, versioned: &str) -> Vec<String> {
+    fn removal_warnings(&self, versioned: &str) -> Vec<String> {
         let mut warnings = Vec::new();
-        if self.default {
-            warnings.push(format!(
-                "'{}' is your default {}; it will be re-downloaded on next use. To change your default, run `volta install {}@<version>`",
-                versioned,
-                tool.name(),
-                tool.name()
-            ));
-        }
         if self.project {
             warnings.push(format!(
                 "'{}' is pinned in the current project; it will be re-downloaded on next use",

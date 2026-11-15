@@ -8,7 +8,8 @@ We will treat `volta uninstall` as a purely local cache-removal operation with t
 - An exact version (`node@18.20.2`) removes that one cached version. A version range (`node@18`) removes every locally cached version matching the range. A bare tool name (`volta uninstall node`) removes all cached versions. Matching is performed against the locally unpacked images only; nothing is resolved against a remote index.
 - Tag-based specs (`node@latest`, `node@lts`, custom tags) are rejected with an error: resolving them requires the remote index, which uninstall never consults.
 - Removal deletes the unpacked image, the cached inventory archive, and, for Node, the bundled npm metadata file. Removing only the image would not reclaim the disk space that motivates the command.
-- Versions that are in use — set as the global default, pinned in the current project, or recorded as the install-time platform of an installed global package — are skipped by range and bare-name matches, with a warning naming the reasons. When targeted by an exact version, they are removed with a warning instead. In both cases the configuration (`platform.json`, the project's `package.json`) is left untouched: uninstall never unpins.
+- Versions that are in use — pinned in the current project or recorded as the install-time platform of an installed global package — are skipped by range and bare-name matches, with a warning naming the reasons. When targeted by an exact version, they are removed with a warning instead. Their configuration (the project's `package.json`, the package config) is left untouched.
+- A version that is the global default is not protected: any matching spec (exact, range, or bare name) removes it and clears the tool from the global `platform.json`, so it is not re-downloaded. Node is the exception: its default is left in place while pnpm or Yarn is also defaulted, because a platform without Node cannot carry those managers.
 - The command stays non-interactive: no confirmation prompt and no force flag. A spec that matches nothing warns and exits 0; a hard filesystem error aborts remaining tools.
 - A `VoltaLock` is held during removal to prevent concurrent changes.
 
@@ -22,9 +23,14 @@ We will treat `volta uninstall` as a purely local cache-removal operation with t
 
 ## Consequences
 
-- A removed version that is still referenced (default, project pin, package platform) is transparently re-downloaded the next time it is needed; removing even the default node does not break the environment, it only costs a download.
+- A removed version that is still referenced (a project pin or a package platform) is transparently re-downloaded the next time it is needed. A removed default is instead cleared from `platform.json`, so it is not re-downloaded until a new default is installed.
+- Uninstalling the last cached version of a runtime tool removes the tool shims no remaining tool still needs (see ADR 0013).
 - Package-manager update commands for runtimes (`npm update -g node`, `yarn global upgrade node`, `pnpm update -g node`) are rejected with an error rather than routed to the uninstall logic, which would otherwise delete the cached versions instead of updating anything.
 - A global package's recorded platform is a snapshot from its install time; it keeps that Node version in use until the package is reinstalled or upgraded, which rewrites the config.
 - Versions whose image is missing (for example, an interrupted fetch) are not matched by uninstall, even if their archive is still cached.
 - A new `UninstallTagUnsupported` error kind reports rejected tags with exit code `InvalidArguments`.
 - If RFC #52 later replaces `install` with a different verb, the surface here can be renamed without changing these semantics.
+
+## Revision
+
+- 2026-11-15: The global default is no longer skipped; removing it unpins it from `platform.json`, except for Node while pnpm or Yarn is defaulted. Uninstalling a tool's last cached version now removes the shims no remaining tool needs (see ADR 0013).

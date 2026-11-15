@@ -104,6 +104,25 @@ pub fn delete(shim_name: &str) -> Fallible<()> {
     }
 }
 
+/// Remove every on-disk artifact of a tool shim.
+///
+/// On Unix a tool shim is the single symlink handled by [`delete`]. On Windows
+/// a runtime-tool shim is an `.exe` copy of `volta-shim`, in addition to any
+/// `.cmd` and Git Bash script of the same name, so all of them are removed.
+pub fn delete_tool_shim(shim_name: &str) -> Fallible<()> {
+    #[cfg(windows)]
+    {
+        use crate::fs::remove_file_if_exists;
+
+        let shim_exe = volta_home()?.windows_tool_shim_file(shim_name);
+        remove_file_if_exists(shim_exe).with_context(|| ErrorKind::ShimRemoveError {
+            name: shim_name.to_string(),
+        })?;
+    }
+
+    delete(shim_name)
+}
+
 #[cfg(unix)]
 mod platform {
     //! Unix-specific shim utilities
