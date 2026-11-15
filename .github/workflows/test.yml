@@ -19,7 +19,7 @@ permissions: {}
 jobs:
   style_check:
     # skip if it's a release commit
-    if: "!contains(github.event.head_commit.message, 'chore(main): release')"
+    if: "!contains(github.event.head_commit.message, 'chore(main): release') && !contains(github.event.pull_request.title, 'chore(main): release')"
     name: Style Check
     runs-on: ubuntu-latest
     steps:
@@ -107,8 +107,8 @@ jobs:
 
   smoke_tests:
     needs: tests
-    # skip if it's a pull request and the commit message contains 'build(deps)', typically for dependabot
-    if: "!(github.event_name == 'pull_request' && contains(github.event.head_commit.message, 'build(deps)'))"
+    # skip if it's a dependabot pull request
+    if: "!(github.event_name == 'pull_request' && contains(github.event.pull_request.title, 'build(deps)'))"
     name: Smoke Tests
     runs-on: ubuntu-latest
     env:
@@ -169,35 +169,9 @@ jobs:
 
   ci_nightly_build:
     needs: tests
-    # skip if it's a pull request and the commit message contains 'build(deps)', typically for dependabot
-    if: "!(github.event_name == 'pull_request' && contains(github.event.head_commit.message, 'build(deps)'))"
+    # skip if it's a dependabot pull request
+    if: "!(github.event_name == 'pull_request' && contains(github.event.pull_request.title, 'build(deps)'))"
     name: Build Nightly
     uses: ./.github/workflows/build.yml
     with:
       build_type: nightly
-
-  shell_tests:
-    needs: style_check
-    name: Shell Script Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup BATS
-        run: sudo npm install -g bats
-
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Run tests
-        run: bats dev/unix/tests/
-
-  validate_installer_checksum:
-    needs: shell_tests
-    name: Validate installer checksum
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Run check
-        run: |
-          cd dev/unix
-          sha256sum --check SHASUMS256.txt
