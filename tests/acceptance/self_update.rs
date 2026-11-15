@@ -62,10 +62,17 @@ fn updates_all_binaries_from_fixture_release() {
 
     #[cfg(windows)]
     {
-        let trash = install.path().join(".trash");
-        assert!(trash.is_dir(), "expected a .trash directory");
-        let retired: Vec<_> = fs::read_dir(&trash)
-            .unwrap()
+        // Retired executables go to the shared trash directory when it is on the
+        // same volume as the install directory, falling back to `install/.trash`
+        // otherwise.
+        let trash_dirs = [
+            install.path().join(".trash"),
+            sandbox.volta_home().join("tmp").join(".trash"),
+        ];
+        let retired: Vec<String> = trash_dirs
+            .iter()
+            .filter_map(|trash| fs::read_dir(trash).ok())
+            .flatten()
             .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
         assert!(

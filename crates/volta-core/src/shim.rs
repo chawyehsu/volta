@@ -9,9 +9,41 @@ use crate::error::{Context, ErrorKind, Fallible, VoltaError};
 use crate::fs::read_dir_eager;
 use crate::layout::volta_home;
 use crate::sync::VoltaLock;
-use log::debug;
+use log::{debug, warn};
 
 pub use platform::create;
+
+/// The shim names made available by installing a given runtime tool.
+pub fn shim_names_for_tool(tool: &str) -> &'static [&'static str] {
+    match tool {
+        "node" => &["node", "npm", "npx"],
+        "npm" => &["npm", "npx"],
+        "yarn" => &["yarn", "yarnpkg"],
+        "pnpm" => &["pnpm"],
+        _ => &[],
+    }
+}
+
+/// Ensure the shims for a tool, logging (but not failing) on errors.
+///
+/// Shim creation is an additive convenience, so a failure to write a shim must
+/// not fail the tool installation that triggered it.
+pub fn ensure_shims_for_tool(tool: &str) {
+    // Refresh of a running shim on Windows retires the old copy into the shared
+    // trash directory (or a per-directory fallback). Clear both before creating
+    // shims so they do not accumulate.
+    #[cfg(windows)]
+    if let Ok(home) = volta_home() {
+        crate::fs::cleanup_shared_trash();
+        crate::fs::cleanup_retired_executables(home.shim_dir());
+    }
+
+    for name in shim_names_for_tool(tool) {
+        if let Err(err) = platform::ensure_shim(name) {
+            warn!("Unable to create shim `{}`: {}", name, err);
+        }
+    }
+}
 
 pub fn regenerate_shims_for_dir(dir: &Path) -> Fallible<()> {
     // Acquire a lock on the Volta directory, if possible, to prevent concurrent changes
@@ -87,6 +119,11 @@ mod platform {
     use crate::fs::symlink_file;
     use crate::layout::{volta_home, volta_install};
 
+    /// Ensure a shim exists, creating it as a symlink if necessary.
+    pub fn ensure_shim(shim_name: &str) -> Fallible<()> {
+        create(shim_name)
+    }
+
     pub fn create(shim_name: &str) -> Fallible<()> {
         let executable = volta_install()?.shim_executable();
         let shim = volta_home()?.shim_file(shim_name);
@@ -139,10 +176,11 @@ mod platform {
     //! files.
     use std::ffi::OsStr;
     use std::fs::{DirEntry, Metadata, write};
+    use std::path::Path;
 
-    use crate::error::{Context, ErrorKind, Fallible};
-    use crate::fs::remove_file_if_exists;
-    use crate::layout::volta_home;
+    use crate::error::{Context, ErrorKind, Fallible, VoltaError};
+    use crate::fs::{file_sha256, remove_file_if_exists, replace_exe};
+    use crate::layout::{volta_home, volta_install};
 
     const SHIM_SCRIPT_CONTENTS: &str = r#"@echo off
 volta run %~n0 %*
@@ -150,6 +188,48 @@ volta run %~n0 %*
 
     const GIT_BASH_SCRIPT_CONTENTS: &str = r#"#!/bin/bash
 volta run "$(basename $0)" "$@""#;
+
+    /// Ensure a tool shim exists as a copy of `volta-shim.exe`, refreshing it
+    /// when the existing copy differs from the current shim binary.
+    pub fn ensure_shim(shim_name: &str) -> Fallible<()> {
+        let source = volta_install()?.shim_executable();
+        let target = volta_home()?.windows_tool_shim_file(shim_name);
+
+        if !shim_needs_refresh(&source, &target) {
+            return Ok(());
+        }
+
+        replace_exe(&source, &target).map_err(|err| {
+            VoltaError::from_source(
+                err,
+                ErrorKind::ShimCreateError {
+                    name: shim_name.to_owned(),
+                },
+            )
+        })
+    }
+
+    /// Whether `target` is missing or differs from `source`.
+    ///
+    /// Compares file sizes first so the common case avoids hashing, then falls
+    /// back to a content hash when the sizes match.
+    fn shim_needs_refresh(source: &Path, target: &Path) -> bool {
+        let Ok(target_meta) = std::fs::metadata(target) else {
+            return true;
+        };
+        let Ok(source_meta) = std::fs::metadata(source) else {
+            return true;
+        };
+
+        if target_meta.len() != source_meta.len() {
+            return true;
+        }
+
+        match (file_sha256(source), file_sha256(target)) {
+            (Ok(source_hash), Ok(target_hash)) => source_hash != target_hash,
+            _ => true,
+        }
+    }
 
     pub fn create(shim_name: &str) -> Fallible<()> {
         let shim = volta_home()?.shim_file(shim_name);
@@ -186,5 +266,19 @@ volta run "$(basename $0)" "$@""#;
         remove_file_if_exists(script_path).with_context(|| ErrorKind::ShimRemoveError {
             name: shim_name.to_string(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::shim_names_for_tool;
+
+    #[test]
+    fn maps_runtime_tools_to_their_shims() {
+        assert_eq!(shim_names_for_tool("node"), &["node", "npm", "npx"]);
+        assert_eq!(shim_names_for_tool("npm"), &["npm", "npx"]);
+        assert_eq!(shim_names_for_tool("yarn"), &["yarn", "yarnpkg"]);
+        assert_eq!(shim_names_for_tool("pnpm"), &["pnpm"]);
+        assert!(shim_names_for_tool("unknown").is_empty());
     }
 }

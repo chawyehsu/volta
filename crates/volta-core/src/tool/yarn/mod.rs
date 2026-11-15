@@ -7,6 +7,7 @@ use super::{
 use crate::error::{ErrorKind, Fallible};
 use crate::inventory::yarn_available;
 use crate::session::Session;
+use crate::shim::ensure_shims_for_tool;
 use crate::style::tool_version;
 use crate::sync::VoltaLock;
 use node_semver::Version;
@@ -63,6 +64,7 @@ impl Tool for Yarn {
             .set_active_yarn(Some(self.version.clone()))?;
 
         info_installed(&self);
+        ensure_shims_for_tool("yarn");
         check_shim_reachable("yarn");
 
         if let Ok(Some(project)) = session.project_platform() {
@@ -81,6 +83,7 @@ impl Tool for Yarn {
             project.pin_yarn(Some(self.version.clone()))?;
 
             info_pinned(self);
+            ensure_shims_for_tool("yarn");
             Ok(())
         } else {
             Err(ErrorKind::NotInPackage.into())

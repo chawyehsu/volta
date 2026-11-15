@@ -8,6 +8,7 @@ use super::{
 use crate::error::{ErrorKind, Fallible};
 use crate::inventory::node_available;
 use crate::session::Session;
+use crate::shim::ensure_shims_for_tool;
 use crate::style::{note_prefix, tool_version};
 use crate::sync::VoltaLock;
 use cfg_if::cfg_if;
@@ -304,6 +305,7 @@ impl Tool for Node {
             info_installed(node_version); // includes node and npm version
         }
 
+        ensure_shims_for_tool("node");
         check_shim_reachable("node");
 
         if let Ok(Some(project)) = session.project_platform() {
@@ -338,6 +340,7 @@ impl Tool for Node {
                 info_pinned(node_version); // includes node and npm version
             }
 
+            ensure_shims_for_tool("node");
             Ok(())
         } else {
             Err(ErrorKind::NotInPackage.into())
