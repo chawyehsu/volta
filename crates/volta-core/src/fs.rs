@@ -238,7 +238,7 @@ pub fn file_sha256(path: &Path) -> io::Result<[u8; 32]> {
     Ok(hasher.finalize().into())
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(windows, test))]
 const TRASH_DIR: &str = ".trash";
 
 /// The shared trash directory, under the Volta home tmp directory.
@@ -267,6 +267,13 @@ pub fn cleanup_shared_trash() {
 /// not deleting a running image).
 #[cfg(target_os = "windows")]
 fn retire_exe(old: &Path) -> io::Result<Option<PathBuf>> {
+    let unique_name = unique_retired_name(old)?;
+    retire_exe_with_trash(old, shared_trash_dir().as_deref(), &unique_name)
+}
+
+/// Build the unique file name used for a retired executable.
+#[cfg(target_os = "windows")]
+fn unique_retired_name(old: &Path) -> io::Result<std::ffi::OsString> {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -280,12 +287,24 @@ fn retire_exe(old: &Path) -> io::Result<Option<PathBuf>> {
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     unique_name.push(format!(".old.{pid}.{n}"));
 
+    Ok(unique_name)
+}
+
+/// Retire `old` into the shared trash directory, falling back to a trash
+/// directory beside the source when the shared one cannot be used (for example
+/// when it lives on another volume).
+#[cfg(any(windows, test))]
+fn retire_exe_with_trash(
+    old: &Path,
+    shared_trash: Option<&Path>,
+    unique_name: &std::ffi::OsStr,
+) -> io::Result<Option<PathBuf>> {
     // Prefer the shared trash directory. If it lives on another volume, the
     // rename fails and we fall back to a trash directory beside the source.
-    if let Some(shared) = shared_trash_dir()
-        && create_dir_all(&shared).is_ok()
+    if let Some(shared) = shared_trash
+        && create_dir_all(shared).is_ok()
     {
-        match rename_into_trash(old, &shared, &unique_name) {
+        match rename_into_trash(old, shared, unique_name) {
             Ok(retired) => return Ok(retired),
             Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(_) => {}
@@ -310,12 +329,12 @@ fn retire_exe(old: &Path) -> io::Result<Option<PathBuf>> {
         )
     })?;
 
-    rename_into_trash(old, &trash_dir, &unique_name)
+    rename_into_trash(old, &trash_dir, unique_name)
 }
 
 /// Rename `old` into `trash_dir`, returning the retired path (or `None` if the
 /// source no longer exists).
-#[cfg(target_os = "windows")]
+#[cfg(any(windows, test))]
 fn rename_into_trash(
     old: &Path,
     trash_dir: &Path,
@@ -461,5 +480,89 @@ pub fn replace_exe(new: &Path, old: &Path) -> io::Result<()> {
                 ),
             ))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::retire_exe_with_trash;
+
+    fn source_file(dir: &std::path::Path) -> std::path::PathBuf {
+        let bin_dir = dir.join("bin");
+        fs::create_dir_all(&bin_dir).unwrap();
+        let old = bin_dir.join("node.exe");
+        fs::write(&old, b"old").unwrap();
+        old
+    }
+
+    #[test]
+    fn retire_uses_shared_trash_when_available() {
+        let dir = tempdir().unwrap();
+        let old = source_file(dir.path());
+        let shared = dir.path().join("shared-trash");
+
+        let retired = retire_exe_with_trash(&old, Some(&shared), OsStr::new("node.exe.old.1.0"))
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(retired, shared.join("node.exe.old.1.0"));
+        assert!(retired.exists());
+        assert!(!old.exists());
+    }
+
+    #[test]
+    fn retire_falls_back_when_shared_trash_unusable() {
+        let dir = tempdir().unwrap();
+        let old = source_file(dir.path());
+
+        // A file where the shared trash directory should be makes
+        // `create_dir_all` fail, forcing the fallback.
+        let shared = dir.path().join("shared-trash");
+        fs::write(&shared, b"not a directory").unwrap();
+
+        let retired = retire_exe_with_trash(&old, Some(&shared), OsStr::new("node.exe.old.1.0"))
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            retired,
+            dir.path()
+                .join("bin")
+                .join(".trash")
+                .join("node.exe.old.1.0")
+        );
+        assert!(retired.exists());
+        assert!(!old.exists());
+    }
+
+    #[test]
+    fn retire_falls_back_when_shared_rename_fails() {
+        let dir = tempdir().unwrap();
+        let old = source_file(dir.path());
+
+        // Pre-create the destination as a directory so the rename into the
+        // shared trash fails, forcing the fallback.
+        let shared = dir.path().join("shared-trash");
+        let blocker = shared.join("node.exe.old.1.0");
+        fs::create_dir_all(blocker.join("sub")).unwrap();
+
+        let retired = retire_exe_with_trash(&old, Some(&shared), OsStr::new("node.exe.old.1.0"))
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            retired,
+            dir.path()
+                .join("bin")
+                .join(".trash")
+                .join("node.exe.old.1.0")
+        );
+        assert!(retired.exists());
+        assert!(!old.exists());
     }
 }
