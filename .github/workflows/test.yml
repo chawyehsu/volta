@@ -175,8 +175,8 @@ jobs:
 
   ci_nightly_build:
     needs: tests
-    # skip if it's a dependabot pull request
-    if: "!(github.event_name == 'pull_request' && contains(github.event.pull_request.title, 'build(deps)'))"
+    # only build on push to main
+    if: github.ref == 'refs/heads/main'
     name: Build Nightly
     uses: ./.github/workflows/build.yml
     with:
