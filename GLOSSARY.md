@@ -91,8 +91,12 @@ A GNU-compatible SHA-256 text file paired with one archive and identifying that 
 _Avoid_: Checksum file when the archive relationship matters
 
 **Self-update**:
-The Volta command that downloads a newer stable release for the current target triplet, verifies it, and replaces the installed Volta binaries.
+The Volta command that installs a selected release of Volta for the current target triplet — the latest stable release by default, or an explicitly requested version — after verifying it and replacing the installed binaries.
 _Avoid_: Upgrade, auto-update
+
+**Requested version**:
+The optional version argument to `self-update`; it selects that exact release instead of the latest stable release.
+_Avoid_: Target version, pinned version
 
 ## Self-update testing vocabulary
 
