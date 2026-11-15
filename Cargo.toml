@@ -12,7 +12,7 @@ members = ["crates/*", "tests/testkit"]
 
 [workspace.dependencies]
 # external deps
-attohttpc = { version = "0.31.0", default-features = false, features = ["compress", "json"] }
+attohttpc = { version = "0.32.0", default-features = false, features = ["compress", "json"] }
 cfg-if = "1.0"
 chain-map = "0.1.0"
 # We manually configure the feature list here because 0.4.16 includes the
