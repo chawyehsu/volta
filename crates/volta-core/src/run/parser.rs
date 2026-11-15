@@ -378,7 +378,14 @@ impl UpgradeArgs<'_> {
                     );
                 }
                 Ok(internal) => {
-                    executors.push(UninstallCommand::new(internal).into());
+                    // Runtimes cannot be updated through a package manager; previously this
+                    // arm routed to the (unsupported) uninstall, which would now delete the
+                    // cached versions instead of updating anything
+                    return Err(ErrorKind::UpgradeRuntimeUnsupported {
+                        tool: internal.name().to_lowercase(),
+                        manager: self.manager,
+                    }
+                    .into());
                 }
                 Err(_) => {
                     return Err(ErrorKind::UpgradePackageNotFound {

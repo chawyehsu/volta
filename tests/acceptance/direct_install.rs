@@ -1,7 +1,7 @@
-use crate::support::sandbox::{DistroMetadata, NodeFixture, NpmFixture, Yarn1Fixture, sandbox};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{DistroMetadata, NodeFixture, NpmFixture, Tool, Yarn1Fixture, sandbox};
 
 use volta_core::error::ExitCode;
 
@@ -465,18 +465,18 @@ exit 1
 
 #[test]
 fn package_not_found() {
-    // Use setup_npm_binary to place a fake npm in the npm image dir.
+    // Place a fake npm binary in the npm image dir.
     // Image::bins() puts the npm image bin dir FIRST in PATH (before the
     // node image bin dir), so the fake npm is found before the real one.
-    // npm_available() checks if npm_image_dir exists — since
-    // setup_npm_binary creates a file inside it, the dir exists and
+    // npm_available() checks if npm_image_dir exists — since the binary
+    // handle creates a file inside it, the dir exists and
     // ensure_fetched skips downloading the real npm distro.
     let s = sandbox()
         .platform(&platform_with_node_npm("10.99.1040", "1.2.3"))
         .node_available_versions(NODE_VERSION_INFO)
         .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
-        .setup_npm_binary("1.2.3", FAKE_NPM_404)
         .build();
+    s.tool(Tool::Npm).version("1.2.3").binary(FAKE_NPM_404);
 
     assert_that!(
         s.volta("install nonexistent-pkg-12345"),
@@ -494,8 +494,8 @@ fn package_install_failed() {
         .platform(&platform_with_node_npm("10.99.1040", "1.2.3"))
         .node_available_versions(NODE_VERSION_INFO)
         .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
-        .setup_npm_binary("1.2.3", FAKE_NPM_FAIL)
         .build();
+    s.tool(Tool::Npm).version("1.2.3").binary(FAKE_NPM_FAIL);
 
     assert_that!(
         s.volta("install some-pkg"),

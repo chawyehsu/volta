@@ -1,8 +1,8 @@
-use crate::support::temp_project::temp_project;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
 use std::path::PathBuf;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::smoke::temp_project;
 
 fn fixture_tarball() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/volta-test-1.0.0.tgz")

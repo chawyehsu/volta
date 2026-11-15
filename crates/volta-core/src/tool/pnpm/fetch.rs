@@ -78,13 +78,13 @@ fn unpack_archive(archive: Box<dyn Archive>, version: &Version) -> Fallible<()> 
         })?;
 
     let bin_path = temp.path().join("package").join("bin");
-    write_launcher(&bin_path, "pnpm")?;
-    write_launcher(&bin_path, "pnpx")?;
+    write_launcher(&bin_path, "pnpm", &version_string)?;
+    write_launcher(&bin_path, "pnpx", &version_string)?;
 
     #[cfg(windows)]
     {
-        write_cmd_launcher(&bin_path, "pnpm")?;
-        write_cmd_launcher(&bin_path, "pnpx")?;
+        write_cmd_launcher(&bin_path, "pnpm", &version_string)?;
+        write_cmd_launcher(&bin_path, "pnpx", &version_string)?;
     }
 
     let dest = volta_home()?.pnpm_image_dir(&version_string);
@@ -147,8 +147,9 @@ fn fetch_remote_distro(
 }
 
 /// Create executable launchers for the pnpm and pnpx binaries
-fn write_launcher(base_path: &Path, tool: &str) -> Fallible<()> {
+fn write_launcher(base_path: &Path, tool: &str, version: &str) -> Fallible<()> {
     let path = base_path.join(tool);
+    let entry = resolve_entry(base_path, tool, version)?;
     write(
         &path,
         format!(
@@ -161,9 +162,9 @@ case `uname` in
     *CYGWIN*) basedir=`cygpath -w "$basedir"`;;
 esac
 
-node "$basedir/{}.cjs" "$@"
+node "$basedir/{}" "$@"
 "#,
-            tool
+            entry
         ),
     )
     .and_then(|_| set_executable(&path))
@@ -172,10 +173,36 @@ node "$basedir/{}.cjs" "$@"
 
 /// Create CMD executable launchers for the pnpm and pnpx binaries for Windows
 #[cfg(windows)]
-fn write_cmd_launcher(base_path: &Path, tool: &str) -> Fallible<()> {
+fn write_cmd_launcher(base_path: &Path, tool: &str, version: &str) -> Fallible<()> {
+    let entry = resolve_entry(base_path, tool, version)?;
     write(
         base_path.join(format!("{}.cmd", tool)),
-        format!("@echo off\nnode \"%~dp0\\{}.cjs\" %*", tool),
+        format!("@echo off\nnode \"%~dp0\\{}\" %*", entry),
     )
     .with_context(|| ErrorKind::WriteLauncherError { tool: tool.into() })
+}
+
+/// Determine the JS entrypoint file that the pnpm distro ships for the given tool
+///
+/// pnpm 12 dropped the `bin/pnpm.cjs` and `bin/pnpx.cjs` entrypoints from its
+/// distributions, shipping only `.mjs` equivalents instead, so prefer the
+/// `.cjs` entrypoint when the distro provides one and fall back to `.mjs`.
+///
+/// - https://github.com/volta-cli/volta/issues/2114
+fn resolve_entry(base_path: &Path, tool: &str, version: &str) -> Fallible<String> {
+    let cjs = format!("{}.cjs", tool);
+    if base_path.join(&cjs).is_file() {
+        return Ok(cjs);
+    }
+
+    let mjs = format!("{}.mjs", tool);
+    if base_path.join(&mjs).is_file() {
+        return Ok(mjs);
+    }
+
+    Err(ErrorKind::MissingEntrypointError {
+        tool: tool.into(),
+        version: version.into(),
+    }
+    .into())
 }

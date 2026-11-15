@@ -1,9 +1,9 @@
-use crate::support::temp_project::temp_project;
+use testkit::smoke::temp_project;
 use volta_core::constant;
 
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
 
 static PACKAGE_JSON_WITH_PINNED_NODE: &str = r#"{
     "name": "test-package",

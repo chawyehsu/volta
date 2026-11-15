@@ -76,11 +76,12 @@ impl TryFrom<V0> for V1 {
                 })?;
             for (entry, _) in root_contents {
                 let path = entry.path();
-                if let Some(stem) = path.file_stem() {
-                    if stem == "load" && path.is_file() {
-                        remove_file(&path)
-                            .with_context(|| ErrorKind::DeleteFileError { file: path })?;
-                    }
+                if let Some(stem) = path.file_stem()
+                    && stem == "load"
+                    && path.is_file()
+                {
+                    remove_file(&path)
+                        .with_context(|| ErrorKind::DeleteFileError { file: path })?;
                 }
             }
 

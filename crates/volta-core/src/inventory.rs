@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::path::Path;
 
-use crate::error::{Context, ErrorKind, Fallible};
+use crate::error::{Context, ErrorKind, Fallible, VoltaError};
 use crate::fs::read_dir_eager;
 use crate::layout::volta_home;
 use crate::tool::PackageConfig;
@@ -60,15 +60,30 @@ pub fn yarn_versions() -> Fallible<BTreeSet<Version>> {
 
 /// Collects a set of all Package Configs on the local machine
 pub fn package_configs() -> Fallible<BTreeSet<PackageConfig>> {
-    let package_dir = volta_home()?.default_package_dir();
+    let (configs, error) = package_configs_partial();
+    match error {
+        Some(err) => Err(err),
+        None => Ok(configs),
+    }
+}
 
-    WalkDir::new(package_dir)
+/// Collects all parseable Package Configs on the local machine, returning them
+/// alongside the first error encountered, if any
+///
+/// Unlike `package_configs`, a malformed config does not discard the readable
+/// ones, so callers can decide whether partial information is acceptable
+pub fn package_configs_partial() -> (BTreeSet<PackageConfig>, Option<VoltaError>) {
+    let package_dir = match volta_home() {
+        Ok(home) => home.default_package_dir(),
+        Err(err) => return (BTreeSet::new(), Some(err)),
+    };
+
+    let mut configs = BTreeSet::new();
+    let mut error = None;
+
+    for entry in WalkDir::new(package_dir)
         .max_depth(2)
         .into_iter()
-        // Ignore any items which didn't resolve as `DirEntry` correctly.
-        // There is no point trying to do anything with those, and no error
-        // we can report to the user in any case. Log the failure in the
-        // debug output, though
         .filter_map(|entry| match entry {
             Ok(dir_entry) => {
                 // Ignore directory entries and any files that don't have a .json extension.
@@ -87,8 +102,18 @@ pub fn package_configs() -> Fallible<BTreeSet<PackageConfig>> {
                 None
             }
         })
-        .map(PackageConfig::from_file)
-        .collect()
+    {
+        match PackageConfig::from_file(entry) {
+            Ok(config) => {
+                configs.insert(config);
+            }
+            Err(err) => {
+                error.get_or_insert(err);
+            }
+        }
+    }
+
+    (configs, error)
 }
 
 /// Reads the contents of a directory and returns the set of all versions found

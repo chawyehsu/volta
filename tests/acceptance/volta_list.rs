@@ -1,7 +1,7 @@
-use crate::support::sandbox::sandbox;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{Tool, sandbox};
 
 use volta_core::error::ExitCode;
 
@@ -263,7 +263,7 @@ fn list_node_project_source() {
         .package_json(r#"{"name":"test","volta":{"node":"10.99.1040"}}"#)
         .build();
 
-    s.create_node_image("10.99.1040");
+    s.tool(Tool::Node).version("10.99.1040").image().create();
 
     assert_that!(
         s.volta("list --format plain node"),
@@ -281,7 +281,7 @@ fn list_node_default_source() {
         .platform(&platform_with_node("10.99.1040"))
         .build();
 
-    s.create_node_image("10.99.1040");
+    s.tool(Tool::Node).version("10.99.1040").image().create();
 
     assert_that!(
         s.volta("list --format plain node"),
@@ -299,8 +299,8 @@ fn list_node_none_source() {
         .platform(&platform_with_node("10.99.1040"))
         .build();
 
-    s.create_node_image("10.99.1040");
-    s.create_node_image("0.0.1");
+    s.tool(Tool::Node).version("10.99.1040").image().create();
+    s.tool(Tool::Node).version("0.0.1").image().create();
 
     assert_that!(
         s.volta("list --format plain node"),
@@ -319,7 +319,7 @@ fn list_npm_default_source() {
         .platform(&platform_with_node_npm("10.99.1040", "6.2.26"))
         .build();
 
-    s.create_npm_image("6.2.26");
+    s.tool(Tool::Npm).version("6.2.26").image().create();
 
     assert_that!(
         s.volta("list --format plain npm"),
@@ -335,7 +335,7 @@ fn list_npm_project_source() {
         .package_json(r#"{"name":"test","volta":{"node":"10.99.1040","npm":"6.2.26"}}"#)
         .build();
 
-    s.create_npm_image("6.2.26");
+    s.tool(Tool::Npm).version("6.2.26").image().create();
 
     assert_that!(
         s.volta("list --format plain npm"),
@@ -351,8 +351,8 @@ fn list_npm_none_source() {
         .platform(&platform_with_node_npm("10.99.1040", "6.2.26"))
         .build();
 
-    s.create_npm_image("6.2.26");
-    s.create_npm_image("0.0.1");
+    s.tool(Tool::Npm).version("6.2.26").image().create();
+    s.tool(Tool::Npm).version("0.0.1").image().create();
 
     assert_that!(
         s.volta("list --format plain npm"),
@@ -371,7 +371,7 @@ fn list_pnpm_default_source() {
         .platform(&platform_with_pnpm("10.99.1040", "7.7.1"))
         .build();
 
-    s.create_pnpm_image("7.7.1");
+    s.tool(Tool::Pnpm).version("7.7.1").image().create();
 
     assert_that!(
         s.volta("list --format plain pnpm"),
@@ -387,7 +387,7 @@ fn list_pnpm_project_source() {
         .package_json(r#"{"name":"test","volta":{"node":"10.99.1040","pnpm":"7.7.1"}}"#)
         .build();
 
-    s.create_pnpm_image("7.7.1");
+    s.tool(Tool::Pnpm).version("7.7.1").image().create();
 
     assert_that!(
         s.volta("list --format plain pnpm"),
@@ -403,8 +403,8 @@ fn list_pnpm_none_source() {
         .platform(&platform_with_pnpm("10.99.1040", "7.7.1"))
         .build();
 
-    s.create_pnpm_image("7.7.1");
-    s.create_pnpm_image("0.0.1");
+    s.tool(Tool::Pnpm).version("7.7.1").image().create();
+    s.tool(Tool::Pnpm).version("0.0.1").image().create();
 
     assert_that!(
         s.volta("list --format plain pnpm"),
@@ -423,7 +423,7 @@ fn list_yarn_default_source() {
         .platform(&platform_with_yarn("10.99.1040", "1.2.42"))
         .build();
 
-    s.create_yarn_image("1.2.42");
+    s.tool(Tool::Yarn).version("1.2.42").image().create();
 
     assert_that!(
         s.volta("list --format plain yarn"),
@@ -439,7 +439,7 @@ fn list_yarn_project_source() {
         .package_json(r#"{"name":"test","volta":{"node":"10.99.1040","yarn":"1.2.42"}}"#)
         .build();
 
-    s.create_yarn_image("1.2.42");
+    s.tool(Tool::Yarn).version("1.2.42").image().create();
 
     assert_that!(
         s.volta("list --format plain yarn"),
@@ -455,8 +455,8 @@ fn list_yarn_none_source() {
         .platform(&platform_with_yarn("10.99.1040", "1.2.42"))
         .build();
 
-    s.create_yarn_image("1.2.42");
-    s.create_yarn_image("0.0.1");
+    s.tool(Tool::Yarn).version("1.2.42").image().create();
+    s.tool(Tool::Yarn).version("0.0.1").image().create();
 
     assert_that!(
         s.volta("list --format plain yarn"),
@@ -477,7 +477,7 @@ fn read_dir_error() {
         .build();
 
     // Create the node image root dir then make it unreadable
-    let volta_home = s.root().parent().unwrap().join("home/.volta");
+    let volta_home = s.volta_home();
     let image_dir = volta_home.join("tools/image/node");
     std::fs::create_dir_all(&image_dir).unwrap();
     std::fs::set_permissions(&image_dir, std::fs::Permissions::from_mode(0o000)).unwrap();

@@ -1,8 +1,8 @@
 use std::fs::File;
 
-use crate::support::sandbox::Sandbox;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
+use testkit::sandbox::Sandbox;
 
 use volta_core::event::{Event, EventKind};
 

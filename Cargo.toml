@@ -8,11 +8,11 @@ license = "BSD-2-Clause"
 categories = ["development-tools"]
 
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "tests/testkit"]
 
 [workspace.dependencies]
 # external deps
-attohttpc = { version = "0.31.0", default-features = false, features = ["compress", "json"] }
+attohttpc = { version = "0.32.0", default-features = false, features = ["compress", "json"] }
 cfg-if = "1.0"
 chain-map = "0.1.0"
 # We manually configure the feature list here because 0.4.16 includes the
@@ -49,6 +49,7 @@ proc-macro2 = "1.0.106"
 quote = "1.0.2"
 readext = "0.1.0"
 regex = "1.12.3"
+remove_dir_all = "1.0"
 retry = "2"
 self_update = { version = "1.3.3", default-features = false, features = ["archive-tar", "archive-zip", "compression-tar-gz", "compression-zip-deflate", "github", "reqwest", "rustls"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -60,7 +61,7 @@ tee = "0.1.0"
 tempfile = "3.27.0"
 terminal_size = "0.4.4"
 # path crates
-test-support = { path = "crates/test-support" }
+testkit = { path = "tests/testkit" }
 textwrap = "0.16.2"
 thiserror = "2.0.18"
 verbatim = "0.1"
@@ -115,7 +116,7 @@ ci_info.workspace = true
 envoy.workspace = true
 hamcrest2.workspace = true
 headers.workspace = true
-test-support.workspace = true
+testkit.workspace = true
 
 [target."cfg(windows)".dependencies]
 winreg.workspace = true

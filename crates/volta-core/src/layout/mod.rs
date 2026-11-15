@@ -11,16 +11,22 @@ use volta_layout::v4::{VoltaHome, VoltaInstall};
 cfg_if! {
     if #[cfg(unix)] {
         mod unix;
-        pub use unix::*;
+        use unix::default_home_dir;
+        pub use unix::env_paths;
     } else if #[cfg(windows)] {
         mod windows;
-        pub use windows::*;
+        use windows::default_home_dir;
+        pub use windows::env_paths;
     }
 }
 
 static VOLTA_HOME: OnceCell<VoltaHome> = OnceCell::new();
 static VOLTA_INSTALL: OnceCell<VoltaInstall> = OnceCell::new();
 
+/// Returns the Volta home directory.
+///
+/// This is determined either from the `VOLTA_HOME` environment variable
+/// or by using the default home directory.
 pub fn volta_home<'a>() -> Fallible<&'a VoltaHome> {
     VOLTA_HOME.get_or_try_init(|| {
         let home_dir = match env::var_os(constant::ENVNAME_VOLTA_HOME) {
@@ -32,6 +38,11 @@ pub fn volta_home<'a>() -> Fallible<&'a VoltaHome> {
     })
 }
 
+/// Returns the Volta install directory.
+///
+/// This is determined either from the `VOLTA_INSTALL_DIR` environment
+/// variable or by using the default install directory based on the
+/// location of the currently running executable.
 pub fn volta_install<'a>() -> Fallible<&'a VoltaInstall> {
     VOLTA_INSTALL.get_or_try_init(|| {
         let install_dir = match env::var_os(constant::ENVNAME_VOLTA_INSTALL_DIR) {

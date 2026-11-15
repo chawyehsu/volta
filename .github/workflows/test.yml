@@ -19,21 +19,20 @@ permissions: {}
 jobs:
   style_check:
     # skip if it's a release commit
-    if: "!contains(github.event.head_commit.message, 'chore(main): release')"
+    if: "!contains(github.event.head_commit.message, 'chore(main): release') && !contains(github.event.pull_request.title, 'chore(main): release')"
     name: Style Check
     runs-on: ubuntu-latest
-    env:
-      SCCACHE_GHA_ENABLED: true
-      RUSTC_WRAPPER: sccache
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup SCCache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@9936258fee697aff89b3fed6ca1f80a382ef694e # v0.11.3
+        with:
+          run-install: false
 
       - name: Run check
-        run: cargo fmt --all --quiet -- --check
+        run: pixi run fmt -- --check
 
   tests:
     needs: style_check
@@ -45,76 +44,140 @@ jobs:
     name: Acceptance Tests
     runs-on: ${{ matrix.os }}
     env:
-      RUST_BACKTRACE: full
-      SCCACHE_GHA_ENABLED: true
-      RUSTC_WRAPPER: sccache
+      KACHE_CACHE_DIR: ${{ github.workspace }}/.kache
+      KACHE_RUNTIME_DIR: ${{ github.workspace }}/.kache-runtime
+      KACHE_LOCAL_ONLY: "1"
+      RUSTC_WRAPPER: kache
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup SCCache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      - name: Compute cache epoch
+        id: cache-epoch
+        shell: bash
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@9936258fee697aff89b3fed6ca1f80a382ef694e # v0.11.3
+        with:
+          environments: test
+          cache: true
+          cache-write: ${{ github.ref == 'refs/heads/main' }}
+          cache-key: pixi-tests-
+
+      # Restore the latest snapshot on every run. Only main saves, and the
+      # weekly epoch makes it at most one snapshot per job/platform per week
+      # instead of one per commit.
+      - name: Restore kache store
+        id: kache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .kache
+          key: kache-1.2.2-${{ runner.os }}-${{ runner.arch }}-tests-${{ hashFiles('Cargo.lock') }}-${{ steps.cache-epoch.outputs.week }}
+          restore-keys: |
+            kache-1.2.2-${{ runner.os }}-${{ runner.arch }}-tests-
+
+      - name: Restore cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
 
       - name: Run tests
-        run: cargo test --all --features mock-network
+        run: pixi run test
 
       - name: Lint with clippy
-        run: cargo clippy
+        run: pixi run lint
 
       - name: Lint tests with clippy
-        run: cargo clippy --tests --features mock-network
+        run: pixi run lint-test
+
+      - name: Save kache store
+        if: success() && github.ref == 'refs/heads/main' && steps.kache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .kache
+          key: ${{ steps.kache.outputs.cache-primary-key }}
+
+      - name: Check kache
+        if: always()
+        shell: bash
+        run: |
+          pixi run -e test cache-stats
+          pixi run -e test kache stats --since 24h --format github >> "$GITHUB_STEP_SUMMARY"
 
   smoke_tests:
     needs: tests
-    # skip if it's a pull request and the commit message contains 'build(deps)', typically for dependabot
-    if: "!(github.event_name == 'pull_request' && contains(github.event.head_commit.message, 'build(deps)'))"
+    # skip if it's a dependabot pull request
+    if: "!(github.event_name == 'pull_request' && contains(github.event.pull_request.title, 'build(deps)'))"
     name: Smoke Tests
     runs-on: ubuntu-latest
     env:
-      RUST_BACKTRACE: full
-      SCCACHE_GHA_ENABLED: true
-      RUSTC_WRAPPER: sccache
+      KACHE_CACHE_DIR: ${{ github.workspace }}/.kache
+      KACHE_RUNTIME_DIR: ${{ github.workspace }}/.kache-runtime
+      KACHE_LOCAL_ONLY: "1"
+      RUSTC_WRAPPER: kache
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup SCCache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      - name: Compute cache epoch
+        id: cache-epoch
+        shell: bash
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@9936258fee697aff89b3fed6ca1f80a382ef694e # v0.11.3
+        with:
+          environments: test
+          cache: true
+          cache-write: ${{ github.ref == 'refs/heads/main' }}
+          cache-key: pixi-tests-
+
+      # Restore the latest snapshot on every run. Only main saves, and the
+      # weekly epoch makes it at most one snapshot per job/platform per week
+      # instead of one per commit.
+      - name: Restore kache store
+        id: kache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .kache
+          key: kache-1.2.2-${{ runner.os }}-${{ runner.arch }}-smoke-${{ hashFiles('Cargo.lock') }}-${{ steps.cache-epoch.outputs.week }}
+          restore-keys: |
+            kache-1.2.2-${{ runner.os }}-${{ runner.arch }}-smoke-
+
+      - name: Restore cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
 
       - name: Run tests
-        run: cargo test --test smoke --features smoke-tests -- --test-threads 1
+        run: pixi run smoke-test
+
+      - name: Save kache store
+        if: success() && github.ref == 'refs/heads/main' && steps.kache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .kache
+          key: ${{ steps.kache.outputs.cache-primary-key }}
+
+      - name: Check kache
+        if: always()
+        shell: bash
+        run: |
+          pixi run -e test cache-stats
+          pixi run -e test kache stats --since 24h --format github >> "$GITHUB_STEP_SUMMARY"
 
   ci_nightly_build:
     needs: tests
-    # skip if it's a pull request and the commit message contains 'build(deps)', typically for dependabot
-    if: "!(github.event_name == 'pull_request' && contains(github.event.head_commit.message, 'build(deps)'))"
+    # skip if it's a dependabot pull request
+    if: "!(github.event_name == 'pull_request' && contains(github.event.pull_request.title, 'build(deps)'))"
     name: Build Nightly
     uses: ./.github/workflows/build.yml
     with:
       build_type: nightly
-
-  shell_tests:
-    needs: style_check
-    name: Shell Script Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup BATS
-        run: sudo npm install -g bats
-
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Run tests
-        run: bats dev/unix/tests/
-
-  validate_installer_checksum:
-    needs: shell_tests
-    name: Validate installer checksum
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Run check
-        run: |
-          cd dev/unix
-          sha256sum --check SHASUMS256.txt

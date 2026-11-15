@@ -1,8 +1,8 @@
-use crate::support::sandbox::sandbox;
 use ci_info::types::{CiInfo, Vendor};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::sandbox;
 
 use volta_core::error::ExitCode;
 

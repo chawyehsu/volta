@@ -4,10 +4,10 @@ use std::{thread, time};
 use crate::support::events_helpers::{
     assert_events, match_args, match_end, match_error, match_start,
 };
-use crate::support::sandbox::sandbox;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::sandbox;
 use volta_core::constant;
 use volta_core::error::ExitCode;
 
@@ -312,7 +312,10 @@ fn tool_hook_with_missing_relative_bin_path_errors() {
 #[test]
 #[cfg(unix)]
 fn tool_hook_with_failing_bin_command_errors() {
+    // A real install has a `node` shim in the Volta bin dir, which the hook
+    // command below resolves; without it the command is not found at all
     let s = sandbox()
+        .shim("node")
         .default_hooks(
             r#"{
     "node": {
@@ -370,7 +373,7 @@ fn merges_project_and_default_hooks() {
     let s = sandbox()
         .package_json("{}")
         .default_hooks(&default_hooks_json())
-        .project_file(&local_hooks.to_string_lossy(), &project_hooks_json())
+        .project_file(&local_hooks.to_string_lossy(), project_hooks_json())
         .env("VOLTA_WRITE_EVENTS_FILE", "true")
         .executable_file(SCRIPT_FILENAME, EVENTS_EXECUTABLE)
         .build();
@@ -430,12 +433,12 @@ fn merges_workspace_hooks() {
     let s = sandbox()
         .default_hooks(&default_hooks_json())
         .package_json(PROJECT_PACKAGE_JSON)
-        .project_file(&project_hooks.to_string_lossy(), &project_hooks_json())
+        .project_file(&project_hooks.to_string_lossy(), project_hooks_json())
         .project_file(
             &workspace_package_json.to_string_lossy(),
             WORKSPACE_PACKAGE_JSON,
         )
-        .project_file(&workspace_hooks.to_string_lossy(), &workspace_hooks_json())
+        .project_file(&workspace_hooks.to_string_lossy(), workspace_hooks_json())
         .env("VOLTA_WRITE_EVENTS_FILE", "true")
         .executable_file(SCRIPT_FILENAME, EVENTS_EXECUTABLE)
         .build();
@@ -499,7 +502,7 @@ fn merges_workspace_hooks() {
 #[test]
 fn pnpm_latest_with_hook_reads_index() {
     let mut s = sandbox()
-        .default_hooks(&pnpm_hooks_json())
+        .default_hooks(pnpm_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
         .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
@@ -536,7 +539,7 @@ fn pnpm_latest_with_hook_reads_index() {
 #[test]
 fn pnpm_no_version_with_hook_reads_index() {
     let mut s = sandbox()
-        .default_hooks(&pnpm_hooks_json())
+        .default_hooks(pnpm_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
         .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
@@ -573,7 +576,7 @@ fn pnpm_no_version_with_hook_reads_index() {
 #[test]
 fn yarn_latest_with_hook_reads_latest() {
     let mut s = sandbox()
-        .default_hooks(&yarn_hooks_json())
+        .default_hooks(yarn_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
         .build();
     let _mock = s
@@ -596,7 +599,7 @@ fn yarn_latest_with_hook_reads_latest() {
 #[test]
 fn yarn_no_version_with_hook_reads_latest() {
     let mut s = sandbox()
-        .default_hooks(&yarn_hooks_json())
+        .default_hooks(yarn_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
         .build();
     let _mock = s
@@ -619,7 +622,7 @@ fn yarn_no_version_with_hook_reads_latest() {
 #[test]
 fn yarn_semver_with_hook_uses_old_format() {
     let mut s = sandbox()
-        .default_hooks(&yarn_hooks_json())
+        .default_hooks(yarn_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
         .build();
     let _mock = s
@@ -710,7 +713,7 @@ fn hook_with_invalid_registry_format_errors() {
 #[test]
 fn yarn_latest_hook_server_error() {
     let mut s = sandbox()
-        .default_hooks(&yarn_hooks_json())
+        .default_hooks(yarn_hooks_json())
         .env("VOLTA_LOGLEVEL", "debug")
         .build();
     let _mock = s

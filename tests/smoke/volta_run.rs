@@ -1,8 +1,8 @@
-use crate::support::temp_project::temp_project;
+use testkit::smoke::temp_project;
 
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
 
 // Note: Node 14.11.0 is bundled with npm 6.14.8
 const PACKAGE_JSON: &str = r#"{

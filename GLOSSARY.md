@@ -42,6 +42,50 @@ _Avoid_: pin file, version pin
 A version request with fewer than three numeric components, such as `20` or `20.5`, resolved to the highest matching Node release.
 _Avoid_: loose version, range
 
+## Toolchain vocabulary
+
+**Image**:
+The unpacked, on-disk copy of one version of a runtime tool in the Volta home directory.
+_Avoid_: installed tool, unpacked runtime
+
+**Inventory**:
+The cache of downloaded tool-version archives in the Volta home directory.
+_Avoid_: download cache, archive store
+
+**Cached version**:
+A fetched version of a runtime tool kept in the Volta home directory, consisting of an unpacked image and its archive in the inventory.
+_Avoid_: installed version, downloaded version
+
+**In-use version**:
+A cached version that is the user's default, pinned in the current project, or recorded as the install-time platform of an installed global package.
+_Avoid_: active version, live version
+
+**Uninstall**:
+The Volta command that removes cached versions of a runtime tool from the local machine without changing any configuration; removed versions are re-downloaded automatically when next needed.
+_Avoid_: clean, prune, remove
+
+**Launcher**:
+The script Volta writes into a tool image's bin directory, invoking the tool's JavaScript entrypoint with `node` from the execution environment.
+_Avoid_: wrapper script, bootstrap
+
+**Shim**:
+The executable stub in the Volta bin directory that dispatches a command to the tool version selected by the active platform.
+_Avoid_: proxy, wrapper
+
+## Build cache vocabulary
+
+**Build cache**:
+The content-addressed store of compiler outputs that lets a rebuild skip recompiling unchanged crates.
+_Avoid_: compilation cache, sccache
+
+**kache store**:
+The persistent on-disk portion of the build cache, holding cached compiler outputs and their index.
+_Avoid_: cache directory, cache folder
+
+**kache runtime directory**:
+The ephemeral directory holding kache's sockets, locks, logs, and session state; it is not persisted between CI jobs.
+_Avoid_: cache directory, temp cache
+
 ## Release vocabulary
 
 **Release**:
@@ -81,3 +125,9 @@ _Avoid_: Test archive, fake archive
 **Fixture install directory**:
 A temporary directory containing copies of the Volta binaries that a self-update test is allowed to replace.
 _Avoid_: Sandbox install directory
+
+## Test vocabulary
+
+**Sandbox**:
+The isolated per-test environment, comprising temporary home and project directories, a private `PATH` of Volta shims, and a mock download server, in which tests run the compiled Volta binaries.
+_Avoid_: TestWorkspace, TempProject

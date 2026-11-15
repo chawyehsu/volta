@@ -34,12 +34,11 @@ fn get_shim_list_deduped(dir: &Path) -> Fallible<HashSet<String>> {
     {
         let mut shims: HashSet<String> =
             contents.filter_map(platform::entry_to_shim_name).collect();
-        shims.insert("node".into());
-        shims.insert("npm".into());
-        shims.insert("npx".into());
-        shims.insert("pnpm".into());
-        shims.insert("yarn".into());
-        shims.insert("yarnpkg".into());
+        ["node", "npm", "npx", "pnpm", "yarn", "yarnpkg"]
+            .iter()
+            .for_each(|s| {
+                shims.insert(s.to_string());
+            });
         Ok(shims)
     }
 
@@ -50,25 +49,17 @@ fn get_shim_list_deduped(dir: &Path) -> Fallible<HashSet<String>> {
     }
 }
 
-#[derive(PartialEq, Eq)]
-pub enum ShimResult {
-    Created,
-    AlreadyExists,
-    Deleted,
-    DoesntExist,
-}
-
-pub fn delete(shim_name: &str) -> Fallible<ShimResult> {
+pub fn delete(shim_name: &str) -> Fallible<()> {
     let shim = volta_home()?.shim_file(shim_name);
 
     #[cfg(windows)]
     platform::delete_git_bash_script(shim_name)?;
 
     match fs::remove_file(shim) {
-        Ok(_) => Ok(ShimResult::Deleted),
+        Ok(_) => Ok(()),
         Err(err) => {
             if err.kind() == io::ErrorKind::NotFound {
-                Ok(ShimResult::DoesntExist)
+                Ok(())
             } else {
                 Err(VoltaError::from_source(
                     err,
@@ -92,20 +83,19 @@ mod platform {
     use std::fs::{DirEntry, Metadata};
     use std::io;
 
-    use super::ShimResult;
     use crate::error::{ErrorKind, Fallible, VoltaError};
     use crate::fs::symlink_file;
     use crate::layout::{volta_home, volta_install};
 
-    pub fn create(shim_name: &str) -> Fallible<ShimResult> {
+    pub fn create(shim_name: &str) -> Fallible<()> {
         let executable = volta_install()?.shim_executable();
         let shim = volta_home()?.shim_file(shim_name);
 
         match symlink_file(executable, shim) {
-            Ok(_) => Ok(ShimResult::Created),
+            Ok(_) => Ok(()),
             Err(err) => {
                 if err.kind() == io::ErrorKind::AlreadyExists {
-                    Ok(ShimResult::AlreadyExists)
+                    Ok(())
                 } else {
                     Err(VoltaError::from_source(
                         err,
@@ -118,6 +108,10 @@ mod platform {
         }
     }
 
+    /// Get the file stem as the shim name if the entry is a symlink
+    ///
+    /// Consumes a directory entry and its metadata, returning the
+    /// shim name if the entry is a symlink.
     pub fn entry_to_shim_name((entry, metadata): (DirEntry, Metadata)) -> Option<String> {
         if metadata.file_type().is_symlink() {
             entry
@@ -146,7 +140,6 @@ mod platform {
     use std::ffi::OsStr;
     use std::fs::{DirEntry, Metadata, write};
 
-    use super::ShimResult;
     use crate::error::{Context, ErrorKind, Fallible};
     use crate::fs::remove_file_if_exists;
     use crate::layout::volta_home;
@@ -158,7 +151,7 @@ volta run %~n0 %*
     const GIT_BASH_SCRIPT_CONTENTS: &str = r#"#!/bin/bash
 volta run "$(basename $0)" "$@""#;
 
-    pub fn create(shim_name: &str) -> Fallible<ShimResult> {
+    pub fn create(shim_name: &str) -> Fallible<()> {
         let shim = volta_home()?.shim_file(shim_name);
 
         write(shim, SHIM_SCRIPT_CONTENTS).with_context(|| ErrorKind::ShimCreateError {
@@ -173,7 +166,7 @@ volta run "$(basename $0)" "$@""#;
             }
         })?;
 
-        Ok(ShimResult::Created)
+        Ok(())
     }
 
     pub fn entry_to_shim_name((entry, _): (DirEntry, Metadata)) -> Option<String> {

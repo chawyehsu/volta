@@ -1,7 +1,7 @@
-use crate::support::sandbox::sandbox;
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{Tool, sandbox};
 
 use volta_core::error::ExitCode;
 
@@ -52,8 +52,14 @@ fn which_returns_unknown_error_when_binary_missing() {
 fn which_finds_default_node_binary() {
     let s = sandbox()
         .platform(&platform_with_node("10.99.1040"))
-        .setup_node_binary("10.99.1040", "6.2.26", "echo hello")
         .build();
+    s.tool(Tool::Node)
+        .version("10.99.1040")
+        .npm_file()
+        .write("6.2.26");
+    s.tool(Tool::Node)
+        .version("10.99.1040")
+        .binary("echo hello");
 
     assert_that!(
         s.volta("which node"),

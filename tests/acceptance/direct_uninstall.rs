@@ -2,10 +2,12 @@
 //! `yarn global remove`, which we support as alternatives to `volta uninstall`
 //! and which should use its logic.
 
-use crate::support::sandbox::{DistroMetadata, NodeFixture, Sandbox, Yarn1Fixture, sandbox};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{DistroMetadata, NodeFixture, Tool, Yarn1Fixture, sandbox};
+use volta_core::constant;
+use volta_core::error::ExitCode;
 
 fn platform_with_node(node: &str) -> String {
     format!(
@@ -132,12 +134,12 @@ fn npm_uninstall_uses_volta_logic() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::package_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
-    assert!(!Sandbox::package_image_exists("cowsay"));
+    assert!(!s.package_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
+    assert!(!s.package_image_exists("cowsay"));
 }
 
 #[test]
@@ -174,19 +176,19 @@ fn npm_uninstall_supports_multiples() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::package_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
-    assert!(!Sandbox::package_image_exists("cowsay"));
+    assert!(!s.package_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
+    assert!(!s.package_image_exists("cowsay"));
 
-    assert!(!Sandbox::package_config_exists("typescript"));
-    assert!(!Sandbox::bin_config_exists("tsc"));
-    assert!(!Sandbox::bin_config_exists("tsserver"));
-    assert!(!Sandbox::shim_exists("tsc"));
-    assert!(!Sandbox::shim_exists("tsserver"));
-    assert!(!Sandbox::package_image_exists("typescript"));
+    assert!(!s.package_config_exists("typescript"));
+    assert!(!s.bin_config_exists("tsc"));
+    assert!(!s.bin_config_exists("tsserver"));
+    assert!(!s.shim_exists("tsc"));
+    assert!(!s.shim_exists("tsserver"));
+    assert!(!s.package_image_exists("typescript"));
 }
 
 #[test]
@@ -203,6 +205,82 @@ fn npm_uninstall_without_packages_skips_volta_logic() {
             .with_status(0)
             .with_stdout_does_not_contain("[..]Volta is processing each package separately")
     );
+}
+
+#[test]
+fn npm_update_g_runtime_is_rejected() {
+    // updating a runtime through npm must be rejected, not routed to the
+    // uninstall logic, which would delete the cached versions
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .env("VOLTA_LOGLEVEL", "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("10.99.1040").image().create();
+
+    assert_that!(
+        s.npm("update -g node"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains("[..]Updating runtimes with `npm update -g` is not supported.")
+            .with_stderr_contains(
+                "[..]To update node, please use `volta install node@<version>[..]"
+            )
+    );
+
+    // the cached versions must be untouched
+    assert!(node.version("10.99.1040").image().exists());
+}
+
+#[test]
+fn yarn_update_g_runtime_is_rejected() {
+    // updating a runtime through yarn must be rejected, not routed to the
+    // uninstall logic, which would delete the cached versions
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .env("VOLTA_LOGLEVEL", "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("10.99.1040").image().create();
+
+    assert_that!(
+        s.yarn("global upgrade node"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains(
+                "[..]Updating runtimes with `yarn global upgrade` is not supported."
+            )
+            .with_stderr_contains(
+                "[..]To update node, please use `volta install node@<version>[..]"
+            )
+    );
+
+    // the cached versions must be untouched
+    assert!(node.version("10.99.1040").image().exists());
+}
+
+#[test]
+fn pnpm_update_g_runtime_is_rejected() {
+    // Volta does not yet intercept pnpm global commands: with the feature
+    // flag enabled, the pnpm shim rejects all globals, which still protects
+    // the cached versions from an update removing them
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
+        .env("VOLTA_LOGLEVEL", "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("10.99.1040").image().create();
+
+    assert_that!(
+        s.pnpm("update -g node"),
+        execs()
+            .with_status(ExitCode::ExecutionFailure as i32)
+            .with_stderr_contains("[..]pnpm global commands is not supported yet.")
+    );
+
+    // the cached versions must be untouched
+    assert!(node.version("10.99.1040").image().exists());
 }
 
 #[test]
@@ -229,12 +307,12 @@ fn yarn_remove_uses_volta_logic() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::package_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
-    assert!(!Sandbox::package_image_exists("cowsay"));
+    assert!(!s.package_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
+    assert!(!s.package_image_exists("cowsay"));
 }
 
 #[test]
@@ -271,19 +349,19 @@ fn yarn_remove_supports_multiples() {
     );
 
     // check that everything is deleted
-    assert!(!Sandbox::package_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowsay"));
-    assert!(!Sandbox::bin_config_exists("cowthink"));
-    assert!(!Sandbox::shim_exists("cowsay"));
-    assert!(!Sandbox::shim_exists("cowthink"));
-    assert!(!Sandbox::package_image_exists("cowsay"));
+    assert!(!s.package_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowsay"));
+    assert!(!s.bin_config_exists("cowthink"));
+    assert!(!s.shim_exists("cowsay"));
+    assert!(!s.shim_exists("cowthink"));
+    assert!(!s.package_image_exists("cowsay"));
 
-    assert!(!Sandbox::package_config_exists("typescript"));
-    assert!(!Sandbox::bin_config_exists("tsc"));
-    assert!(!Sandbox::bin_config_exists("tsserver"));
-    assert!(!Sandbox::shim_exists("tsc"));
-    assert!(!Sandbox::shim_exists("tsserver"));
-    assert!(!Sandbox::package_image_exists("typescript"));
+    assert!(!s.package_config_exists("typescript"));
+    assert!(!s.bin_config_exists("tsc"));
+    assert!(!s.bin_config_exists("tsserver"));
+    assert!(!s.shim_exists("tsc"));
+    assert!(!s.shim_exists("tsserver"));
+    assert!(!s.package_image_exists("typescript"));
 }
 
 #[test]
