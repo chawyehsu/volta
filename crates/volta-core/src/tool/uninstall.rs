@@ -190,8 +190,9 @@ pub(super) fn uninstall_runtime(
 /// Clears the removed tool's version from the global default platform.
 ///
 /// Returns whether the default was actually cleared. Node's default is left in
-/// place while pnpm or Yarn is also defaulted: a platform without Node cannot
-/// carry those managers, so unpinning Node would strand them.
+/// place while npm, pnpm, or Yarn is also defaulted: those managers live inside
+/// (or alongside) the Node entry and cannot outlive a node-less platform, so
+/// unpinning Node would strand them.
 fn unpin_default(
     tool: RuntimeTool,
     session: &mut Session,
@@ -199,7 +200,7 @@ fn unpin_default(
 ) -> Fallible<bool> {
     match tool {
         RuntimeTool::Node => {
-            if default.pnpm.is_some() || default.yarn.is_some() {
+            if default.npm.is_some() || default.pnpm.is_some() || default.yarn.is_some() {
                 return Ok(false);
             }
             session.toolchain_mut()?.clear_active_node()?;
@@ -222,22 +223,28 @@ fn orphaned_shims(tool: RuntimeTool, session: &mut Session) -> Fallible<Vec<&'st
 
     match tool {
         RuntimeTool::Node => {
-            let npm_cached = !inventory::npm_versions()?.is_empty();
+            // A Node default retained because a manager is still defaulted
+            // keeps every Node-provided shim relevant: the removed image will
+            // be re-fetched the next time any of them runs.
+            if session.default_platform()?.is_some() {
+                return Ok(Vec::new());
+            }
+
+            if inventory::npm_versions()?.is_empty() {
+                Ok(all.to_vec())
+            } else {
+                Ok(vec!["node"])
+            }
+        }
+        RuntimeTool::Npm => {
             let npm_default = session
                 .default_platform()?
                 .is_some_and(|platform| platform.npm.is_some());
 
-            if npm_cached || npm_default {
-                Ok(vec!["node"])
-            } else {
-                Ok(all.to_vec())
-            }
-        }
-        RuntimeTool::Npm => {
-            if inventory::node_versions()?.is_empty() {
-                Ok(all.to_vec())
-            } else {
+            if npm_default || !inventory::node_versions()?.is_empty() {
                 Ok(Vec::new())
+            } else {
+                Ok(all.to_vec())
             }
         }
         RuntimeTool::Pnpm | RuntimeTool::Yarn => Ok(all.to_vec()),

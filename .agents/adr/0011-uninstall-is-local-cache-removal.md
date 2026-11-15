@@ -9,7 +9,7 @@ We will treat `volta uninstall` as a purely local cache-removal operation with t
 - Tag-based specs (`node@latest`, `node@lts`, custom tags) are rejected with an error: resolving them requires the remote index, which uninstall never consults.
 - Removal deletes the unpacked image, the cached inventory archive, and, for Node, the bundled npm metadata file. Removing only the image would not reclaim the disk space that motivates the command.
 - Versions that are in use — pinned in the current project or recorded as the install-time platform of an installed global package — are skipped by range and bare-name matches, with a warning naming the reasons. When targeted by an exact version, they are removed with a warning instead. Their configuration (the project's `package.json`, the package config) is left untouched.
-- A version that is the global default is not protected: any matching spec (exact, range, or bare name) removes it and clears the tool from the global `platform.json`, so it is not re-downloaded. Node is the exception: its default is left in place while pnpm or Yarn is also defaulted, because a platform without Node cannot carry those managers.
+- A version that is the global default is not protected: any matching spec (exact, range, or bare name) removes it and clears the tool from the global `platform.json`, so it is not re-downloaded. Node is the exception: its default is left in place while npm, pnpm, or Yarn is also defaulted, because those managers cannot outlive a platform without Node.
 - The command stays non-interactive: no confirmation prompt and no force flag. A spec that matches nothing warns and exits 0; a hard filesystem error aborts remaining tools.
 - A `VoltaLock` is held during removal to prevent concurrent changes.
 
@@ -33,4 +33,4 @@ We will treat `volta uninstall` as a purely local cache-removal operation with t
 
 ## Revision
 
-- 2026-11-15: The global default is no longer skipped; removing it unpins it from `platform.json`, except for Node while pnpm or Yarn is defaulted. Uninstalling a tool's last cached version now removes the shims no remaining tool needs (see ADR 0013).
+- 2026-11-15: The global default is no longer skipped; removing it unpins it from `platform.json`, except for Node while npm, pnpm, or Yarn is defaulted. Uninstalling a tool's last cached version now removes the shims no remaining tool needs (see ADR 0013).

@@ -546,6 +546,37 @@ fn uninstall_runtime_keeps_default_when_manager_defaulted() {
 }
 
 #[test]
+fn uninstall_runtime_keeps_default_when_npm_defaulted() {
+    // an independent npm default lives inside the node entry, so removing node
+    // must keep the node pin or npm would become unusable
+    let s = sandbox()
+        .platform(&platform_with_node_npm("10.99.1040", "6.14.13"))
+        .shim("node")
+        .shim("npx")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    s.tool(Tool::Node).version("10.99.1040").image().create();
+    s.tool(Tool::Npm).version("6.14.13").image().create();
+
+    assert_that!(
+        s.volta("uninstall node@10.99.1040"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.99.1040' uninstalled")
+            .with_stdout_does_not_contain("unpinned 'node' from your default")
+    );
+
+    assert_eq!(
+        s.read_default_platform(),
+        platform_with_node_npm("10.99.1040", "6.14.13")
+    );
+    // the retained default keeps the node shims so it can be re-fetched
+    assert!(s.shim_exists("node"));
+    assert!(s.shim_exists("npm"));
+    assert!(s.shim_exists("npx"));
+}
+
+#[test]
 fn uninstall_runtime_broad_skips_package_dependency() {
     // a version depended on by an installed global package is skipped
     let s = sandbox()
