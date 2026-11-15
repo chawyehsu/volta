@@ -258,7 +258,16 @@ fn retire_exe(old: &Path) -> io::Result<Option<PathBuf>> {
     })?;
 
     let trash_dir = bin_dir.join(TRASH_DIR);
-    create_dir_all(&trash_dir)?;
+    create_dir_all(&trash_dir).map_err(|e| {
+        io::Error::new(
+            e.kind(),
+            format!(
+                "failed to create trash directory {}: {}",
+                trash_dir.display(),
+                e
+            ),
+        )
+    })?;
 
     let mut unique_name = old
         .file_name()
@@ -274,7 +283,15 @@ fn retire_exe(old: &Path) -> io::Result<Option<PathBuf>> {
     match fs::rename(old, &retired) {
         Ok(()) => Ok(Some(retired)),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(err) => Err(err),
+        Err(err) => Err(io::Error::new(
+            err.kind(),
+            format!(
+                "failed to rename {} to {}: {}",
+                old.display(),
+                retired.display(),
+                err
+            ),
+        )),
     }
 }
 
@@ -294,7 +311,10 @@ pub fn remove_or_retire(dst: &Path) -> io::Result<Option<PathBuf>> {
                 if is_file {
                     retire_exe(&dst)
                 } else {
-                    Err(error)
+                    Err(io::Error::new(
+                        error.kind(),
+                        format!("failed to remove {}: {}", dst.display(), error),
+                    ))
                 }
             }
         }
@@ -304,7 +324,10 @@ pub fn remove_or_retire(dst: &Path) -> io::Result<Option<PathBuf>> {
         match fs::remove_file(dst) {
             Ok(()) => Ok(None),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(error),
+            Err(error) => Err(io::Error::new(
+                error.kind(),
+                format!("failed to remove {}: {}", dst.display(), error),
+            )),
         }
     }
 }
@@ -339,12 +362,36 @@ pub fn replace_exe(new: &Path, old: &Path) -> io::Result<()> {
             format!("destination {} has no parent directory", dest.display()),
         )
     })?;
-    let staged = tempfile::NamedTempFile::new_in(parent)?;
-    fs::copy(new, staged.path())?;
+    let staged = tempfile::NamedTempFile::new_in(parent).map_err(|e| {
+        io::Error::new(
+            e.kind(),
+            format!("failed to stage executable for {}: {}", dest.display(), e),
+        )
+    })?;
+    fs::copy(new, staged.path()).map_err(|e| {
+        io::Error::new(
+            e.kind(),
+            format!(
+                "failed to copy {} to {}: {}",
+                new.display(),
+                staged.path().display(),
+                e
+            ),
+        )
+    })?;
 
     #[cfg(not(target_os = "windows"))]
     {
-        fs::set_permissions(staged.path(), fs::Permissions::from_mode(0o755))?;
+        fs::set_permissions(staged.path(), fs::Permissions::from_mode(0o755)).map_err(|e| {
+            io::Error::new(
+                e.kind(),
+                format!(
+                    "failed to set permissions for {}: {}",
+                    staged.path().display(),
+                    e
+                ),
+            )
+        })?;
     }
 
     #[cfg(target_os = "windows")]
@@ -357,7 +404,15 @@ pub fn replace_exe(new: &Path, old: &Path) -> io::Result<()> {
             if let Some(retired) = retired {
                 let _ = fs::rename(&retired, &dest);
             }
-            Err(error.error)
+            Err(io::Error::new(
+                error.error.kind(),
+                format!(
+                    "failed to replace {} with {}: {}",
+                    dest.display(),
+                    new.display(),
+                    error.error
+                ),
+            ))
         }
     }
 }
