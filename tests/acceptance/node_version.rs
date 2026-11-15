@@ -1,7 +1,7 @@
-use crate::support::sandbox::{DistroMetadata, NpmFixture, sandbox};
 use hamcrest2::assert_that;
 use hamcrest2::prelude::*;
-use test_support::matchers::execs;
+use testkit::matchers::execs;
+use testkit::sandbox::{DistroMetadata, NpmFixture, Tool, sandbox};
 
 use volta_core::error::ExitCode;
 
@@ -46,7 +46,7 @@ fn list_node_from_standalone_node_version() {
         .project_file(".node-version", "10.99.1040\n")
         .build();
 
-    s.create_node_image("10.99.1040");
+    s.tool(Tool::Node).version("10.99.1040").image().create();
 
     assert_that!(
         s.volta("list --format plain node"),
@@ -64,7 +64,7 @@ fn list_node_from_walked_up_node_version() {
         .project_file("subdir/.keep", "")
         .build();
 
-    s.create_node_image("10.99.1040");
+    s.tool(Tool::Node).version("10.99.1040").image().create();
 
     let mut command = s.volta("list --format plain node");
     command.cwd(s.root().join("subdir"));
@@ -84,7 +84,7 @@ fn list_node_from_partial_node_version() {
         .node_available_versions(NODE_VERSION_INFO)
         .build();
 
-    s.create_node_image("10.99.1040");
+    s.tool(Tool::Node).version("10.99.1040").image().create();
 
     assert_that!(
         s.volta("list --format plain node"),
@@ -101,7 +101,7 @@ fn package_json_node_wins_over_node_version() {
         .project_file(".node-version", "lts/*\n")
         .build();
 
-    s.create_node_image("10.99.1040");
+    s.tool(Tool::Node).version("10.99.1040").image().create();
 
     assert_that!(
         s.volta("list --format plain node"),
@@ -149,8 +149,8 @@ fn package_managers_merge_with_node_version() {
         .project_file(".node-version", "10.99.1040\n")
         .build();
 
-    s.create_node_image("10.99.1040");
-    s.create_npm_image("6.2.26");
+    s.tool(Tool::Node).version("10.99.1040").image().create();
+    s.tool(Tool::Npm).version("6.2.26").image().create();
 
     assert_that!(
         s.volta("list --format plain node"),
