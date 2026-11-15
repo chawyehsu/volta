@@ -30,9 +30,13 @@ pub fn shim_names_for_tool(tool: &str) -> &'static [&'static str] {
 /// not fail the tool installation that triggered it.
 pub fn ensure_shims_for_tool(tool: &str) {
     // Refresh of a running shim on Windows retires the old copy into the shared
-    // trash directory. Clear it before creating shims so it does not accumulate.
+    // trash directory (or a per-directory fallback). Clear both before creating
+    // shims so they do not accumulate.
     #[cfg(windows)]
-    crate::fs::cleanup_shared_trash();
+    if let Ok(home) = volta_home() {
+        crate::fs::cleanup_shared_trash();
+        crate::fs::cleanup_retired_executables(home.shim_dir());
+    }
 
     for name in shim_names_for_tool(tool) {
         if let Err(err) = platform::ensure_shim(name) {

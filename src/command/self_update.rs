@@ -271,7 +271,10 @@ fn validate_staged_binaries(dir: &Path) -> Fallible<StagedBinaries> {
 
 fn install_staged(staged: StagedBinaries, install: &Path) -> Fallible<()> {
     #[cfg(windows)]
-    volta_core::fs::cleanup_shared_trash();
+    {
+        volta_core::fs::cleanup_shared_trash();
+        volta_core::fs::cleanup_retired_executables(install);
+    }
 
     let binaries = [
         ("volta", Some(staged.main)),
@@ -318,7 +321,10 @@ fn install_staged(staged: StagedBinaries, install: &Path) -> Fallible<()> {
         }
     }
     #[cfg(windows)]
-    volta_core::fs::cleanup_shared_trash();
+    {
+        volta_core::fs::cleanup_shared_trash();
+        volta_core::fs::cleanup_retired_executables(install);
+    }
     Ok(())
 }
 
