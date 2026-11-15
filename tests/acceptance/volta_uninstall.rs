@@ -802,6 +802,30 @@ fn uninstall_keeps_shims_for_project_pin_yarn() {
 }
 
 #[test]
+fn uninstall_keeps_shims_for_package_platform() {
+    // a global package records its install-time platform, which still needs
+    // Volta dispatch after the matching runtime version is uninstalled
+    let s = sandbox()
+        .package_config("cowsay", PKG_CONFIG_BASIC)
+        .without_default_shims()
+        .shim("node")
+        .shim("npm")
+        .shim("npx")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    s.tool(Tool::Node).version("11.10.1").image().create();
+
+    assert_that!(s.volta("uninstall node@11.10.1"), execs().with_status(0));
+
+    assert!(s.shim_exists("node"));
+    assert!(s.shim_exists("npm"));
+    assert!(s.shim_exists("npx"));
+    assert!(s.shim_exe_exists("node"));
+    assert!(s.shim_exe_exists("npm"));
+    assert!(s.shim_exe_exists("npx"));
+}
+
+#[test]
 fn uninstall_node_keeps_npm_shims_when_npm_cached() {
     // node provides npm and npx too, so those shims survive node's removal
     // while a standalone npm is still cached

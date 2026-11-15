@@ -112,17 +112,17 @@ pub(super) fn uninstall_runtime(
     }
 
     let exact = matches!(spec, VersionSpec::Exact(_));
-    let (in_use, error) = InUseVersions::collect(session);
+    let (mut in_use, mut error) = InUseVersions::collect(session);
 
     // In-use detection is best-effort for explicit removals: a malformed
     // project manifest or package config should not block a version the
     // user named exactly, though the references that could still be read
     // are preserved for the warnings. Broad removals stay strict, since
     // the discovered references are what protect those versions.
-    if let Some(err) = error {
-        if !exact {
-            return Err(err);
-        }
+    if !exact && let Some(err) = error.take() {
+        return Err(err);
+    }
+    if let Some(err) = &error {
         warn!(
             "Unable to fully determine in-use versions ({}); removing '{}' anyway",
             err,
@@ -155,14 +155,15 @@ pub(super) fn uninstall_runtime(
         // Unpin as soon as the default's version is gone, so a later removal
         // failure cannot leave `platform.json` pointing at a deleted version.
         if reasons.default
-            && let Some(default) = &in_use.default
-            && unpin_default(tool, session, default)?
+            && let Some(default) = in_use.default.clone()
+            && unpin_default(tool, session, &default)?
         {
             info!(
                 "{} unpinned '{}' from your default",
                 success_prefix(),
                 tool.name()
             );
+            in_use.clear_default(tool);
         }
 
         for message in reasons.removal_warnings(&versioned) {
@@ -171,27 +172,23 @@ pub(super) fn uninstall_runtime(
     }
 
     // Once a tool has no cached versions left, drop the shims no remaining
-    // tool still needs. Shims are shared between tools (node provides npm and
-    // npx, for example), so the decision is made per shim, not per tool.
+    // reference still needs. Shims are shared between tools (node provides npm
+    // and npx, for example), so the decision is made per shim, not per tool.
     if removed_any && tool.cached_versions()?.is_empty() {
         // Cleanup is best-effort: the versions and config are already updated,
-        // so a failure here must not fail the command. In particular, a
-        // malformed `platform.json` was tolerated during in-use collection and
-        // must stay tolerated here.
-        let default = match session.default_platform() {
-            Ok(platform) => platform.cloned(),
-            Err(err) => {
-                warn!(
-                    "Unable to read the default platform ({}); skipping shim cleanup",
-                    err
-                );
-                return Ok(());
-            }
-        };
-
-        for name in orphaned_shims(tool, in_use.project.as_ref(), default.as_ref())? {
-            if let Err(err) = shim::delete_tool_shim(name) {
-                warn!("Unable to remove shim `{}`: {}", name, err);
+        // so a failure here must not fail the command. If the references could
+        // not be fully read, keep the shims rather than risk deleting one that
+        // a project or package still needs.
+        if let Some(err) = &error {
+            warn!(
+                "Unable to fully determine in-use references ({}); skipping shim cleanup",
+                err
+            );
+        } else {
+            for name in orphaned_shims(tool, &in_use)? {
+                if let Err(err) = shim::delete_tool_shim(name) {
+                    warn!("Unable to remove shim `{}`: {}", name, err);
+                }
             }
         }
     }
@@ -227,27 +224,23 @@ fn unpin_default(
 
 /// The shims left orphaned once a tool has no cached versions.
 ///
-/// A shim is only orphaned when no cached version, default, or project pin
-/// still needs it. Node shares `npm` and `npx` with the npm tool, so those
-/// shims survive when npm is cached or defaulted; conversely, `npm` and `npx`
-/// survive while a Node default or project pin exists, even uncached, because
-/// that reference supplies bundled npm.
+/// A shim is only orphaned when no cached version, default, project pin, or
+/// global package still needs it. Node shares `npm` and `npx` with the npm
+/// tool, so those shims survive when npm is cached or referenced; conversely,
+/// `npm` and `npx` survive while Node is still referenced, even uncached,
+/// because that reference supplies bundled npm.
 ///
-/// `project` is the current project's platform (uninstall never modifies it),
-/// and `default` is the post-unpin default platform.
-fn orphaned_shims(
-    tool: RuntimeTool,
-    project: Option<&PlatformSpec>,
-    default: Option<&PlatformSpec>,
-) -> Fallible<Vec<&'static str>> {
+/// `in_use` reflects the post-unpin default, so the removed default no longer
+/// keeps its own shims alive.
+fn orphaned_shims(tool: RuntimeTool, in_use: &InUseVersions) -> Fallible<Vec<&'static str>> {
     let all = shim::shim_names_for_tool(tool.name());
 
     match tool {
         RuntimeTool::Node => {
-            // A retained Node default or a project pin keeps every
-            // Node-provided shim relevant: the removed image will be
-            // re-fetched the next time any of them runs.
-            if default.is_some() || project_references(project, tool) {
+            // Any retained Node reference keeps every Node-provided shim
+            // relevant: the removed image will be re-fetched the next time any
+            // of them runs.
+            if in_use.references_tool(tool) {
                 return Ok(Vec::new());
             }
 
@@ -258,11 +251,11 @@ fn orphaned_shims(
             }
         }
         RuntimeTool::Npm => {
-            // A Node default or project pin supplies bundled npm even when no
-            // Node image is cached, so npm and npx must keep dispatching
-            // through Volta rather than falling back to the system.
+            // A Node reference supplies bundled npm even when no Node image is
+            // cached, so npm and npx must keep dispatching through Volta
+            // rather than falling back to the system.
             let node_referenced =
-                default.is_some() || project_references(project, RuntimeTool::Node);
+                in_use.references_tool(tool) || in_use.references_tool(RuntimeTool::Node);
 
             if node_referenced || !inventory::node_versions()?.is_empty() {
                 Ok(Vec::new())
@@ -271,18 +264,13 @@ fn orphaned_shims(
             }
         }
         RuntimeTool::Pnpm | RuntimeTool::Yarn => {
-            if project_references(project, tool) {
+            if in_use.references_tool(tool) {
                 Ok(Vec::new())
             } else {
                 Ok(all.to_vec())
             }
         }
     }
-}
-
-/// Whether a project platform pins the given tool.
-fn project_references(project: Option<&PlatformSpec>, tool: RuntimeTool) -> bool {
-    project.is_some_and(|platform| spec_version(platform, tool).is_some())
 }
 
 /// Removes all locally cached copies of a version of a tool:
@@ -400,6 +388,41 @@ impl InUseVersions {
             },
             error,
         )
+    }
+
+    /// Whether any reference still names the given tool: the global default,
+    /// the current project, or an installed global package.
+    fn references_tool(&self, tool: RuntimeTool) -> bool {
+        let references = |platform: &PlatformSpec| spec_version(platform, tool).is_some();
+
+        self.default.as_ref().is_some_and(references)
+            || self.project.as_ref().is_some_and(references)
+            || self
+                .packages
+                .iter()
+                .any(|config| references(&config.platform))
+    }
+
+    /// Update the cached default after the given tool was unpinned.
+    fn clear_default(&mut self, tool: RuntimeTool) {
+        match tool {
+            RuntimeTool::Node => self.default = None,
+            RuntimeTool::Npm => {
+                if let Some(platform) = self.default.as_mut() {
+                    platform.npm = None;
+                }
+            }
+            RuntimeTool::Pnpm => {
+                if let Some(platform) = self.default.as_mut() {
+                    platform.pnpm = None;
+                }
+            }
+            RuntimeTool::Yarn => {
+                if let Some(platform) = self.default.as_mut() {
+                    platform.yarn = None;
+                }
+            }
+        }
     }
 
     fn reasons_for(&self, tool: RuntimeTool, version: &Version) -> InUseReasons {

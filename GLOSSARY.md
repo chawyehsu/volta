@@ -59,7 +59,7 @@ The executable stub in the Volta bin directory that dispatches a command to the 
 _Avoid_: proxy, wrapper
 
 **Tool shim**:
-A shim created when a runtime tool is installed or pinned, so that the tool's commands are available through Volta; it is removed when the tool's last cached version is uninstalled and no other tool still provides it.
+A shim created when a runtime tool is installed or pinned, so that the tool's commands are available through Volta; it is removed when the tool's last cached version is uninstalled and no default, project pin, or global package still needs it.
 _Avoid_: on-demand shim, install shim
 
 **Default shim**:
