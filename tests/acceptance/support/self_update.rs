@@ -201,6 +201,15 @@ impl FixtureRelease {
     }
 
     pub fn serve(&self, sandbox: &mut Sandbox) -> FixtureMocks {
+        self.serve_at(sandbox, "/repos/chawyehsu/volta/releases/latest")
+    }
+
+    pub fn serve_requested(&self, sandbox: &mut Sandbox) -> FixtureMocks {
+        let path = format!("/repos/chawyehsu/volta/releases/tags/v{}", self.version);
+        self.serve_at(sandbox, &path)
+    }
+
+    fn serve_at(&self, sandbox: &mut Sandbox, release_path: &str) -> FixtureMocks {
         let server_url = sandbox.server().url();
         let (host_triplet, host_format) = host_target();
         let archive_name = if self.legacy_names {
@@ -270,7 +279,7 @@ impl FixtureRelease {
 
         let release = sandbox
             .server()
-            .mock("GET", "/repos/chawyehsu/volta/releases/latest")
+            .mock("GET", release_path)
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(release_body)

@@ -3,10 +3,12 @@ use clap::Args;
 use self_update::{Release, ReleaseAsset};
 use sha2::{Digest, Sha256};
 use std::{
+    cmp::Ordering,
     env,
     fs::File,
     io::Read,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 use volta_core::{
     error::{ErrorKind, ExitCode, Fallible, VoltaError},
@@ -20,8 +22,38 @@ const MAX_ARCHIVE_SIZE: u64 = 100 * 1024 * 1024;
 const MAX_EXTRACTED_SIZE: u64 = 512 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES: usize = 1024;
 
+#[derive(Clone, Debug)]
+pub(crate) struct RequestedVersion {
+    tag: String,
+    version: node_semver::Version,
+}
+
+impl RequestedVersion {
+    fn tag(&self) -> &str {
+        &self.tag
+    }
+}
+
+impl FromStr for RequestedVersion {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let trimmed = value.trim();
+        let bare = trimmed.strip_prefix('v').unwrap_or(trimmed);
+        let version = node_semver::Version::parse(bare)
+            .map_err(|error| format!("invalid version `{value}`: {error}"))?;
+        Ok(Self {
+            tag: format!("v{bare}"),
+            version,
+        })
+    }
+}
+
 #[derive(Args)]
-pub(crate) struct SelfUpdate {}
+pub(crate) struct SelfUpdate {
+    /// The version to update to (defaults to the latest version)
+    version: Option<RequestedVersion>,
+}
 
 pub(crate) fn fail(message: impl Into<String>) -> VoltaError {
     ErrorKind::SelfUpdateError {
@@ -141,11 +173,14 @@ fn extract_archive(archive_path: &Path, format: &str, destination: &Path) -> Fal
         .map_err(|e| fail(e.to_string()))
 }
 
-/// Fetches the latest release from GitHub for the current repository.
+/// Resolves the release to install: the latest release, or a specifically requested tag.
 ///
 /// If an API base URL is provided, it will be used instead of the default GitHub API URL.
 /// Custom API base URLs are useful for local testing.
-fn fetch_latest_release(api_base_url: Option<&str>) -> Fallible<Release> {
+fn resolve_release(
+    api_base_url: Option<&str>,
+    requested: Option<&RequestedVersion>,
+) -> Fallible<Release> {
     let mut builder = self_update::backends::github::Update::configure();
     builder
         .repo_owner("chawyehsu")
@@ -155,14 +190,21 @@ fn fetch_latest_release(api_base_url: Option<&str>) -> Fallible<Release> {
     if let Some(url) = api_base_url {
         builder.api_base_url(url);
     }
-    builder
-        .build()
-        .map_err(|e| fail(e.to_string()))?
-        .get_latest_release()
-        .map_err(|e| fail(e.to_string()))?
-        .latest()
-        .cloned()
-        .ok_or_else(|| fail("GitHub returned no releases"))
+    let update = builder.build().map_err(|e| fail(e.to_string()))?;
+    match requested {
+        Some(requested) => update
+            .get_release_version(requested.tag())
+            .map_err(|error| match error.http_status() {
+                Some(404) => fail(format!("release {} not found", requested.tag())),
+                _ => fail(error.to_string()),
+            }),
+        None => update
+            .get_latest_release()
+            .map_err(|e| fail(e.to_string()))?
+            .latest()
+            .cloned()
+            .ok_or_else(|| fail("GitHub returned no releases")),
+    }
 }
 
 #[derive(Debug)]
@@ -317,7 +359,7 @@ fn target() -> Option<(&'static str, &'static str)> {
 impl Command for SelfUpdate {
     fn run(self, session: &mut Session) -> Fallible<ExitCode> {
         session.add_event_start(ActivityKind::SelfUpdate);
-        let result = update();
+        let result = update(self.version.as_ref());
         match result {
             Ok(()) => {
                 session.add_event_end(ActivityKind::SelfUpdate, ExitCode::Success);
@@ -344,17 +386,40 @@ fn api_base_url() -> Option<String> {
     None
 }
 
-fn update() -> Fallible<()> {
+fn update(requested: Option<&RequestedVersion>) -> Fallible<()> {
     let (triplet, format) = target().ok_or_else(|| fail("unsupported target"))?;
     let _lock = VoltaLock::acquire()?;
     let current_version = env!("CARGO_PKG_VERSION");
-    let release = fetch_latest_release(api_base_url().as_deref())?;
-    let is_greater = self_update::version::bump_is_greater(current_version, release.version())
-        .ok()
-        .unwrap_or(false);
-    if !is_greater && env::var_os("VOLTA_TEST_FORCE_SELFUPDATE").is_none() {
-        println!("volta is already up-to-date");
-        return Ok(());
+    let forced = env::var_os("VOLTA_TEST_FORCE_SELFUPDATE").is_some();
+
+    if let Some(requested) = requested
+        && !forced
+    {
+        let current = node_semver::Version::parse(current_version)
+            .map_err(|error| fail(format!("invalid current version: {error}")))?;
+        match requested.version.cmp(&current) {
+            Ordering::Greater => {}
+            Ordering::Equal => {
+                println!("volta is already up-to-date");
+                return Ok(());
+            }
+            Ordering::Less => {
+                println!("downgrade is not supported");
+                return Ok(());
+            }
+        }
+    }
+
+    let release = resolve_release(api_base_url().as_deref(), requested)?;
+
+    if requested.is_none() && !forced {
+        let is_greater = self_update::version::bump_is_greater(current_version, release.version())
+            .ok()
+            .unwrap_or(false);
+        if !is_greater {
+            println!("volta is already up-to-date");
+            return Ok(());
+        }
     }
 
     println!(
@@ -406,13 +471,14 @@ fn update() -> Fallible<()> {
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "mock-network")]
-    use super::fetch_latest_release;
+    use super::resolve_release;
     use super::{
-        StagedBinaries, extract_archive, install_staged, parse_checksum, rollback_install,
-        select_assets, validate_archive_limits, validate_staged_binaries,
+        RequestedVersion, StagedBinaries, extract_archive, install_staged, parse_checksum,
+        rollback_install, select_assets, validate_archive_limits, validate_staged_binaries,
     };
     use self_update::{Release, ReleaseAsset};
     use std::fs;
+    use std::str::FromStr;
     use tempfile::TempDir;
 
     const DIGEST: &str = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
@@ -432,6 +498,23 @@ mod tests {
     #[test]
     fn rejects_empty_checksum() {
         assert!(parse_checksum("\n").is_err());
+    }
+
+    #[test]
+    fn parses_bare_and_v_prefixed_versions() {
+        let bare = RequestedVersion::from_str("9.9.9").unwrap();
+        let prefixed = RequestedVersion::from_str("v9.9.9").unwrap();
+
+        assert_eq!(bare.tag(), "v9.9.9");
+        assert_eq!(prefixed.tag(), "v9.9.9");
+        assert_eq!(bare.version, prefixed.version);
+    }
+
+    #[test]
+    fn rejects_partial_and_range_versions() {
+        assert!(RequestedVersion::from_str("2.0").is_err());
+        assert!(RequestedVersion::from_str("2.x").is_err());
+        assert!(RequestedVersion::from_str("^2.0.0").is_err());
     }
 
     #[test]
@@ -769,10 +852,53 @@ mod tests {
             .with_body(body)
             .create();
 
-        let release = fetch_latest_release(Some(&server.url())).unwrap();
+        let release = resolve_release(Some(&server.url()), None).unwrap();
         mock.assert();
         assert_eq!(release.version(), "2.0.4");
         assert_eq!(release.assets().len(), 2);
         assert_eq!(release.assets()[0].digest(), Some("sha256:abc"));
+    }
+
+    #[cfg(feature = "mock-network")]
+    #[test]
+    fn fetches_requested_release_from_the_tag_endpoint() {
+        let mut server = mockito::Server::new();
+        let body = r#"{
+            "tag_name": "v9.9.9",
+            "name": "Volta 9.9.9",
+            "created_at": "2026-01-01T00:00:00Z",
+            "html_url": "https://example.invalid/releases/v9.9.9",
+            "assets": [
+                {"name": "volta-x86_64-apple-darwin.tar.gz", "url": "https://example.invalid/api/archive", "browser_download_url": "PLACEHOLDER", "digest": "sha256:abc", "created_at": "2026-01-01T00:00:00Z"},
+                {"name": "volta-x86_64-apple-darwin.tar.gz.sha256", "url": "https://example.invalid/api/checksum", "browser_download_url": "PLACEHOLDER", "created_at": "2026-01-01T00:00:00Z"}
+            ]
+        }"#;
+        let mock = server
+            .mock("GET", "/repos/chawyehsu/volta/releases/tags/v9.9.9")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(body)
+            .create();
+
+        let requested = RequestedVersion::from_str("9.9.9").unwrap();
+        let release = resolve_release(Some(&server.url()), Some(&requested)).unwrap();
+        mock.assert();
+        assert_eq!(release.version(), "9.9.9");
+        assert_eq!(release.assets().len(), 2);
+    }
+
+    #[cfg(feature = "mock-network")]
+    #[test]
+    fn maps_a_missing_requested_release_to_not_found() {
+        let mut server = mockito::Server::new();
+        let mock = server
+            .mock("GET", "/repos/chawyehsu/volta/releases/tags/v9.9.9")
+            .with_status(404)
+            .create();
+
+        let requested = RequestedVersion::from_str("9.9.9").unwrap();
+        let error = resolve_release(Some(&server.url()), Some(&requested)).unwrap_err();
+        mock.assert();
+        assert!(format!("{error}").contains("release v9.9.9 not found"));
     }
 }
