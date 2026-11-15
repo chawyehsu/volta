@@ -465,7 +465,10 @@ fn update(requested: Option<&RequestedVersion>) -> Fallible<()> {
     let install = volta_install()?;
 
     let staged = validate_staged_binaries(&extracted)?;
-    install_staged(staged, install.root())
+    install_staged(staged, install.root())?;
+
+    println!("Volta has been updated to version {}", release.version());
+    Ok(())
 }
 
 #[cfg(test)]
