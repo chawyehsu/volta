@@ -727,6 +727,33 @@ fn uninstall_npm_keeps_shims_when_node_cached() {
 }
 
 #[test]
+fn uninstall_npm_keeps_shims_when_node_default_remains() {
+    // an independent node+npm default: uninstalling node retains the node pin
+    // (for npm), then uninstalling the last npm leaves the node default, which
+    // still supplies bundled npm even though no node image is cached
+    let s = sandbox()
+        .platform(&platform_with_node_npm("10.99.1040", "6.14.13"))
+        .shim("node")
+        .shim("npx")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    s.tool(Tool::Node).version("10.99.1040").image().create();
+    s.tool(Tool::Npm).version("6.14.13").image().create();
+
+    assert_that!(s.volta("uninstall node@10.99.1040"), execs().with_status(0));
+    assert_eq!(
+        s.read_default_platform(),
+        platform_with_node_npm("10.99.1040", "6.14.13")
+    );
+
+    assert_that!(s.volta("uninstall npm@6.14.13"), execs().with_status(0));
+    assert_eq!(s.read_default_platform(), platform_with_node("10.99.1040"));
+
+    assert!(s.shim_exists("npm"));
+    assert!(s.shim_exists("npx"));
+}
+
+#[test]
 fn uninstall_npm_exact() {
     // uninstalling an exact npm version removes the unpacked image and the
     // cached archive

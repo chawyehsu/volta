@@ -217,7 +217,9 @@ fn unpin_default(
 ///
 /// A shim is only orphaned when no other tool that is still cached or still
 /// defaulted provides it. Node shares `npm` and `npx` with the npm tool, so
-/// those shims survive when npm is still cached or defaulted.
+/// those shims survive when npm is cached or defaulted; conversely, `npm` and
+/// `npx` survive while a Node default exists, even uncached, because that
+/// default supplies bundled npm.
 fn orphaned_shims(tool: RuntimeTool, session: &mut Session) -> Fallible<Vec<&'static str>> {
     let all = shim::shim_names_for_tool(tool.name());
 
@@ -237,11 +239,12 @@ fn orphaned_shims(tool: RuntimeTool, session: &mut Session) -> Fallible<Vec<&'st
             }
         }
         RuntimeTool::Npm => {
-            let npm_default = session
-                .default_platform()?
-                .is_some_and(|platform| platform.npm.is_some());
+            // A retained Node default supplies bundled npm even when no Node
+            // image is cached, so npm and npx must keep dispatching through
+            // Volta rather than falling back to the system.
+            let node_default = session.default_platform()?.is_some();
 
-            if npm_default || !inventory::node_versions()?.is_empty() {
+            if node_default || !inventory::node_versions()?.is_empty() {
                 Ok(Vec::new())
             } else {
                 Ok(all.to_vec())
