@@ -42,7 +42,7 @@ jobs:
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@9936258fee697aff89b3fed6ca1f80a382ef694e # v0.11.3
         with:
-          run-install: false
+          environments: coverage
           cache: true
           cache-write: ${{ github.ref == 'refs/heads/main' }}
           cache-key: pixi-coverage-
