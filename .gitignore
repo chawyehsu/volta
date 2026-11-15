@@ -1,4 +1,6 @@
 /target/
+/.kache/
+/.kache-runtime/
 **/*.rs.bk
 Notion.msi
 Volta.msi
