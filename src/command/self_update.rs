@@ -271,7 +271,7 @@ fn validate_staged_binaries(dir: &Path) -> Fallible<StagedBinaries> {
 
 fn install_staged(staged: StagedBinaries, install: &Path) -> Fallible<()> {
     #[cfg(windows)]
-    crate::utils::cleanup_retired_executables(install);
+    volta_core::fs::cleanup_shared_trash();
 
     let binaries = [
         ("volta", Some(staged.main)),
@@ -318,7 +318,7 @@ fn install_staged(staged: StagedBinaries, install: &Path) -> Fallible<()> {
         }
     }
     #[cfg(windows)]
-    crate::utils::cleanup_retired_executables(install);
+    volta_core::fs::cleanup_shared_trash();
     Ok(())
 }
 
@@ -723,7 +723,7 @@ mod tests {
         let keep = trash.join("keep");
         fs::create_dir(&keep).unwrap();
 
-        crate::utils::cleanup_retired_executables(dir.path());
+        volta_core::fs::cleanup_retired_executables(dir.path());
 
         assert!(!retired.exists());
         assert!(keep.exists());

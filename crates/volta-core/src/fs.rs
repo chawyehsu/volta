@@ -241,6 +241,27 @@ pub fn file_sha256(path: &Path) -> io::Result<[u8; 32]> {
 #[cfg(target_os = "windows")]
 const TRASH_DIR: &str = ".trash";
 
+/// The shared trash directory, under the Volta home tmp directory.
+///
+/// Retired executables from both self-update and shim refresh are moved here so
+/// they do not accumulate next to the binaries. Renaming only works within a
+/// single volume, so callers fall back to a per-directory trash when this one is
+/// on a different volume.
+#[cfg(target_os = "windows")]
+fn shared_trash_dir() -> Option<PathBuf> {
+    crate::layout::volta_home()
+        .ok()
+        .map(|home| home.tmp_dir().join(TRASH_DIR))
+}
+
+/// Remove retired executables from the shared trash directory.
+#[cfg(windows)]
+pub fn cleanup_shared_trash() {
+    if let Some(trash_dir) = shared_trash_dir() {
+        cleanup_trash_dir(&trash_dir);
+    }
+}
+
 /// Move `old` to a unique name so the live name is freed immediately, even while
 /// the file is still mapped by a running process (Windows permits renaming but
 /// not deleting a running image).
@@ -250,13 +271,33 @@ fn retire_exe(old: &Path) -> io::Result<Option<PathBuf>> {
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
 
+    let mut unique_name = old
+        .file_name()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "retired exe has no file name"))?
+        .to_os_string();
+
+    let pid = std::process::id();
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    unique_name.push(format!(".old.{pid}.{n}"));
+
+    // Prefer the shared trash directory. If it lives on another volume, the
+    // rename fails and we fall back to a trash directory beside the source.
+    if let Some(shared) = shared_trash_dir()
+        && create_dir_all(&shared).is_ok()
+    {
+        match rename_into_trash(old, &shared, &unique_name) {
+            Ok(retired) => return Ok(retired),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(_) => {}
+        }
+    }
+
     let bin_dir = old.parent().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
             "exe to retire has no parent directory",
         )
     })?;
-
     let trash_dir = bin_dir.join(TRASH_DIR);
     create_dir_all(&trash_dir).map_err(|e| {
         io::Error::new(
@@ -269,17 +310,18 @@ fn retire_exe(old: &Path) -> io::Result<Option<PathBuf>> {
         )
     })?;
 
-    let mut unique_name = old
-        .file_name()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "retired exe has no file name"))?
-        .to_os_string();
+    rename_into_trash(old, &trash_dir, &unique_name)
+}
 
-    let pid = std::process::id();
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    unique_name.push(format!(".old.{pid}.{n}"));
-
-    let retired = trash_dir.join(&unique_name);
-
+/// Rename `old` into `trash_dir`, returning the retired path (or `None` if the
+/// source no longer exists).
+#[cfg(target_os = "windows")]
+fn rename_into_trash(
+    old: &Path,
+    trash_dir: &Path,
+    unique_name: &std::ffi::OsStr,
+) -> io::Result<Option<PathBuf>> {
+    let retired = trash_dir.join(unique_name);
     match fs::rename(old, &retired) {
         Ok(()) => Ok(Some(retired)),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
@@ -335,8 +377,13 @@ pub fn remove_or_retire(dst: &Path) -> io::Result<Option<PathBuf>> {
 /// Remove any executables that were retired during a previous replacement.
 #[cfg(windows)]
 pub fn cleanup_retired_executables(install: &Path) {
-    let trash_dir = install.join(TRASH_DIR);
-    let Ok(entries) = fs::read_dir(&trash_dir) else {
+    cleanup_trash_dir(&install.join(TRASH_DIR));
+}
+
+/// Remove the files inside a trash directory, ignoring any that are still in use.
+#[cfg(windows)]
+fn cleanup_trash_dir(trash_dir: &Path) {
+    let Ok(entries) = fs::read_dir(trash_dir) else {
         return;
     };
     for entry in entries.flatten() {

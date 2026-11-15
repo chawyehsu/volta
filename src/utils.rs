@@ -5,8 +5,6 @@ use volta_core::fs;
 
 use crate::command::self_update::fail;
 
-#[cfg(windows)]
-pub(crate) use volta_core::fs::cleanup_retired_executables;
 pub(crate) use volta_core::fs::exe_path;
 
 pub(crate) fn remove_or_retire(dst: &Path) -> Fallible<Option<PathBuf>> {
