@@ -4,6 +4,7 @@ use std::fmt::{self, Display};
 use crate::error::{ErrorKind, Fallible};
 use crate::inventory::pnpm_available;
 use crate::session::Session;
+use crate::shim::ensure_shims_for_tool;
 use crate::style::tool_version;
 use crate::sync::VoltaLock;
 
@@ -64,6 +65,7 @@ impl Tool for Pnpm {
             .set_active_pnpm(Some(self.version.clone()))?;
 
         info_installed(&self);
+        ensure_shims_for_tool("pnpm");
         check_shim_reachable("pnpm");
 
         if let Ok(Some(project)) = session.project_platform() {
@@ -83,6 +85,7 @@ impl Tool for Pnpm {
             project.pin_pnpm(Some(self.version.clone()))?;
 
             info_pinned(self);
+            ensure_shims_for_tool("pnpm");
             Ok(())
         } else {
             Err(ErrorKind::NotInPackage.into())

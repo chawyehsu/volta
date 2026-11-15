@@ -54,6 +54,14 @@ _Avoid_: wrapper script, bootstrap
 The executable stub in the Volta bin directory that dispatches a command to the tool version selected by the active platform.
 _Avoid_: proxy, wrapper
 
+**Tool shim**:
+A shim created when a runtime tool is installed or pinned, so that the tool's commands are available through Volta.
+_Avoid_: on-demand shim, install shim
+
+**Default shim**:
+A shim pre-created for a well-known command before any tool is installed, so that Volta can delegate the command to the system when no Volta-managed version is active.
+_Avoid_: built-in shim, bundled shim
+
 ## Build cache vocabulary
 
 **Build cache**:

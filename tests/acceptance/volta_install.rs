@@ -599,3 +599,102 @@ fn write_platform_error() {
             .with_stderr_contains("[..]Could not save platform settings[..]")
     );
 }
+
+#[test]
+fn install_node_creates_tool_shims() {
+    let s = sandbox()
+        .without_default_shims()
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .build();
+
+    assert!(!s.shim_exe_exists("node"));
+
+    assert_that!(
+        s.volta("install node@10.99.1040"),
+        execs().with_status(ExitCode::Success as i32)
+    );
+
+    assert!(s.shim_exe_exists("node"));
+    assert!(s.shim_exe_exists("npm"));
+    assert!(s.shim_exe_exists("npx"));
+}
+
+#[test]
+fn install_npm_creates_tool_shims() {
+    let s = sandbox()
+        .without_default_shims()
+        .platform(&platform_with_node("10.99.1040"))
+        .npm_available_versions(NPM_VERSION_INFO)
+        .distro_mocks::<NpmFixture>(&NPM_VERSION_FIXTURES)
+        .build();
+
+    assert_that!(
+        s.volta("install npm@4.5.6"),
+        execs().with_status(ExitCode::Success as i32)
+    );
+
+    assert!(s.shim_exe_exists("npm"));
+    assert!(s.shim_exe_exists("npx"));
+}
+
+#[test]
+fn install_yarn_creates_tool_shims() {
+    let s = sandbox()
+        .without_default_shims()
+        .platform(&platform_with_node("10.99.1040"))
+        .node_available_versions(NODE_VERSION_INFO)
+        .yarn_1_available_versions(YARN_1_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .distro_mocks::<Yarn1Fixture>(&YARN_1_VERSION_FIXTURES)
+        .build();
+
+    assert_that!(
+        s.volta("install yarn@1.2.42"),
+        execs().with_status(ExitCode::Success as i32)
+    );
+
+    assert!(s.shim_exe_exists("yarn"));
+    assert!(s.shim_exe_exists("yarnpkg"));
+}
+
+#[test]
+fn install_pnpm_creates_tool_shims() {
+    let s = sandbox()
+        .without_default_shims()
+        .platform(&platform_with_node("10.99.1040"))
+        .node_available_versions(NODE_VERSION_INFO)
+        .pnpm_available_versions(PNPM_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .distro_mocks::<PnpmFixture>(&PNPM_VERSION_FIXTURES)
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
+        .build();
+
+    assert_that!(
+        s.volta("install pnpm@7.7.1"),
+        execs().with_status(ExitCode::Success as i32)
+    );
+
+    assert!(s.shim_exe_exists("pnpm"));
+}
+
+#[test]
+fn pin_node_creates_tool_shims() {
+    let s = sandbox()
+        .without_default_shims()
+        .package_json(r#"{ "name": "test-package" }"#)
+        .node_available_versions(NODE_VERSION_INFO)
+        .distro_mocks::<NodeFixture>(&NODE_VERSION_FIXTURES)
+        .build();
+
+    assert!(!s.shim_exe_exists("node"));
+
+    assert_that!(
+        s.volta("pin node@10.99.1040"),
+        execs().with_status(ExitCode::Success as i32)
+    );
+
+    assert!(s.shim_exe_exists("node"));
+    assert!(s.shim_exe_exists("npm"));
+    assert!(s.shim_exe_exists("npx"));
+}
