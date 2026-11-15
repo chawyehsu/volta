@@ -24,17 +24,6 @@ pub fn shim_names_for_tool(tool: &str) -> &'static [&'static str] {
     }
 }
 
-/// Ensure that a shim exists for each of the given names.
-///
-/// This is additive: it creates shims for tools that have become in-use, but
-/// never removes the pre-created default shims.
-pub fn ensure_shims(names: &[&str]) -> Fallible<()> {
-    for name in names {
-        platform::ensure_shim(name)?;
-    }
-    Ok(())
-}
-
 /// Ensure the shims for a tool, logging (but not failing) on errors.
 ///
 /// Shim creation is an additive convenience, so a failure to write a shim must
