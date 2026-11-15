@@ -106,6 +106,19 @@ fn package_json_with_pinned_node(node: &str) -> String {
     )
 }
 
+fn package_json_with_pinned_node_yarn(node: &str, yarn: &str) -> String {
+    format!(
+        r#"{{
+  "name": "test-project",
+  "volta": {{
+    "node": "{}",
+    "yarn": "{}"
+  }}
+}}"#,
+        node, yarn
+    )
+}
+
 fn node_package_config(name: &str) -> String {
     format!(
         r#"{{
@@ -401,6 +414,48 @@ fn uninstall_runtime_failure_keeps_metadata() {
 }
 
 #[test]
+#[cfg(unix)]
+fn uninstall_runtime_failure_after_default_removal_unpins_first() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // a broad removal that deletes the default and then fails on a later
+    // version must still have unpinned the default, or a retry could not clear
+    // it
+    let s = sandbox()
+        .platform(&platform_with_node("10.0.0"))
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    let node = s.tool(Tool::Node);
+    node.version("10.0.0").image().create();
+    node.version("12.0.0").image().create();
+
+    let broken = node.version("12.0.0").image();
+    std::fs::set_permissions(&*broken, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    if std::fs::read_dir(&*broken).is_ok() {
+        std::fs::set_permissions(&*broken, std::fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
+
+    let output = match s.volta("uninstall node").exec_with_output() {
+        Ok(output) => output,
+        Err(err) => err.output.expect("ProcessError should contain output"),
+    };
+
+    std::fs::set_permissions(&*broken, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert_ne!(
+        output.status.code(),
+        Some(ExitCode::Success as i32),
+        "Expected failure, got success"
+    );
+
+    // the default was removed and unpinned before the failure
+    assert!(!node.version("10.0.0").image().exists());
+    assert_eq!(s.read_default_platform(), "{}");
+}
+
+#[test]
 fn uninstall_runtime_semver() {
     // uninstalling a version range removes all cached versions matching it
     let s = sandbox().env(VOLTA_LOGLEVEL, "info").build();
@@ -574,6 +629,9 @@ fn uninstall_runtime_keeps_default_when_npm_defaulted() {
     assert!(s.shim_exists("node"));
     assert!(s.shim_exists("npm"));
     assert!(s.shim_exists("npx"));
+    assert!(s.shim_exe_exists("node"));
+    assert!(s.shim_exe_exists("npm"));
+    assert!(s.shim_exe_exists("npx"));
 }
 
 #[test]
@@ -651,6 +709,11 @@ fn uninstall_last_version_removes_orphaned_shims() {
     assert!(s.shim_exists("node"));
     assert!(s.shim_exists("npm"));
     assert!(s.shim_exists("yarn"));
+    assert!(s.shim_exe_exists("node"));
+    assert!(s.shim_exe_exists("npm"));
+    assert!(s.shim_exe_exists("npx"));
+    assert!(s.shim_exe_exists("yarn"));
+    assert!(s.shim_exe_exists("yarnpkg"));
 
     assert_that!(
         s.volta("uninstall node yarn"),
@@ -665,6 +728,11 @@ fn uninstall_last_version_removes_orphaned_shims() {
     assert!(!s.shim_exists("npx"));
     assert!(!s.shim_exists("yarn"));
     assert!(!s.shim_exists("yarnpkg"));
+    assert!(!s.shim_exe_exists("node"));
+    assert!(!s.shim_exe_exists("npm"));
+    assert!(!s.shim_exe_exists("npx"));
+    assert!(!s.shim_exe_exists("yarn"));
+    assert!(!s.shim_exe_exists("yarnpkg"));
 }
 
 #[test]
@@ -684,6 +752,53 @@ fn uninstall_keeps_shims_for_remaining_versions() {
 
     assert!(s.shim_exists("node"));
     assert!(s.shim_exists("npm"));
+    assert!(s.shim_exe_exists("node"));
+    assert!(s.shim_exe_exists("npm"));
+}
+
+#[test]
+fn uninstall_keeps_shims_for_project_pin() {
+    // removing the only cached, project-pinned version by exact version must
+    // keep the shims so the project pin can re-fetch it
+    let s = sandbox()
+        .package_json(&package_json_with_pinned_node("12.0.0"))
+        .without_default_shims()
+        .shim("node")
+        .shim("npm")
+        .shim("npx")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    s.tool(Tool::Node).version("12.0.0").image().create();
+
+    assert_that!(s.volta("uninstall node@12.0.0"), execs().with_status(0));
+
+    assert!(!s.tool(Tool::Node).version("12.0.0").image().exists());
+    assert!(s.shim_exists("node"));
+    assert!(s.shim_exists("npm"));
+    assert!(s.shim_exists("npx"));
+    assert!(s.shim_exe_exists("node"));
+    assert!(s.shim_exe_exists("npm"));
+    assert!(s.shim_exe_exists("npx"));
+}
+
+#[test]
+fn uninstall_keeps_shims_for_project_pin_yarn() {
+    // the same protection applies to project-pinned package managers
+    let s = sandbox()
+        .package_json(&package_json_with_pinned_node_yarn("12.0.0", "1.22.19"))
+        .without_default_shims()
+        .shim("yarn")
+        .shim("yarnpkg")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    s.tool(Tool::Yarn).version("1.22.19").image().create();
+
+    assert_that!(s.volta("uninstall yarn@1.22.19"), execs().with_status(0));
+
+    assert!(s.shim_exists("yarn"));
+    assert!(s.shim_exists("yarnpkg"));
+    assert!(s.shim_exe_exists("yarn"));
+    assert!(s.shim_exe_exists("yarnpkg"));
 }
 
 #[test]
@@ -705,6 +820,9 @@ fn uninstall_node_keeps_npm_shims_when_npm_cached() {
     assert!(!s.shim_exists("node"));
     assert!(s.shim_exists("npm"));
     assert!(s.shim_exists("npx"));
+    assert!(!s.shim_exe_exists("node"));
+    assert!(s.shim_exe_exists("npm"));
+    assert!(s.shim_exe_exists("npx"));
 }
 
 #[test]
@@ -724,6 +842,8 @@ fn uninstall_npm_keeps_shims_when_node_cached() {
 
     assert!(s.shim_exists("npm"));
     assert!(s.shim_exists("npx"));
+    assert!(s.shim_exe_exists("npm"));
+    assert!(s.shim_exe_exists("npx"));
 }
 
 #[test]
@@ -751,6 +871,33 @@ fn uninstall_npm_keeps_shims_when_node_default_remains() {
 
     assert!(s.shim_exists("npm"));
     assert!(s.shim_exists("npx"));
+    assert!(s.shim_exe_exists("npm"));
+    assert!(s.shim_exe_exists("npx"));
+}
+
+#[test]
+fn uninstall_exact_tolerates_malformed_platform_after_removal() {
+    // an exact removal tolerates a malformed platform.json during in-use
+    // collection; the post-removal shim cleanup must tolerate it too instead of
+    // failing after the version is already gone
+    let s = sandbox()
+        .platform("this is not json{{{")
+        .shim("node")
+        .env(VOLTA_LOGLEVEL, "info")
+        .build();
+    s.tool(Tool::Node).version("10.0.0").image().create();
+
+    assert_that!(
+        s.volta("uninstall node@10.0.0"),
+        execs()
+            .with_status(0)
+            .with_stdout_contains("[..]'node@10.0.0' uninstalled")
+            .with_stderr_contains("[..]skipping shim cleanup")
+    );
+
+    assert!(!s.tool(Tool::Node).version("10.0.0").image().exists());
+    // cleanup was skipped, so the shim is left in place
+    assert!(s.shim_exists("node"));
 }
 
 #[test]

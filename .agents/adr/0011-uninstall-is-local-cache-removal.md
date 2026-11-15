@@ -24,7 +24,8 @@ We will treat `volta uninstall` as a purely local cache-removal operation with t
 ## Consequences
 
 - A removed version that is still referenced (a project pin or a package platform) is transparently re-downloaded the next time it is needed. A removed default is instead cleared from `platform.json`, so it is not re-downloaded until a new default is installed.
-- Uninstalling the last cached version of a runtime tool removes the tool shims no remaining tool still needs (see ADR 0013).
+- Uninstalling the last cached version of a runtime tool removes the tool shims no remaining reference still needs: a cached version, the global default, or a project pin keeps the shims alive, since those references re-fetch on next use through Volta (see ADR 0013).
+- The default is unpinned as soon as its version is removed, so a later failure in the same invocation cannot leave `platform.json` pointing at a deleted version. Shim cleanup is best-effort and skipped with a warning if `platform.json` cannot be read.
 - Package-manager update commands for runtimes (`npm update -g node`, `yarn global upgrade node`, `pnpm update -g node`) are rejected with an error rather than routed to the uninstall logic, which would otherwise delete the cached versions instead of updating anything.
 - A global package's recorded platform is a snapshot from its install time; it keeps that Node version in use until the package is reinstalled or upgraded, which rewrites the config.
 - Versions whose image is missing (for example, an interrupted fetch) are not matched by uninstall, even if their archive is still cached.

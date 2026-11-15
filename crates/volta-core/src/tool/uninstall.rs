@@ -131,7 +131,6 @@ pub(super) fn uninstall_runtime(
     }
 
     let mut removed_any = false;
-    let mut default_removed = false;
 
     for version in matching {
         let versioned = format!("{}@{}", tool.name(), version);
@@ -153,8 +152,17 @@ pub(super) fn uninstall_runtime(
         removed_any = true;
         info!("{} '{}' uninstalled", success_prefix(), versioned);
 
-        if reasons.default {
-            default_removed = true;
+        // Unpin as soon as the default's version is gone, so a later removal
+        // failure cannot leave `platform.json` pointing at a deleted version.
+        if reasons.default
+            && let Some(default) = &in_use.default
+            && unpin_default(tool, session, default)?
+        {
+            info!(
+                "{} unpinned '{}' from your default",
+                success_prefix(),
+                tool.name()
+            );
         }
 
         for message in reasons.removal_warnings(&versioned) {
@@ -162,22 +170,26 @@ pub(super) fn uninstall_runtime(
         }
     }
 
-    if default_removed
-        && let Some(default) = &in_use.default
-        && unpin_default(tool, session, default)?
-    {
-        info!(
-            "{} unpinned '{}' from your default",
-            success_prefix(),
-            tool.name()
-        );
-    }
-
     // Once a tool has no cached versions left, drop the shims no remaining
     // tool still needs. Shims are shared between tools (node provides npm and
     // npx, for example), so the decision is made per shim, not per tool.
     if removed_any && tool.cached_versions()?.is_empty() {
-        for name in orphaned_shims(tool, session)? {
+        // Cleanup is best-effort: the versions and config are already updated,
+        // so a failure here must not fail the command. In particular, a
+        // malformed `platform.json` was tolerated during in-use collection and
+        // must stay tolerated here.
+        let default = match session.default_platform() {
+            Ok(platform) => platform.cloned(),
+            Err(err) => {
+                warn!(
+                    "Unable to read the default platform ({}); skipping shim cleanup",
+                    err
+                );
+                return Ok(());
+            }
+        };
+
+        for name in orphaned_shims(tool, in_use.project.as_ref(), default.as_ref())? {
             if let Err(err) = shim::delete_tool_shim(name) {
                 warn!("Unable to remove shim `{}`: {}", name, err);
             }
@@ -215,20 +227,27 @@ fn unpin_default(
 
 /// The shims left orphaned once a tool has no cached versions.
 ///
-/// A shim is only orphaned when no other tool that is still cached or still
-/// defaulted provides it. Node shares `npm` and `npx` with the npm tool, so
-/// those shims survive when npm is cached or defaulted; conversely, `npm` and
-/// `npx` survive while a Node default exists, even uncached, because that
-/// default supplies bundled npm.
-fn orphaned_shims(tool: RuntimeTool, session: &mut Session) -> Fallible<Vec<&'static str>> {
+/// A shim is only orphaned when no cached version, default, or project pin
+/// still needs it. Node shares `npm` and `npx` with the npm tool, so those
+/// shims survive when npm is cached or defaulted; conversely, `npm` and `npx`
+/// survive while a Node default or project pin exists, even uncached, because
+/// that reference supplies bundled npm.
+///
+/// `project` is the current project's platform (uninstall never modifies it),
+/// and `default` is the post-unpin default platform.
+fn orphaned_shims(
+    tool: RuntimeTool,
+    project: Option<&PlatformSpec>,
+    default: Option<&PlatformSpec>,
+) -> Fallible<Vec<&'static str>> {
     let all = shim::shim_names_for_tool(tool.name());
 
     match tool {
         RuntimeTool::Node => {
-            // A Node default retained because a manager is still defaulted
-            // keeps every Node-provided shim relevant: the removed image will
-            // be re-fetched the next time any of them runs.
-            if session.default_platform()?.is_some() {
+            // A retained Node default or a project pin keeps every
+            // Node-provided shim relevant: the removed image will be
+            // re-fetched the next time any of them runs.
+            if default.is_some() || project_references(project, tool) {
                 return Ok(Vec::new());
             }
 
@@ -239,19 +258,31 @@ fn orphaned_shims(tool: RuntimeTool, session: &mut Session) -> Fallible<Vec<&'st
             }
         }
         RuntimeTool::Npm => {
-            // A retained Node default supplies bundled npm even when no Node
-            // image is cached, so npm and npx must keep dispatching through
-            // Volta rather than falling back to the system.
-            let node_default = session.default_platform()?.is_some();
+            // A Node default or project pin supplies bundled npm even when no
+            // Node image is cached, so npm and npx must keep dispatching
+            // through Volta rather than falling back to the system.
+            let node_referenced =
+                default.is_some() || project_references(project, RuntimeTool::Node);
 
-            if node_default || !inventory::node_versions()?.is_empty() {
+            if node_referenced || !inventory::node_versions()?.is_empty() {
                 Ok(Vec::new())
             } else {
                 Ok(all.to_vec())
             }
         }
-        RuntimeTool::Pnpm | RuntimeTool::Yarn => Ok(all.to_vec()),
+        RuntimeTool::Pnpm | RuntimeTool::Yarn => {
+            if project_references(project, tool) {
+                Ok(Vec::new())
+            } else {
+                Ok(all.to_vec())
+            }
+        }
     }
+}
+
+/// Whether a project platform pins the given tool.
+fn project_references(project: Option<&PlatformSpec>, tool: RuntimeTool) -> bool {
+    project.is_some_and(|platform| spec_version(platform, tool).is_some())
 }
 
 /// Removes all locally cached copies of a version of a tool:
