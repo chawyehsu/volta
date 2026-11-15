@@ -62,7 +62,8 @@ jobs:
             kache-1.2.2-${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-
 
       - name: Restore cargo registry
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cargo
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo
           key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
@@ -85,6 +86,13 @@ jobs:
         with:
           path: .kache
           key: ${{ steps.kache.outputs.cache-primary-key }}
+
+      - name: Save cargo registry
+        if: success() && github.ref == 'refs/heads/main' && steps.cargo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo
+          key: ${{ steps.cargo.outputs.cache-primary-key }}
 
       - name: Check kache
         if: always()
