@@ -72,11 +72,11 @@ volta-migrate = { path = "crates/volta-migrate" }
 walkdir = "2.5.0"
 which = "8.0.2"
 winreg = "0.56.0"
-# Set features manually to drop usage of `time` crate: we do not rely on that
-# set of capabilities, and it has a vulnerability. We also don't need to use
-# every single compression algorithm feature since we are only downloading
-# Node as a zip file
-zip_rs = { package = "zip", version = "=2.4.2", default-features = false, features = ["bzip2", "deflate"] }
+# Set features manually so we only pull in the compression algorithms needed
+# for Node's zip archives. Note that `self_update` enables zip's `time`
+# feature, so the `time` crate remains in the dependency graph regardless of
+# this declaration.
+zip = { version = "=9.6.0", default-features = false, features = ["bzip2", "deflate"] }
 
 [[bin]]
 name = "volta-shim"
@@ -120,7 +120,7 @@ testkit.workspace = true
 
 [target."cfg(windows)".dependencies]
 winreg.workspace = true
-zip_rs.workspace = true
+zip.workspace = true
 
 [features]
 cross-platform-docs = ["volta-core/cross-platform-docs"]

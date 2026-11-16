@@ -33,7 +33,7 @@ pub(crate) enum ArchiveError {
 
     #[cfg(windows)]
     #[error("{0}")]
-    ZipError(#[from] zip_rs::result::ZipError),
+    ZipError(#[from] ::zip::result::ZipError),
 }
 
 /// Metadata describing whether an archive comes from a local or remote origin.

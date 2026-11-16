@@ -115,7 +115,7 @@ fn validate_archive_limits(
         #[cfg(windows)]
         {
             let file = File::open(archive_path).map_err(|e| fail(e.to_string()))?;
-            let mut archive = zip_rs::ZipArchive::new(file).map_err(|e| fail(e.to_string()))?;
+            let mut archive = zip::ZipArchive::new(file).map_err(|e| fail(e.to_string()))?;
             count = archive.len();
             for index in 0..count {
                 let entry = archive.by_index(index).map_err(|e| fail(e.to_string()))?;
@@ -828,8 +828,8 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let archive_path = temp.path().join("volta.zip");
         let archive = fs::File::create(&archive_path).unwrap();
-        let mut writer = zip_rs::ZipWriter::new(archive);
-        let options = zip_rs::write::SimpleFileOptions::default();
+        let mut writer = zip::ZipWriter::new(archive);
+        let options = zip::write::SimpleFileOptions::default();
         writer.start_file("volta.exe", options).unwrap();
         writer.write_all(b"binary").unwrap();
         writer.finish().unwrap();
