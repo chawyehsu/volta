@@ -248,40 +248,57 @@ If you run into problems running Volta, create {} and run `volta setup` again.",
 
 #[cfg(windows)]
 mod os {
-    use std::process::Command;
-
     use log::debug;
     use volta_core::error::{Context, ErrorKind, Fallible};
     use volta_core::layout::volta_home;
     use winreg::RegKey;
-    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegValue;
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_EXPAND_SZ, RegType};
+    use winreg::types::FromRegValue;
 
     pub fn setup_environment() -> Fallible<()> {
         let shim_dir = volta_home()?.shim_dir().to_string_lossy().to_string();
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let env = hkcu
-            .open_subkey("Environment")
+            .open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)
             .with_context(|| ErrorKind::ReadUserPathError)?;
-        let path: String = env
-            .get_value("Path")
+        let raw_path = env
+            .get_raw_value("Path")
             .with_context(|| ErrorKind::ReadUserPathError)?;
+        let path =
+            String::from_reg_value(&raw_path).with_context(|| ErrorKind::ReadUserPathError)?;
 
-        if !path.contains(&shim_dir) {
-            // Use `setx` command to edit the user Path environment variable
-            let mut command = Command::new("setx");
-            command.arg("Path");
-            command.arg(format!("{};{}", shim_dir, path));
+        // Compare against whole entries rather than a substring, so that a shim dir that is
+        // merely a prefix of another entry is not mistaken for an existing entry.
+        let already_present = path
+            .split(';')
+            .any(|entry| entry.trim().eq_ignore_ascii_case(&shim_dir));
 
-            debug!("Modifying User Path with command: {:?}", command);
-            let output = command
-                .output()
-                .with_context(|| ErrorKind::WriteUserPathError)?;
+        if !already_present {
+            // Write the registry value directly instead of spawning `setx`, which silently
+            // truncates values longer than 1024 characters and would corrupt a long user Path.
+            // Preserve the original value type (e.g. REG_EXPAND_SZ) so that existing entries
+            // such as `%USERPROFILE%\...` keep expanding at runtime.
+            let vtype = match raw_path.vtype {
+                REG_EXPAND_SZ => REG_EXPAND_SZ,
+                _ => RegType::REG_SZ,
+            };
+            let new_path = format!("{};{}", shim_dir, path);
+            let bytes: Vec<u8> = new_path
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .flat_map(u16::to_le_bytes)
+                .collect();
 
-            if !output.status.success() {
-                debug!("[setx stderr]\n{}", String::from_utf8_lossy(&output.stderr));
-                debug!("[setx stdout]\n{}", String::from_utf8_lossy(&output.stdout));
-                return Err(ErrorKind::WriteUserPathError.into());
-            }
+            debug!("Modifying User Path to: {}", new_path);
+            env.set_raw_value(
+                "Path",
+                &RegValue {
+                    bytes: bytes.into(),
+                    vtype,
+                },
+            )
+            .with_context(|| ErrorKind::WriteUserPathError)?;
         }
 
         Ok(())
