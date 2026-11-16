@@ -262,40 +262,59 @@ mod os {
 
         // Read with read-only access first, so that an already-configured setup still succeeds
         // even when the Environment key is not writable.
-        let env = hkcu
-            .open_subkey_with_flags("Environment", KEY_READ)
-            .with_context(|| ErrorKind::ReadUserPathError)?;
-        let raw_path = env
-            .get_raw_value("Path")
-            .with_context(|| ErrorKind::ReadUserPathError)?;
-        let path =
-            String::from_reg_value(&raw_path).with_context(|| ErrorKind::ReadUserPathError)?;
-
-        // Compare against whole entries rather than a substring, so that a shim dir that is
-        // merely a prefix of another entry is not mistaken for an existing entry.
-        if path_entry_present(&path, &shim_dir) {
-            return Ok(());
+        {
+            let env = hkcu
+                .open_subkey_with_flags("Environment", KEY_READ)
+                .with_context(|| ErrorKind::ReadUserPathError)?;
+            let (path, _) = read_path(&env)?;
+            if path_entry_present(&path, &shim_dir) {
+                return Ok(());
+            }
         }
-
-        // Write the registry value directly instead of spawning `setx`, which silently
-        // truncates values longer than 1024 characters and would corrupt a long user Path.
-        // Preserve the original value type (e.g. REG_EXPAND_SZ) so that existing entries
-        // such as `%USERPROFILE%\...` keep expanding at runtime.
-        let new_value = prepend_shim_dir(&path, &shim_dir, raw_path.vtype.clone());
-        debug!(
-            "Modifying User Path to: {}",
-            String::from_reg_value(&new_value).unwrap_or_default()
-        );
 
         let env = hkcu
             .open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)
             .with_context(|| ErrorKind::WriteUserPathError)?;
-        env.set_raw_value("Path", &new_value)
-            .with_context(|| ErrorKind::WriteUserPathError)?;
+        ensure_shim_in_path(&env, &shim_dir)?;
 
         // Notify running processes (e.g. Explorer) that the environment changed. Without this,
         // terminals opened after setup can inherit a stale Path until the user logs out.
         broadcast_environment_change();
+
+        Ok(())
+    }
+
+    /// Reads and decodes the `Path` value of `key`, returning the text and its registry type.
+    fn read_path(key: &RegKey) -> Fallible<(String, RegType)> {
+        let raw = key
+            .get_raw_value("Path")
+            .with_context(|| ErrorKind::ReadUserPathError)?;
+        let path = String::from_reg_value(&raw).with_context(|| ErrorKind::ReadUserPathError)?;
+        Ok((path, raw.vtype))
+    }
+
+    /// Prepends the shim directory to `key`'s `Path` value if it is not already present.
+    ///
+    /// Writes the registry value directly instead of spawning `setx`, which silently truncates
+    /// values longer than 1024 characters and would corrupt a long user Path. The original value
+    /// type (e.g. `REG_EXPAND_SZ`) is preserved so entries such as `%USERPROFILE%\...` keep
+    /// expanding at runtime.
+    fn ensure_shim_in_path(key: &RegKey, shim_dir: &str) -> Fallible<()> {
+        let (path, vtype) = read_path(key)?;
+
+        // Compare against whole entries rather than a substring, so that a shim dir that is
+        // merely a prefix of another entry is not mistaken for an existing entry.
+        if path_entry_present(&path, shim_dir) {
+            return Ok(());
+        }
+
+        let new_value = prepend_shim_dir(&path, shim_dir, vtype);
+        debug!(
+            "Modifying User Path to: {}",
+            String::from_reg_value(&new_value).unwrap_or_default()
+        );
+        key.set_raw_value("Path", &new_value)
+            .with_context(|| ErrorKind::WriteUserPathError)?;
 
         Ok(())
     }
@@ -357,6 +376,103 @@ mod os {
 
         if sent == 0 {
             debug!("Failed to broadcast WM_SETTINGCHANGE environment notification");
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        use super::*;
+
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+        /// A disposable key under `HKCU\Software`, removed on drop so tests never touch the
+        /// real `Environment` key.
+        struct TempKey {
+            key: RegKey,
+            path: String,
+        }
+
+        impl TempKey {
+            fn new() -> Self {
+                let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+                let path = format!(
+                    "Software\\VoltaSetupTest-{}-{}",
+                    std::process::id(),
+                    COUNTER.fetch_add(1, Ordering::SeqCst)
+                );
+                let (key, _) = hkcu.create_subkey(&path).expect("create temp key");
+                Self { key, path }
+            }
+        }
+
+        impl Drop for TempKey {
+            fn drop(&mut self) {
+                let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+                let _ = hkcu.delete_subkey_all(&self.path);
+            }
+        }
+
+        fn expand_sz(text: &str) -> RegValue<'static> {
+            let bytes: Vec<u8> = text
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .flat_map(u16::to_le_bytes)
+                .collect();
+            RegValue {
+                bytes: bytes.into(),
+                vtype: REG_EXPAND_SZ,
+            }
+        }
+
+        #[test]
+        fn preserves_path_longer_than_1024_characters() {
+            let temp = TempKey::new();
+            let long = format!("C:\\{}", "a".repeat(2000));
+            temp.key.set_value("Path", &long).expect("seed Path");
+
+            let shim = r"C:\Volta\bin";
+            ensure_shim_in_path(&temp.key, shim).expect("update Path");
+
+            let (path, vtype) = read_path(&temp.key).expect("read back Path");
+            assert_eq!(vtype, RegType::REG_SZ);
+            assert_eq!(path, format!("{};{}", shim, long));
+        }
+
+        #[test]
+        fn preserves_expand_sz_type_and_references() {
+            let temp = TempKey::new();
+            let original = r"%USERPROFILE%\bin";
+            temp.key
+                .set_raw_value("Path", &expand_sz(original))
+                .expect("seed Path");
+
+            let shim = r"C:\Volta\bin";
+            ensure_shim_in_path(&temp.key, shim).expect("update Path");
+
+            let raw = temp.key.get_raw_value("Path").expect("read back Path");
+            assert_eq!(raw.vtype, REG_EXPAND_SZ);
+            let text = String::from_reg_value(&raw).expect("decode Path");
+            assert_eq!(text, format!("{};{}", shim, original));
+        }
+
+        #[test]
+        fn does_not_add_shim_twice() {
+            let temp = TempKey::new();
+            let shim = r"C:\Volta\bin";
+            temp.key
+                .set_value("Path", &format!("{};C:\\Other", shim))
+                .expect("seed Path");
+
+            ensure_shim_in_path(&temp.key, shim).expect("update Path");
+
+            let (path, _) = read_path(&temp.key).expect("read back Path");
+            assert_eq!(
+                path.matches(shim).count(),
+                1,
+                "shim dir added twice: {path}"
+            );
         }
     }
 }
