@@ -259,8 +259,11 @@ mod os {
     pub fn setup_environment() -> Fallible<()> {
         let shim_dir = volta_home()?.shim_dir().to_string_lossy().to_string();
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+
+        // Read with read-only access first, so that an already-configured setup still succeeds
+        // even when the Environment key is not writable.
         let env = hkcu
-            .open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)
+            .open_subkey_with_flags("Environment", KEY_READ)
             .with_context(|| ErrorKind::ReadUserPathError)?;
         let raw_path = env
             .get_raw_value("Path")
@@ -270,37 +273,90 @@ mod os {
 
         // Compare against whole entries rather than a substring, so that a shim dir that is
         // merely a prefix of another entry is not mistaken for an existing entry.
-        let already_present = path
-            .split(';')
-            .any(|entry| entry.trim().eq_ignore_ascii_case(&shim_dir));
-
-        if !already_present {
-            // Write the registry value directly instead of spawning `setx`, which silently
-            // truncates values longer than 1024 characters and would corrupt a long user Path.
-            // Preserve the original value type (e.g. REG_EXPAND_SZ) so that existing entries
-            // such as `%USERPROFILE%\...` keep expanding at runtime.
-            let vtype = match raw_path.vtype {
-                REG_EXPAND_SZ => REG_EXPAND_SZ,
-                _ => RegType::REG_SZ,
-            };
-            let new_path = format!("{};{}", shim_dir, path);
-            let bytes: Vec<u8> = new_path
-                .encode_utf16()
-                .chain(std::iter::once(0))
-                .flat_map(u16::to_le_bytes)
-                .collect();
-
-            debug!("Modifying User Path to: {}", new_path);
-            env.set_raw_value(
-                "Path",
-                &RegValue {
-                    bytes: bytes.into(),
-                    vtype,
-                },
-            )
-            .with_context(|| ErrorKind::WriteUserPathError)?;
+        if path_entry_present(&path, &shim_dir) {
+            return Ok(());
         }
 
+        // Write the registry value directly instead of spawning `setx`, which silently
+        // truncates values longer than 1024 characters and would corrupt a long user Path.
+        // Preserve the original value type (e.g. REG_EXPAND_SZ) so that existing entries
+        // such as `%USERPROFILE%\...` keep expanding at runtime.
+        let new_value = prepend_shim_dir(&path, &shim_dir, raw_path.vtype.clone());
+        debug!(
+            "Modifying User Path to: {}",
+            String::from_reg_value(&new_value).unwrap_or_default()
+        );
+
+        let env = hkcu
+            .open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)
+            .with_context(|| ErrorKind::WriteUserPathError)?;
+        env.set_raw_value("Path", &new_value)
+            .with_context(|| ErrorKind::WriteUserPathError)?;
+
+        // Notify running processes (e.g. Explorer) that the environment changed. Without this,
+        // terminals opened after setup can inherit a stale Path until the user logs out.
+        broadcast_environment_change();
+
         Ok(())
+    }
+
+    /// Returns whether `path` already contains `shim_dir` as a whole entry, ignoring case and
+    /// trailing directory separators.
+    fn path_entry_present(path: &str, shim_dir: &str) -> bool {
+        let shim_dir = shim_dir.trim_end_matches(['\\', '/']);
+        path.split(';').any(|entry| {
+            entry
+                .trim()
+                .trim_end_matches(['\\', '/'])
+                .eq_ignore_ascii_case(shim_dir)
+        })
+    }
+
+    /// Prepends `shim_dir` to `path`, producing a null-terminated UTF-16 registry value that
+    /// keeps the original `REG_EXPAND_SZ` type when present.
+    fn prepend_shim_dir(path: &str, shim_dir: &str, vtype: RegType) -> RegValue<'static> {
+        let vtype = match vtype {
+            REG_EXPAND_SZ => REG_EXPAND_SZ,
+            _ => RegType::REG_SZ,
+        };
+        let new_path = format!("{};{}", shim_dir, path);
+        let bytes: Vec<u8> = new_path
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .flat_map(u16::to_le_bytes)
+            .collect();
+
+        RegValue {
+            bytes: bytes.into(),
+            vtype,
+        }
+    }
+
+    /// Broadcasts `WM_SETTINGCHANGE` with `lParam = "Environment"` so that Explorer reloads the
+    /// user environment. Best-effort: a failure here should not fail setup.
+    fn broadcast_environment_change() {
+        use windows_sys::Win32::Foundation::LPARAM;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            HWND_BROADCAST, SMTO_ABORTIFHUNG, SendMessageTimeoutW, WM_SETTINGCHANGE,
+        };
+
+        let setting: Vec<u16> = "Environment\0".encode_utf16().collect();
+        let mut result: usize = 0;
+
+        let sent = unsafe {
+            SendMessageTimeoutW(
+                HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                0,
+                setting.as_ptr() as LPARAM,
+                SMTO_ABORTIFHUNG,
+                5000,
+                &mut result,
+            )
+        };
+
+        if sent == 0 {
+            debug!("Failed to broadcast WM_SETTINGCHANGE environment notification");
+        }
     }
 }
