@@ -17,5 +17,5 @@ Make a fresh Volta install consist of only `volta`, `volta-shim`, and `volta-mig
 
 ## Notes
 
-- `volta uninstall` removes a runtime tool's shims once it has no cached versions left and no other tool still needs them (ADR 0011, ADR 0013).
+- `volta uninstall` removes a runtime tool's shims once it has no cached versions left and no remaining default, project pin, or global package still needs them (ADR 0011, ADR 0013).
 - On Windows, removing files from `Program Files` requires the same privileges as `volta self-update`; treat permission failures as best-effort with a debug log.

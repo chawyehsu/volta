@@ -18,8 +18,8 @@ We will move to a model where a fresh install contains only the three core files
 - Phase 1 leaves Windows MSI installs with two shim sources (`Program Files` `.exe` copies and `$VOLTA_HOME/bin` `.exe` copies). The former wins on `PATH`; both dispatch through `volta run`, so behavior is unchanged.
 - `check_shim_reachable` accepts either location on Windows during Phase 1 to avoid false "shadowed" warnings.
 - Phase 1's `.exe` shims are a separate lifecycle from `.cmd` shims: `regenerate_shims_for_dir` and `delete` do not touch them until Phase 2 unifies the model. `volta uninstall` removes them through a dedicated tool-shim path instead.
-- Tool shims are removed by `volta uninstall` only once their tool has no cached versions left and no other tool still provides the shim (see ADR 0011).
+- Tool shims are removed by `volta uninstall` only once their tool has no cached versions left and no remaining reference (a cached version, the global default, a project pin, or a global-package platform) still needs the shim (see ADR 0011).
 
 ## Revision
 
-- 2026-11-15: Tool shims are now removed by `volta uninstall` when their tool has no cached versions left and no other tool still needs them.
+- 2026-11-15: Tool shims are now removed by `volta uninstall` when their tool has no cached versions left and no remaining reference still needs them.

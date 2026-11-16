@@ -89,18 +89,6 @@ impl Toolchain {
         Ok(())
     }
 
-    /// Clear the active Node version from the default platform file.
-    ///
-    /// Clearing Node also clears its bundled npm entry. A platform without Node
-    /// cannot carry pnpm or Yarn, so callers must ensure neither is set.
-    pub fn clear_active_node(&mut self) -> Fallible<()> {
-        if self.platform.take().is_some() {
-            self.save()?;
-        }
-
-        Ok(())
-    }
-
     /// Set the active Yarn version in the default platform file.
     pub fn set_active_yarn(&mut self, yarn: Option<Version>) -> Fallible<()> {
         if let Some(platform) = self.platform.as_mut() {

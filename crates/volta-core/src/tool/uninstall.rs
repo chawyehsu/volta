@@ -112,7 +112,7 @@ pub(super) fn uninstall_runtime(
     }
 
     let exact = matches!(spec, VersionSpec::Exact(_));
-    let (mut in_use, mut error) = InUseVersions::collect(session);
+    let (in_use, mut error) = InUseVersions::collect(session);
 
     // In-use detection is best-effort for explicit removals: a malformed
     // project manifest or package config should not block a version the
@@ -136,14 +136,12 @@ pub(super) fn uninstall_runtime(
         let versioned = format!("{}@{}", tool.name(), version);
         let reasons = in_use.reasons_for(tool, &version);
 
-        // The global default is not protected: removing it also unpins it, so
-        // there is nothing left to re-download. Project pins and global-package
-        // platforms still guard their versions unless targeted exactly.
-        if reasons.is_protected() && !exact {
+        // In-use versions are only removed when explicitly targeted by exact version
+        if !reasons.is_empty() && !exact {
             warn!(
                 "skipping '{}' ({}; target it with an exact version to remove it)",
                 versioned,
-                reasons.skip_phrases().join("; ")
+                reasons.skip_phrases(tool).join("; ")
             );
             continue;
         }
@@ -152,21 +150,7 @@ pub(super) fn uninstall_runtime(
         removed_any = true;
         info!("{} '{}' uninstalled", success_prefix(), versioned);
 
-        // Unpin as soon as the default's version is gone, so a later removal
-        // failure cannot leave `platform.json` pointing at a deleted version.
-        if reasons.default
-            && let Some(default) = in_use.default.clone()
-            && unpin_default(tool, session, &default)?
-        {
-            info!(
-                "{} unpinned '{}' from your default",
-                success_prefix(),
-                tool.name()
-            );
-            in_use.clear_default(tool);
-        }
-
-        for message in reasons.removal_warnings(&versioned) {
+        for message in reasons.removal_warnings(tool, &versioned) {
             warn!("{}", message);
         }
     }
@@ -175,10 +159,10 @@ pub(super) fn uninstall_runtime(
     // reference still needs. Shims are shared between tools (node provides npm
     // and npx, for example), so the decision is made per shim, not per tool.
     if removed_any && tool.cached_versions()?.is_empty() {
-        // Cleanup is best-effort: the versions and config are already updated,
-        // so a failure here must not fail the command. If the references could
-        // not be fully read, keep the shims rather than risk deleting one that
-        // a project or package still needs.
+        // Cleanup is best-effort: the versions are already removed, so a
+        // failure here must not fail the command. If the references could not
+        // be fully read, keep the shims rather than risk deleting one that a
+        // default, project, or package still needs.
         if let Some(err) = &error {
             warn!(
                 "Unable to fully determine in-use references ({}); skipping shim cleanup",
@@ -196,32 +180,6 @@ pub(super) fn uninstall_runtime(
     Ok(())
 }
 
-/// Clears the removed tool's version from the global default platform.
-///
-/// Returns whether the default was actually cleared. Node's default is left in
-/// place while npm, pnpm, or Yarn is also defaulted: those managers live inside
-/// (or alongside) the Node entry and cannot outlive a node-less platform, so
-/// unpinning Node would strand them.
-fn unpin_default(
-    tool: RuntimeTool,
-    session: &mut Session,
-    default: &PlatformSpec,
-) -> Fallible<bool> {
-    match tool {
-        RuntimeTool::Node => {
-            if default.npm.is_some() || default.pnpm.is_some() || default.yarn.is_some() {
-                return Ok(false);
-            }
-            session.toolchain_mut()?.clear_active_node()?;
-        }
-        RuntimeTool::Npm => session.toolchain_mut()?.set_active_npm(None)?,
-        RuntimeTool::Pnpm => session.toolchain_mut()?.set_active_pnpm(None)?,
-        RuntimeTool::Yarn => session.toolchain_mut()?.set_active_yarn(None)?,
-    }
-
-    Ok(true)
-}
-
 /// The shims left orphaned once a tool has no cached versions.
 ///
 /// A shim is only orphaned when no cached version, default, project pin, or
@@ -229,9 +187,6 @@ fn unpin_default(
 /// tool, so those shims survive when npm is cached or referenced; conversely,
 /// `npm` and `npx` survive while Node is still referenced, even uncached,
 /// because that reference supplies bundled npm.
-///
-/// `in_use` reflects the post-unpin default, so the removed default no longer
-/// keeps its own shims alive.
 fn orphaned_shims(tool: RuntimeTool, in_use: &InUseVersions) -> Fallible<Vec<&'static str>> {
     let all = shim::shim_names_for_tool(tool.name());
 
@@ -403,28 +358,6 @@ impl InUseVersions {
                 .any(|config| references(&config.platform))
     }
 
-    /// Update the cached default after the given tool was unpinned.
-    fn clear_default(&mut self, tool: RuntimeTool) {
-        match tool {
-            RuntimeTool::Node => self.default = None,
-            RuntimeTool::Npm => {
-                if let Some(platform) = self.default.as_mut() {
-                    platform.npm = None;
-                }
-            }
-            RuntimeTool::Pnpm => {
-                if let Some(platform) = self.default.as_mut() {
-                    platform.pnpm = None;
-                }
-            }
-            RuntimeTool::Yarn => {
-                if let Some(platform) = self.default.as_mut() {
-                    platform.yarn = None;
-                }
-            }
-        }
-    }
-
     fn reasons_for(&self, tool: RuntimeTool, version: &Version) -> InUseReasons {
         InUseReasons {
             default: self
@@ -467,17 +400,16 @@ struct InUseReasons {
 }
 
 impl InUseReasons {
-    /// Whether a non-exact removal must skip this version.
-    ///
-    /// The default is deliberately excluded: removing it unpins it, so it is
-    /// safe to remove without leaving a reference that forces a re-download.
-    fn is_protected(&self) -> bool {
-        self.project || !self.packages.is_empty()
+    fn is_empty(&self) -> bool {
+        !self.default && !self.project && self.packages.is_empty()
     }
 
-    /// Phrases describing each protecting reason, for use in the skip warning
-    fn skip_phrases(&self) -> Vec<String> {
+    /// Phrases describing each reason, for use in the skip warning
+    fn skip_phrases(&self, tool: RuntimeTool) -> Vec<String> {
         let mut phrases = Vec::new();
+        if self.default {
+            phrases.push(format!("currently your default {}", tool.name()));
+        }
         if self.project {
             phrases.push("pinned in the current project".to_owned());
         }
@@ -488,8 +420,16 @@ impl InUseReasons {
     }
 
     /// Warnings to emit after removing an in-use version via exact targeting
-    fn removal_warnings(&self, versioned: &str) -> Vec<String> {
+    fn removal_warnings(&self, tool: RuntimeTool, versioned: &str) -> Vec<String> {
         let mut warnings = Vec::new();
+        if self.default {
+            warnings.push(format!(
+                "'{}' is your default {}; it will be re-downloaded on next use. To change your default, run `volta install {}@<version>`",
+                versioned,
+                tool.name(),
+                tool.name()
+            ));
+        }
         if self.project {
             warnings.push(format!(
                 "'{}' is pinned in the current project; it will be re-downloaded on next use",
