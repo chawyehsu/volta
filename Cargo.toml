@@ -71,7 +71,7 @@ volta-layout-macro = { path = "crates/volta-layout-macro" }
 volta-migrate = { path = "crates/volta-migrate" }
 walkdir = "2.5.0"
 which = "8.0.2"
-windows-sys = { version = "0.59.0", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
 winreg = "0.56.0"
 # Set features manually so we only pull in the compression algorithms needed
 # for Node's zip archives. Note that `self_update` enables zip's `time`
