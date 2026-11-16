@@ -3,6 +3,7 @@ use hamcrest2::prelude::*;
 use testkit::matchers::execs;
 use testkit::sandbox::{Tool, sandbox};
 
+use volta_core::constant;
 use volta_core::error::ExitCode;
 
 fn platform_with_node(node: &str) -> String {
@@ -130,6 +131,7 @@ fn list_npm() {
 fn list_pnpm() {
     let s = sandbox()
         .platform(&platform_with_node("10.99.1040"))
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     assert_that!(
@@ -208,6 +210,67 @@ fn list_tool_by_binary_name() {
             .with_stdout_contains(
                 "tool cow / cowsay@1.4.0 / node@10.99.1040 npm@built-in (default)"
             )
+    );
+}
+
+const PACKAGE_CONFIG_PNPM: &str = r#"{
+  "name": "pnpm",
+  "version": "10.11.1",
+  "platform": {
+    "node": "10.99.1040",
+    "npm": "6.2.26",
+    "yarn": null
+  },
+  "bins": ["pnpm", "pnpx"],
+  "manager": "Pnpm"
+}"#;
+
+#[test]
+fn list_pnpm_installed_as_package() {
+    let s = sandbox()
+        .platform(&platform_with_node_npm("10.99.1040", "6.2.26"))
+        .package_config("pnpm", PACKAGE_CONFIG_PNPM)
+        .env_remove(constant::ENVNAME_VOLTA_FEATURE_PNPM)
+        .build();
+
+    assert_that!(
+        s.volta("list --format plain pnpm"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains(
+                "package pnpm@10.11.1 / pnpm, pnpx / node@10.99.1040 npm@built-in (default)"
+            )
+    );
+}
+
+#[test]
+fn list_pnpm_installed_as_package_by_binary_name() {
+    let s = sandbox()
+        .platform(&platform_with_node_npm("10.99.1040", "6.2.26"))
+        .package_config("pnpm", PACKAGE_CONFIG_PNPM)
+        .env_remove(constant::ENVNAME_VOLTA_FEATURE_PNPM)
+        .build();
+
+    assert_that!(
+        s.volta("list --format plain pnpx"),
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains(
+                "tool pnpx / pnpm@10.11.1 / node@10.99.1040 npm@built-in (default)"
+            )
+    );
+}
+
+#[test]
+fn list_pnpm_not_installed_without_feature_flag() {
+    let s = sandbox()
+        .platform(&platform_with_node("10.99.1040"))
+        .env_remove(constant::ENVNAME_VOLTA_FEATURE_PNPM)
+        .build();
+
+    assert_that!(
+        s.volta("list pnpm"),
+        execs().with_status(ExitCode::Success as i32)
     );
 }
 
@@ -369,6 +432,7 @@ fn list_npm_none_source() {
 fn list_pnpm_default_source() {
     let s = sandbox()
         .platform(&platform_with_pnpm("10.99.1040", "7.7.1"))
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     s.tool(Tool::Pnpm).version("7.7.1").image().create();
@@ -385,6 +449,7 @@ fn list_pnpm_default_source() {
 fn list_pnpm_project_source() {
     let s = sandbox()
         .package_json(r#"{"name":"test","volta":{"node":"10.99.1040","pnpm":"7.7.1"}}"#)
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     s.tool(Tool::Pnpm).version("7.7.1").image().create();
@@ -401,6 +466,7 @@ fn list_pnpm_project_source() {
 fn list_pnpm_none_source() {
     let s = sandbox()
         .platform(&platform_with_pnpm("10.99.1040", "7.7.1"))
+        .env(constant::ENVNAME_VOLTA_FEATURE_PNPM, "1")
         .build();
 
     s.tool(Tool::Pnpm).version("7.7.1").image().create();
