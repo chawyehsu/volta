@@ -10,7 +10,7 @@ use super::{ArchiveError, content_length};
 use crate::fs::ensure_containing_dir_exists;
 use tee::TeeReader;
 use verbatim::PathExt;
-use zip_rs::unstable::stream::ZipStreamReader;
+use zip::unstable::stream::ZipStreamReader;
 
 use super::Archive;
 use super::Origin;

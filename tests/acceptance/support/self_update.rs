@@ -80,11 +80,11 @@ fn archive_bytes(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
 fn archive_bytes(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
     use std::io::{Cursor, Write};
 
-    use zip_rs::write::SimpleFileOptions;
+    use zip::write::SimpleFileOptions;
 
     let mut cursor = Cursor::new(Vec::new());
     {
-        let mut writer = zip_rs::ZipWriter::new(&mut cursor);
+        let mut writer = zip::ZipWriter::new(&mut cursor);
         let options = SimpleFileOptions::default().unix_permissions(0o755);
         for (name, content) in entries {
             writer.start_file(name.as_str(), options).unwrap();

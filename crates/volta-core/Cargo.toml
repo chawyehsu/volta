@@ -48,7 +48,7 @@ which.workspace = true
 junction.workspace = true
 verbatim.workspace = true
 winreg.workspace = true
-zip_rs.workspace = true
+zip.workspace = true
 
 [features]
 # The `cross-platform-docs` feature flag is used for generating API docs for
