@@ -19,12 +19,19 @@ We will treat `volta uninstall` as a purely local cache-removal operation with t
 - **Separate `clean`/`prune`/`remove` verb** — rejected: those verbs were tied to the unmerged RFC #52 (deprecating `install`); `volta uninstall` already exists as a stub and matches the long-standing issue.
 - **Delete only the unpacked image, keep the cached archive** — rejected: reclaiming disk space is the primary motivation, and the archive is typically the larger half; keeping it only speeds up a re-fetch.
 - **Ignore package-recorded platforms when deciding "in use"** — rejected: global package binaries run against their install-time platform, so removing such a version silently forces a re-download on the package's next run. Counting them avoids repeat downloads at the cost of keeping those versions protected.
+- **Unpin the default as part of uninstall** — rejected: silently changing the global default is surprising. A separate `unpin` command should own that operation, leaving uninstall purely a local cache removal.
 
 ## Consequences
 
 - A removed version that is still referenced (default, project pin, package platform) is transparently re-downloaded the next time it is needed; removing even the default node does not break the environment, it only costs a download.
+- Uninstalling the last cached version of a runtime tool removes the tool shims no remaining reference still needs: a cached version, the global default, a project pin, or a global package's recorded platform keeps the shims alive, since those references re-fetch on next use through Volta (see ADR 0013).
+- Shim cleanup is best-effort and skipped with a warning if the in-use references cannot be fully read, so a failed read cannot delete a shim a project or package still needs.
 - Package-manager update commands for runtimes (`npm update -g node`, `yarn global upgrade node`, `pnpm update -g node`) are rejected with an error rather than routed to the uninstall logic, which would otherwise delete the cached versions instead of updating anything.
 - A global package's recorded platform is a snapshot from its install time; it keeps that Node version in use until the package is reinstalled or upgraded, which rewrites the config.
 - Versions whose image is missing (for example, an interrupted fetch) are not matched by uninstall, even if their archive is still cached.
 - A new `UninstallTagUnsupported` error kind reports rejected tags with exit code `InvalidArguments`.
 - If RFC #52 later replaces `install` with a different verb, the surface here can be renamed without changing these semantics.
+
+## Revision
+
+- 2026-11-15: Uninstall remains configuration-neutral and never unpins the global default; a future `unpin` command will own that. Uninstalling a tool's last cached version now removes the shims no remaining reference needs (see ADR 0013).
