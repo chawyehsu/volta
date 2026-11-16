@@ -3215,6 +3215,7 @@ dependencies = [
  "volta-core",
  "volta-migrate",
  "which",
+ "windows-sys 0.59.0",
  "winreg",
  "zip",
 ]
