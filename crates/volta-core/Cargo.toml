@@ -33,6 +33,7 @@ regex.workspace = true
 retry.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
+sha2.workspace = true
 tar.workspace = true
 tee.workspace = true
 tempfile.workspace = true
@@ -47,7 +48,7 @@ which.workspace = true
 junction.workspace = true
 verbatim.workspace = true
 winreg.workspace = true
-zip_rs.workspace = true
+zip.workspace = true
 
 [features]
 # The `cross-platform-docs` feature flag is used for generating API docs for

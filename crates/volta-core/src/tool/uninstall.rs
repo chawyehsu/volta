@@ -14,6 +14,7 @@ use crate::inventory;
 use crate::layout::volta_home;
 use crate::platform::PlatformSpec;
 use crate::session::Session;
+use crate::shim;
 use crate::style::success_prefix;
 use crate::sync::VoltaLock;
 use crate::tool::node::HostPlatform;
@@ -111,23 +112,25 @@ pub(super) fn uninstall_runtime(
     }
 
     let exact = matches!(spec, VersionSpec::Exact(_));
-    let (in_use, error) = InUseVersions::collect(session);
+    let (in_use, mut error) = InUseVersions::collect(session);
 
     // In-use detection is best-effort for explicit removals: a malformed
     // project manifest or package config should not block a version the
     // user named exactly, though the references that could still be read
     // are preserved for the warnings. Broad removals stay strict, since
     // the discovered references are what protect those versions.
-    if let Some(err) = error {
-        if !exact {
-            return Err(err);
-        }
+    if !exact && let Some(err) = error.take() {
+        return Err(err);
+    }
+    if let Some(err) = &error {
         warn!(
             "Unable to fully determine in-use versions ({}); removing '{}' anyway",
             err,
             spec_label(tool, &spec)
         );
     }
+
+    let mut removed_any = false;
 
     for version in matching {
         let versioned = format!("{}@{}", tool.name(), version);
@@ -144,6 +147,7 @@ pub(super) fn uninstall_runtime(
         }
 
         remove_version(tool, &version)?;
+        removed_any = true;
         info!("{} '{}' uninstalled", success_prefix(), versioned);
 
         for message in reasons.removal_warnings(tool, &versioned) {
@@ -151,7 +155,77 @@ pub(super) fn uninstall_runtime(
         }
     }
 
+    // Once a tool has no cached versions left, drop the shims no remaining
+    // reference still needs. Shims are shared between tools (node provides npm
+    // and npx, for example), so the decision is made per shim, not per tool.
+    if removed_any && tool.cached_versions()?.is_empty() {
+        // Cleanup is best-effort: the versions are already removed, so a
+        // failure here must not fail the command. If the references could not
+        // be fully read, keep the shims rather than risk deleting one that a
+        // default, project, or package still needs.
+        if let Some(err) = &error {
+            warn!(
+                "Unable to fully determine in-use references ({}); skipping shim cleanup",
+                err
+            );
+        } else {
+            for name in orphaned_shims(tool, &in_use)? {
+                if let Err(err) = shim::delete_tool_shim(name) {
+                    warn!("Unable to remove shim `{}`: {}", name, err);
+                }
+            }
+        }
+    }
+
     Ok(())
+}
+
+/// The shims left orphaned once a tool has no cached versions.
+///
+/// A shim is only orphaned when no cached version, default, project pin, or
+/// global package still needs it. Node shares `npm` and `npx` with the npm
+/// tool, so those shims survive when npm is cached or referenced; conversely,
+/// `npm` and `npx` survive while Node is still referenced, even uncached,
+/// because that reference supplies bundled npm.
+fn orphaned_shims(tool: RuntimeTool, in_use: &InUseVersions) -> Fallible<Vec<&'static str>> {
+    let all = shim::shim_names_for_tool(tool.name());
+
+    match tool {
+        RuntimeTool::Node => {
+            // Any retained Node reference keeps every Node-provided shim
+            // relevant: the removed image will be re-fetched the next time any
+            // of them runs.
+            if in_use.references_tool(tool) {
+                return Ok(Vec::new());
+            }
+
+            if inventory::npm_versions()?.is_empty() {
+                Ok(all.to_vec())
+            } else {
+                Ok(vec!["node"])
+            }
+        }
+        RuntimeTool::Npm => {
+            // A Node reference supplies bundled npm even when no Node image is
+            // cached, so npm and npx must keep dispatching through Volta
+            // rather than falling back to the system.
+            let node_referenced =
+                in_use.references_tool(tool) || in_use.references_tool(RuntimeTool::Node);
+
+            if node_referenced || !inventory::node_versions()?.is_empty() {
+                Ok(Vec::new())
+            } else {
+                Ok(all.to_vec())
+            }
+        }
+        RuntimeTool::Pnpm | RuntimeTool::Yarn => {
+            if in_use.references_tool(tool) {
+                Ok(Vec::new())
+            } else {
+                Ok(all.to_vec())
+            }
+        }
+    }
 }
 
 /// Removes all locally cached copies of a version of a tool:
@@ -269,6 +343,19 @@ impl InUseVersions {
             },
             error,
         )
+    }
+
+    /// Whether any reference still names the given tool: the global default,
+    /// the current project, or an installed global package.
+    fn references_tool(&self, tool: RuntimeTool) -> bool {
+        let references = |platform: &PlatformSpec| spec_version(platform, tool).is_some();
+
+        self.default.as_ref().is_some_and(references)
+            || self.project.as_ref().is_some_and(references)
+            || self
+                .packages
+                .iter()
+                .any(|config| references(&config.platform))
     }
 
     fn reasons_for(&self, tool: RuntimeTool, version: &Version) -> InUseReasons {

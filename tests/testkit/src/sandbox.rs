@@ -664,6 +664,13 @@ impl SandboxBuilder {
         self
     }
 
+    /// Remove the shims that are created by default, so tests can observe
+    /// on-demand shim creation (chainable).
+    pub fn without_default_shims(mut self) -> Self {
+        self.shims.clear();
+        self
+    }
+
     /// Set an unpackaged package for the sandbox (chainable)
     pub fn package_image(
         mut self,
@@ -1090,6 +1097,13 @@ impl Sandbox {
         #[cfg(windows)]
         let path = path.with_extension("cmd");
         path.exists()
+    }
+
+    /// Check if the executable shim artifact exists: the symlink on Unix, the
+    /// `.exe` copy on Windows. This is the shim created on demand by
+    /// `volta install` / `volta pin` for runtime tools.
+    pub fn shim_exe_exists(&self, name: &str) -> bool {
+        shim_file(&self.home(), name).exists()
     }
     pub fn path_exists(&self, path: &str) -> bool {
         sandbox_path(&self.home(), path).exists()

@@ -8,6 +8,7 @@ use super::{
 use crate::error::{Context, ErrorKind, Fallible};
 use crate::inventory::npm_available;
 use crate::session::Session;
+use crate::shim::ensure_shims_for_tool;
 use crate::style::{success_prefix, tool_version};
 use crate::sync::VoltaLock;
 use log::info;
@@ -64,6 +65,7 @@ impl Tool for Npm {
             .set_active_npm(Some(self.version.clone()))?;
 
         info_installed(&self);
+        ensure_shims_for_tool("npm");
         check_shim_reachable("npm");
 
         if let Ok(Some(project)) = session.project_platform() {
@@ -86,6 +88,7 @@ impl Tool for Npm {
             project.pin_npm(Some(self.version.clone()))?;
 
             info_pinned(self);
+            ensure_shims_for_tool("npm");
             Ok(())
         } else {
             Err(ErrorKind::NotInPackage.into())
@@ -136,6 +139,7 @@ impl Tool for BundledNpm {
             bundled_version
         );
 
+        ensure_shims_for_tool("npm");
         Ok(())
     }
 
@@ -168,6 +172,7 @@ impl Tool for BundledNpm {
             bundled_version
         );
 
+        ensure_shims_for_tool("npm");
         Ok(())
     }
 }

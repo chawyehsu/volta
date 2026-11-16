@@ -102,7 +102,7 @@ pub(crate) enum Subcommand {
     /// Run a command with custom Node, npm, pnpm, and/or Yarn versions
     Run(command::Run),
 
-    /// Updates Volta to the latest version
+    /// Updates Volta to the latest or a specified version
     SelfUpdate(command::SelfUpdate),
 }
 

@@ -3,12 +3,13 @@ mod plain;
 mod toolchain;
 
 use std::io::IsTerminal as _;
-use std::{fmt, path::PathBuf, str::FromStr};
+use std::{env, fmt, path::PathBuf, str::FromStr};
 
 use node_semver::Version;
 
 use crate::command::Command;
 use toolchain::Toolchain;
+use volta_core::constant;
 use volta_core::error::{ExitCode, Fallible};
 use volta_core::inventory::package_configs;
 use volta_core::project::Project;
@@ -307,13 +308,20 @@ impl Command for List {
                 default_platform,
                 &filter,
             )?,
-            Some(Subcommand::Pnpm) => Toolchain::pnpm(
-                project,
-                project_platform,
-                node_version_file,
-                default_platform,
-                &filter,
-            )?,
+            Some(Subcommand::Pnpm) => {
+                // Without the pnpm feature flag, pnpm is managed as a global package
+                if env::var_os(constant::ENVNAME_VOLTA_FEATURE_PNPM).is_some() {
+                    Toolchain::pnpm(
+                        project,
+                        project_platform,
+                        node_version_file,
+                        default_platform,
+                        &filter,
+                    )?
+                } else {
+                    Toolchain::package_or_tool("pnpm", project, &filter)?
+                }
+            }
             Some(Subcommand::Yarn) => Toolchain::yarn(
                 project,
                 project_platform,

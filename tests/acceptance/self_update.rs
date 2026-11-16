@@ -62,10 +62,17 @@ fn updates_all_binaries_from_fixture_release() {
 
     #[cfg(windows)]
     {
-        let trash = install.path().join(".trash");
-        assert!(trash.is_dir(), "expected a .trash directory");
-        let retired: Vec<_> = fs::read_dir(&trash)
-            .unwrap()
+        // Retired executables go to the shared trash directory when it is on the
+        // same volume as the install directory, falling back to `install/.trash`
+        // otherwise.
+        let trash_dirs = [
+            install.path().join(".trash"),
+            sandbox.volta_home().join("tmp").join(".trash"),
+        ];
+        let retired: Vec<String> = trash_dirs
+            .iter()
+            .filter_map(|trash| fs::read_dir(trash).ok())
+            .flatten()
             .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
         assert!(
@@ -79,6 +86,73 @@ fn updates_all_binaries_from_fixture_release() {
     mocks.release.assert();
     mocks.archive.as_ref().unwrap().assert();
     mocks.checksum.as_ref().unwrap().assert();
+}
+
+#[test]
+fn updates_to_a_requested_version() {
+    let mut sandbox = sandbox().build();
+    let fixture = FixtureRelease::valid();
+    let mocks = fixture.serve_requested(&mut sandbox);
+    let install = FixtureInstall::new();
+
+    let mut command = install.command(&sandbox);
+    command.arg(FIXTURE_VERSION);
+
+    assert_that!(
+        command,
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains(format!(
+                "Updating volta: {} -> {FIXTURE_VERSION}",
+                env!("CARGO_PKG_VERSION")
+            ))
+    );
+
+    for name in ["volta", "volta-shim", "volta-migrate"] {
+        assert_that!(installed(&install, name), eq(binary_contents(name)));
+    }
+
+    mocks.release.assert();
+    mocks.archive.as_ref().unwrap().assert();
+    mocks.checksum.as_ref().unwrap().assert();
+}
+
+#[test]
+fn requested_version_equal_to_current_reports_up_to_date() {
+    let sandbox = sandbox().build();
+    let install = FixtureInstall::new();
+    let before = snapshot(&install);
+
+    let mut command = install.command(&sandbox);
+    command.arg(env!("CARGO_PKG_VERSION"));
+
+    assert_that!(
+        command,
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("volta is already up-to-date")
+    );
+
+    assert_untouched(&install, &before);
+}
+
+#[test]
+fn requested_version_older_than_current_reports_downgrade_not_supported() {
+    let sandbox = sandbox().build();
+    let install = FixtureInstall::new();
+    let before = snapshot(&install);
+
+    let mut command = install.command(&sandbox);
+    command.arg("0.0.1");
+
+    assert_that!(
+        command,
+        execs()
+            .with_status(ExitCode::Success as i32)
+            .with_stdout_contains("downgrade is not supported")
+    );
+
+    assert_untouched(&install, &before);
 }
 
 #[test]

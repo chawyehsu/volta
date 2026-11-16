@@ -112,6 +112,14 @@ impl VoltaHome {
         path_buf!(self.shim_dir.clone(), toolname)
     }
 
+    /// Path to a tool shim created as a copy of `volta-shim.exe`.
+    ///
+    /// This is distinct from [`VoltaHome::shim_file`], which points at the
+    /// `.cmd` script shims used for third-party packages.
+    pub fn windows_tool_shim_file(&self, toolname: &str) -> PathBuf {
+        path_buf!(self.shim_dir.clone(), format!("{}.exe", toolname))
+    }
+
     pub fn node_image_bin_dir(&self, node: &str) -> PathBuf {
         self.node_image_dir(node)
     }
@@ -251,5 +259,14 @@ mod tests {
     fn shim_file() {
         let h = home();
         assert_eq!(h.shim_file("node"), PathBuf::from("/volta/bin/node"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_tool_shim_file() {
+        let h = home();
+        let path = h.windows_tool_shim_file("node");
+        assert_eq!(path.file_name().unwrap(), "node.exe");
+        assert_eq!(path.parent().unwrap(), h.shim_dir());
     }
 }

@@ -164,10 +164,10 @@ fn setup_creates_zshenv_for_zsh() {
 }
 
 /// On Windows, `volta setup` reads the user PATH from the registry and
-/// prepends the shim dir via `setx` when it is not already present.
+/// prepends the shim dir via a direct registry write when it is not already present.
 ///
 /// The sandbox sets VOLTA_HOME to a temp directory whose shim dir is not
-/// in the real user PATH, so setup will always attempt the `setx` call.
+/// in the real user PATH, so setup will always attempt the write.
 /// We verify it succeeds and that the shim directory is created.
 #[test]
 #[cfg(windows)]

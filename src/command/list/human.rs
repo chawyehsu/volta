@@ -63,13 +63,11 @@ fn display_active(
                 )
             };
 
-            let package_versions = if packages.is_empty() {
+            let tool_list = format_tool_list(packages);
+            let package_versions = if tool_list.is_empty() {
                 wrap("Tool binaries available: NONE")
             } else {
-                wrap(format!(
-                    "Tool binaries available:\n{}",
-                    format_tool_list(packages)
-                ))
+                wrap(format!("Tool binaries available:\n{}", tool_list))
             };
 
             format!(
@@ -212,24 +210,33 @@ See `volta help install` for details and more options.",
 }
 
 /// Format a list of `Toolchain::Package`s without detail information
+///
+/// Packages that expose no binaries contribute no entry, so the caller can
+/// distinguish "no tools installed" from "packages installed without tools".
 fn format_tool_list(packages: &[Package]) -> String {
     packages
         .iter()
-        .map(format_tool)
+        .filter_map(format_tool)
         .collect::<Vec<String>>()
         .join("\n")
 }
 /// Format a single `Toolchain::Package` without detail information
-fn format_tool(package: &Package) -> String {
+///
+/// Returns `None` when the package exposes no binaries.
+fn format_tool(package: &Package) -> Option<String> {
     match package {
         Package::Default { tools, .. } | Package::Project { tools, .. } => {
-            let tools = match tools.len() {
-                0 => String::from(""),
-                _ => tools.join(", "),
-            };
-            wrap(format!("{}{}", tools, list_package_source(package)))
+            if tools.is_empty() {
+                None
+            } else {
+                Some(wrap(format!(
+                    "{}{}",
+                    tools.join(", "),
+                    list_package_source(package)
+                )))
+            }
         }
-        Package::Fetched(..) => String::new(),
+        Package::Fetched(..) => None,
     }
 }
 
@@ -784,6 +791,75 @@ See options for more detailed reports by running `volta list --help`.";
                     tools: vec!["tsc".to_string(), "tsserver".to_string()],
                 },
             ];
+
+            assert_eq!(
+                display_active(&runtime, &package_managers, &packages),
+                expected
+            );
+        }
+
+        #[test]
+        fn with_mixed_tool_and_binless_packages() {
+            let expected = "⚡️ Currently active tools:
+
+    Node: v12.2.0 (current @ ~/path/to/project.json)
+    Tool binaries available:
+        tsc (default)
+
+See options for more detailed reports by running `volta list --help`.";
+
+            let runtime = Some(Box::new(Node {
+                source: Source::Project(PROJECT_PATH.clone()),
+                version: NODE_12.clone(),
+            }));
+            let package_managers = vec![];
+            let packages = vec![
+                Package::Default {
+                    details: PackageDetails {
+                        name: "a-lib-without-bins".to_string(),
+                        version: Version::from((1, 0, 0)),
+                    },
+                    node: NODE_12.clone(),
+                    tools: vec![],
+                },
+                Package::Default {
+                    details: PackageDetails {
+                        name: "typescript".to_string(),
+                        version: Version::from((3, 4, 3)),
+                    },
+                    node: NODE_12.clone(),
+                    tools: vec!["tsc".to_string()],
+                },
+            ];
+
+            assert_eq!(
+                display_active(&runtime, &package_managers, &packages),
+                expected
+            );
+        }
+
+        #[test]
+        fn with_only_binless_packages() {
+            let expected = "⚡️ Currently active tools:
+
+    Node: v12.2.0 (current @ ~/path/to/project.json)
+    Tool binaries available: NONE
+
+See options for more detailed reports by running `volta list --help`.";
+
+            let runtime = Some(Box::new(Node {
+                source: Source::Project(PROJECT_PATH.clone()),
+                version: NODE_12.clone(),
+            }));
+            let package_managers = vec![];
+            let packages = vec![Package::Default {
+                details: PackageDetails {
+                    name: "a-lib-without-bins".to_string(),
+                    version: Version::from((1, 0, 0)),
+                },
+                node: NODE_12.clone(),
+                tools: vec![],
+            }];
 
             assert_eq!(
                 display_active(&runtime, &package_managers, &packages),

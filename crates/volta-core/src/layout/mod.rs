@@ -59,13 +59,34 @@ pub fn volta_install<'a>() -> Fallible<&'a VoltaInstall> {
 /// The volta-shim and volta binaries will be installed in the same location, so we can use the
 /// currently running executable to find the binary install directory. Note that we need to
 /// canonicalize the path we get from current_exe to make sure we resolve symlinks and find the
-/// actual binary files
+/// actual binary files.
+///
+/// On Windows, on-demand tool shims are copies of `volta-shim.exe` in the Volta home bin
+/// directory rather than symlinks, so their own directory is not the install directory. In that
+/// case the real install directory is resolved from the `volta` executable on `PATH`.
 fn default_install_dir() -> Fallible<PathBuf> {
-    env::current_exe()
+    let exe = env::current_exe()
         .and_then(canonicalize)
-        .map(|mut path| {
-            path.pop(); // Remove the executable name from the path
-            path
-        })
-        .with_context(|| ErrorKind::NoInstallDir)
+        .with_context(|| ErrorKind::NoInstallDir)?;
+    let dir = exe
+        .parent()
+        .map(|parent| parent.to_owned())
+        .ok_or(ErrorKind::NoInstallDir)?;
+
+    // On Windows, on-demand tool shims are copies of `volta-shim.exe` placed in
+    // the Volta home bin directory. When one of those copies is running, its own
+    // directory is not the Volta install directory, so resolve the real install
+    // directory from the `volta` executable on PATH instead.
+    #[cfg(windows)]
+    if let Ok(home) = volta_home()
+        && let Ok(shim_dir) = canonicalize(home.shim_dir())
+        && shim_dir == dir
+        && let Ok(volta) = which::which("volta")
+        && let Ok(volta) = canonicalize(&volta)
+        && let Some(parent) = volta.parent()
+    {
+        return Ok(parent.to_owned());
+    }
+
+    Ok(dir)
 }

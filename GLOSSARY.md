@@ -61,7 +61,7 @@ A cached version that is the user's default, pinned in the current project, or r
 _Avoid_: active version, live version
 
 **Uninstall**:
-The Volta command that removes cached versions of a runtime tool from the local machine without changing any configuration; removed versions are re-downloaded automatically when next needed.
+The Volta command that removes cached versions of a runtime tool from the local machine without changing any configuration, and removes tool shims that no remaining reference needs; removed versions are re-downloaded automatically when next needed.
 _Avoid_: clean, prune, remove
 
 **Launcher**:
@@ -71,6 +71,14 @@ _Avoid_: wrapper script, bootstrap
 **Shim**:
 The executable stub in the Volta bin directory that dispatches a command to the tool version selected by the active platform.
 _Avoid_: proxy, wrapper
+
+**Tool shim**:
+A shim created when a runtime tool is installed or pinned, so that the tool's commands are available through Volta; it is removed when the tool's last cached version is uninstalled and no default, project pin, or global package still needs it.
+_Avoid_: on-demand shim, install shim
+
+**Default shim**:
+A shim pre-created for a well-known command before any tool is installed, so that Volta can delegate the command to the system when no Volta-managed version is active.
+_Avoid_: built-in shim, bundled shim
 
 ## Build cache vocabulary
 
@@ -109,8 +117,12 @@ A GNU-compatible SHA-256 text file paired with one archive and identifying that 
 _Avoid_: Checksum file when the archive relationship matters
 
 **Self-update**:
-The Volta command that downloads a newer stable release for the current target triplet, verifies it, and replaces the installed Volta binaries.
+The Volta command that installs a selected release of Volta for the current target triplet — the latest stable release by default, or an explicitly requested version — after verifying it and replacing the installed binaries.
 _Avoid_: Upgrade, auto-update
+
+**Requested version**:
+The optional version argument to `self-update`; it selects that exact release instead of the latest stable release.
+_Avoid_: Target version, pinned version
 
 ## Self-update testing vocabulary
 
