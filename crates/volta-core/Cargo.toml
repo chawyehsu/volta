@@ -7,7 +7,7 @@ edition = "2024"
 attohttpc = { workspace = true, features = ["tls-rustls-native-roots"] }
 cfg-if.workspace = true
 chain-map.workspace = true
-chrono.workspace = true
+jiff.workspace = true
 ci_info.workspace = true
 cmdline_words_parser.workspace = true
 console.workspace = true
