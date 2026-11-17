@@ -15,6 +15,7 @@ cfg_if! {
         mod homebrew;
         mod merged_platform;
         mod migrations;
+        mod node_version;
         mod pnpm_entrypoint;
         mod run_shim_directly;
         #[cfg(not(target_env = "musl"))]

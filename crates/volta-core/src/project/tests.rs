@@ -81,6 +81,18 @@ mod project {
     }
 
     #[test]
+    fn platform_without_node_keeps_package_managers() {
+        let project_path = fixture_path(&["dot-node-version", "partial-volta-package-managers"]);
+        let test_project = Project::for_dir(project_path).unwrap().unwrap();
+
+        assert!(test_project.platform().is_none());
+
+        let partial = test_project.partial_platform().unwrap();
+        assert_eq!(partial.node, None);
+        assert_eq!(partial.npm, Some("6.2.26".parse().unwrap()));
+    }
+
+    #[test]
     fn platform_workspace() {
         let project_path = fixture_path(&["nested", "subproject", "inner_project"]);
         let test_project = Project::for_dir(project_path).unwrap().unwrap();

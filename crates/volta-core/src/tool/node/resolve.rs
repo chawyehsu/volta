@@ -39,6 +39,13 @@ fn public_node_version_index() -> String {
 
 pub fn resolve(matching: VersionSpec, session: &mut Session) -> Fallible<Version> {
     let hooks = session.hooks()?.node();
+    resolve_with_hooks(matching, hooks)
+}
+
+pub(crate) fn resolve_with_hooks(
+    matching: VersionSpec,
+    hooks: Option<&ToolHooks<Node>>,
+) -> Fallible<Version> {
     match matching {
         VersionSpec::Semver(requirement) => resolve_semver(requirement, hooks),
         VersionSpec::Exact(version) => Ok(version),
