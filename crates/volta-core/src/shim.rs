@@ -45,11 +45,13 @@ pub fn ensure_shims_for_tool(tool: &str) {
     }
 }
 
-pub fn regenerate_shims_for_dir(dir: &Path) -> Fallible<()> {
+/// Regenerate all shims in the Volta shim directory.
+pub fn regenerate_shims() -> Fallible<()> {
+    let shim_dir = volta_home()?.shim_dir();
     // Acquire a lock on the Volta directory, if possible, to prevent concurrent changes
     let _lock = VoltaLock::acquire();
-    debug!("Rebuilding shims for directory: {}", dir.display());
-    for shim_name in get_shim_list_deduped(dir)?.iter() {
+    debug!("Rebuilding shims for directory: {}", shim_dir.display());
+    for shim_name in get_shim_list_deduped(&shim_dir)?.iter() {
         delete(shim_name)?;
         create(shim_name)?;
     }
@@ -66,6 +68,9 @@ fn get_shim_list_deduped(dir: &Path) -> Fallible<HashSet<String>> {
     {
         let mut shims: HashSet<String> =
             contents.filter_map(platform::entry_to_shim_name).collect();
+        // FIXME(chawyehsu): with https://github.com/chawyehsu/volta/pull/125
+        // I think we don't need to pre-create the default shims here anymore,
+        // should drop this but it seems to be a breaking change for now
         ["node", "npm", "npx", "pnpm", "yarn", "yarnpkg"]
             .iter()
             .for_each(|s| {
