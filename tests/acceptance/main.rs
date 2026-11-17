@@ -11,6 +11,8 @@ cfg_if! {
         mod execute_binary;
         mod fetch;
         mod hooks;
+        #[cfg(unix)]
+        mod homebrew;
         mod merged_platform;
         mod migrations;
         mod node_version;

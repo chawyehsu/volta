@@ -28,7 +28,7 @@ use volta_core::error::Fallible;
 use volta_core::layout::volta_home;
 #[cfg(unix)]
 use volta_core::layout::volta_install;
-use volta_core::shim::regenerate_shims_for_dir;
+use volta_core::shim::regenerate_shims;
 use volta_core::sync::VoltaLock;
 
 /// Represents the state of the Volta directory at every point in the migration process
@@ -174,7 +174,7 @@ fn detect_and_migrate() -> Fallible<()> {
         };
     }
 
-    regenerate_shims_for_dir(volta_home()?.shim_dir())?;
+    regenerate_shims()?;
 
     Ok(())
 }

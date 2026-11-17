@@ -8,9 +8,9 @@ use super::VoltaError;
 use crate::fs::ensure_containing_dir_exists;
 use crate::layout::volta_home;
 use crate::style::format_error_cause;
-use chrono::Local;
 use ci_info::is_ci;
 use console::strip_ansi_codes;
+use jiff::ZonedDateTime;
 use log::{debug, error};
 
 /// Report an error, both to the console and to error logs
@@ -49,8 +49,8 @@ fn write_error_log(
     message: String,
     details: String,
 ) -> Result<PathBuf, Box<dyn Error>> {
-    let file_name = Local::now()
-        .format("volta-error-%Y-%m-%d_%H_%M_%S%.3f.log")
+    let file_name = ZonedDateTime::now()
+        .strftime("volta-error-%Y-%m-%d_%H_%M_%S%.3f.log")
         .to_string();
     let log_file_path = volta_home()?.log_dir().join(file_name);
 

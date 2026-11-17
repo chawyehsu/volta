@@ -35,7 +35,37 @@
 
 ## Installing Volta
 
-Read the [Getting Started Guide](https://docs.volta.sh/guide/getting-started) on our website for detailed instructions on how to install Volta.
+Choose the installation method that suits your system.
+
+#### Homebrew (macOS/Linux)
+
+Install Volta from our Homebrew Tap:
+
+```console
+brew install chawyehsu/brew/volta
+```
+
+#### Scoop (Windows)
+
+Install Volta via Scoop from our Scoop bucket:
+
+```console
+scoop bucket add dorado https://github.com/chawyehsu/dorado
+scoop install dorado/volta
+```
+
+#### Conda-forge (Cross-platform)
+
+Install Volta from the conda-forge channel:
+
+```console
+pixi global install volta -c chawyehsu -c conda-forge
+```
+
+#### GitHub Releases
+
+Or you may download the latest release from our [GitHub Releases](https://github.com/chawyehsu/volta/releases) page, extract and put the
+executables in a directory that is in your `PATH`.
 
 ## Using Volta
 
