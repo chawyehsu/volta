@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/chawyehsu/volta/compare/v2.1.0...v2.1.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **shim:** link shims through Homebrew opt dir to survive brew upgrade ([#132](https://github.com/chawyehsu/volta/issues/132)) ([0470519](https://github.com/chawyehsu/volta/commit/0470519a718ecba4c8952b6d2aaab2fad1673967))
+
 ## [2.1.0](https://github.com/chawyehsu/volta/compare/v2.0.3...v2.1.0) (2026-11-16)
 
 
