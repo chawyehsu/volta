@@ -130,7 +130,7 @@ winreg = "0.56.0"
 # for Node's zip archives. Note that `self_update` enables zip's `time`
 # feature, so the `time` crate remains in the dependency graph regardless of
 # this declaration.
-zip = { version = "=9.6.0", default-features = false, features = ["bzip2", "deflate"] }
+zip = { version = "=9.8.1", default-features = false, features = ["bzip2", "deflate"] }
 
 [profile.release]
 opt-level = 3
